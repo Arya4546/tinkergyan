@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "prisma generate && tsup src/server.ts --format esm --clean --external \"../generated/*\" --onSuccess \"prisma generate\"",
+    "build": "prisma generate && tsup",
     "dev": "tsx watch src/server.ts",
     "format": "prettier --check \"src/**/*.{ts,tsx}\" --ignore-path ../../.prettierignore",
     "lint": "eslint \"src/**/*.{ts,tsx}\" --max-warnings=0 --no-error-on-unmatched-pattern",
