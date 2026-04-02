@@ -1,0 +1,24 @@
+services:
+  - type: web
+    name: tinkergyan-api
+    runtime: docker
+    dockerContext: .
+    dockerfilePath: apps/api/Dockerfile
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 3001
+      - key: DATABASE_URL
+        fromDatabase:
+          name: tinkergyan-db
+          property: connectionString
+      - key: JWT_SECRET
+        generateValue: true
+      - key: FRONTEND_URL
+        value: https://tinkergyan.vercel.app # Update this after frontend deployment
+
+databases:
+  - name: tinkergyan-db
+    plan: free
+    region: oregon # Or your preferred region
