@@ -1,4 +1,4 @@
-import pkg from '../generated/client/index.js';
+import pkg from '../../generated/client/index.js';
 const { PrismaClient } = pkg;
 
 const globalForPrisma = globalThis as unknown as { prisma: any | undefined };

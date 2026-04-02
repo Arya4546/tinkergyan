@@ -1,0 +1,222 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../generated/client"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id                    String    @id @default(cuid())
+  name                  String
+  email                 String    @unique
+  passwordHash          String
+  avatar                String?
+  xp                    Int       @default(0)
+  level                 Int       @default(1)
+  streak                Int       @default(0)
+  lastActiveAt          DateTime  @default(now())
+  role                  UserRole  @default(USER)
+  refreshTokenHash      String?
+  refreshTokenExpiresAt DateTime?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  projects       Project[]
+  enrollments    Enrollment[]
+  lessonProgress LessonProgress[]
+  userBadges     UserBadge[]
+  preferences    UserPreferences?
+
+  @@index([xp(sort: Desc)])
+  @@map("users")
+}
+
+model Course {
+  id          String     @id @default(cuid())
+  slug        String     @unique
+  title       String
+  description String
+  thumbnail   String?
+  difficulty  Difficulty @default(BEGINNER)
+  isPublished Boolean    @default(false)
+  order       Int        @default(0)
+  createdAt   DateTime   @default(now())
+
+  modules     Module[]
+  enrollments Enrollment[]
+
+  @@map("courses")
+}
+
+model Module {
+  id       String @id @default(cuid())
+  courseId String
+  title    String
+  order    Int
+
+  course  Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  lessons Lesson[]
+
+  @@index([courseId, order])
+  @@map("modules")
+}
+
+model Lesson {
+  id          String     @id @default(cuid())
+  moduleId    String
+  title       String
+  content     String     @db.Text
+  type        LessonType @default(READING)
+  starterCode String?    @db.Text
+  order       Int
+  xpReward    Int        @default(10)
+
+  module   Module           @relation(fields: [moduleId], references: [id], onDelete: Cascade)
+  progress LessonProgress[]
+
+  @@map("lessons")
+}
+
+model Project {
+  id          String      @id @default(cuid())
+  userId      String
+  title       String
+  type        ProjectType @default(BLOCK)
+  code        String?     @db.Text
+  blockState  Json?
+  boardTarget String      @default("arduino:avr:uno")
+  isPublic    Boolean     @default(false)
+  forkCount   Int         @default(0)
+  forkedFrom  String?
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  user   User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  parent Project?  @relation("ProjectForks", fields: [forkedFrom], references: [id])
+  forks  Project[] @relation("ProjectForks")
+
+  @@index([userId])
+  @@index([isPublic, createdAt(sort: Desc)])
+  @@map("projects")
+}
+
+model ProjectTemplate {
+  id          String      @id @default(cuid())
+  title       String
+  description String
+  type        ProjectType @default(BLOCK)
+  code        String?     @db.Text
+  blockState  Json?
+  boardTarget String      @default("arduino:avr:uno")
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  @@map("project_templates")
+}
+
+model Enrollment {
+  id         String   @id @default(cuid())
+  userId     String
+  courseId   String
+  enrolledAt DateTime @default(now())
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, courseId])
+  @@map("enrollments")
+}
+
+model LessonProgress {
+  id          String    @id @default(cuid())
+  userId      String
+  lessonId    String
+  completed   Boolean   @default(false)
+  completedAt DateTime?
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  lesson Lesson @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, lessonId])
+  @@map("lesson_progress")
+}
+
+model Badge {
+  id          String           @id @default(cuid())
+  slug        String           @unique
+  title       String
+  description String
+  icon        String
+  triggerType BadgeTriggerType @default(MANUAL)
+
+  userBadges UserBadge[]
+
+  @@map("badges")
+}
+
+model UserBadge {
+  id       String   @id @default(cuid())
+  userId   String
+  badgeId  String
+  earnedAt DateTime @default(now())
+
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  badge Badge @relation(fields: [badgeId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, badgeId])
+  @@map("user_badges")
+}
+
+model UserPreferences {
+  userId             String  @id
+  theme              Theme   @default(SYSTEM)
+  editorFontSize     Int     @default(14)
+  defaultBoard       String  @default("arduino:avr:uno")
+  autoSave           Boolean @default(true)
+  codeCompletion     Boolean @default(true)
+  emailNotifications Boolean @default(true)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_preferences")
+}
+
+enum Difficulty {
+  BEGINNER
+  INTERMEDIATE
+  ADVANCED
+}
+
+enum LessonType {
+  READING
+  CODING
+  QUIZ
+}
+
+enum ProjectType {
+  BLOCK
+  CODE
+}
+
+enum UserRole {
+  USER
+  ADMIN
+}
+
+enum BadgeTriggerType {
+  MANUAL
+  FIRST_PROJECT
+  FIRST_COMPILE
+  COURSE_COMPLETE
+  STREAK_7
+  XP_100
+}
+
+enum Theme {
+  LIGHT
+  DARK
+  SYSTEM
+}

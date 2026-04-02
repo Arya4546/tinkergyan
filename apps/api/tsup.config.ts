@@ -8,6 +8,6 @@ export default defineConfig({
   sourcemap: true,
   minify: false,
   // Mark Prisma as external to prevent 'Dynamic require of fs' errors
-  external: [/^\.\.\/generated\/.*/, '@prisma/client'],
+  external: [/^\.\.\/\.\.\/generated\/.*/, '@prisma/client'],
   onSuccess: 'prisma generate',
 });
