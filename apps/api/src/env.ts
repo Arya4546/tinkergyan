@@ -3,10 +3,10 @@ import { z } from 'zod';
 const envSchema = z.object({
   DATABASE_URL: z.string().url(),
   JWT_SECRET: z.string().min(32),
-  REDIS_URL: z.string().min(1).optional(),
+  REDIS_URL: z.string().optional().or(z.literal('')),
   PORT: z.coerce.number().default(3001),
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
-  FRONTEND_URL: z.string().url().optional(),
+  FRONTEND_URL: z.string().url().optional().or(z.literal('')),
   DOCKER_SOCKET: z.string().default('/var/run/docker.sock'),
   MAX_COMPILE_TIMEOUT: z.coerce.number().default(30_000),
   COMPILE_CONCURRENCY: z.coerce.number().default(5),

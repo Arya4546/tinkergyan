@@ -1,3 +1,4 @@
+console.log('🚀 [BOOT] Starting Tinkergyan API...');
 import 'dotenv/config';
 
 import { createApp } from './app';
