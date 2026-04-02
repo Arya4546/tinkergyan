@@ -6,7 +6,7 @@ import { javascriptGenerator } from 'blockly/javascript'; // We'll use JS as a s
 import { INITIAL_TOOLBOX } from './toolbox';
 import { useUIStore } from '../../stores/ui.store';
 
-Blockly.setLocale(En);
+Blockly.setLocale(En as any);
 
 interface BlocklyWorkspaceProps {
   onCodeChange: (code: string) => void;
@@ -22,7 +22,7 @@ export const BlocklyWorkspace: React.FC<BlocklyWorkspaceProps> = ({ onCodeChange
     // Only initialize if we haven't already and the div is ready
     if (workspaceRef.current || !blocklyDiv.current) return;
 
-    const blocklyTheme = theme === 'dark' ? Blockly.Themes.Dark : Blockly.Themes.Classic;
+    const blocklyTheme = theme === 'dark' ? Blockly.Themes.Classic : Blockly.Themes.Classic; // Blockly 11 Classic fallback
 
     workspaceRef.current = Blockly.inject(blocklyDiv.current, {
       toolbox: INITIAL_TOOLBOX,
@@ -78,7 +78,7 @@ export const BlocklyWorkspace: React.FC<BlocklyWorkspaceProps> = ({ onCodeChange
   useEffect(() => {
     if (workspaceRef.current) {
       if (theme === 'dark') {
-        workspaceRef.current.setTheme(Blockly.Themes.Dark);
+        workspaceRef.current.setTheme(Blockly.Themes.Classic);
       } else {
         workspaceRef.current.setTheme(Blockly.Themes.Classic);
       }

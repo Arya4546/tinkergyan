@@ -3,5 +3,6 @@
 !prisma/
 node_modules/
 src/
+!src/generated/
 tsconfig.build.json
 tsconfig.json

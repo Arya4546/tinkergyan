@@ -22,7 +22,7 @@ interface UIState {
   removeToast: (id: string) => void;
 }
 
-export const useUIStore = create<UIState>((set: any) => ({
+export const useUIStore = create<UIState>((set) => ({
   theme: 'system',
   sidebarCollapsed: false,
   activeModal: null,

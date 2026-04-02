@@ -32,7 +32,7 @@ export default function Login() {
       setValidFields((prev) => ({ ...prev, [name]: true }));
     } catch (err) {
       if (err instanceof z.ZodError) {
-        setErrors((prev) => ({ ...prev, [name]: err.errors[0].message }));
+        setErrors((prev) => ({ ...prev, [name]: err.errors?.[0]?.message || 'VALIDATION_ERROR' }));
         setValidFields((prev) => ({ ...prev, [name]: false }));
       }
     }
