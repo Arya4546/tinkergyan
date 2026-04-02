@@ -34,8 +34,11 @@ WORKDIR /app
 COPY --from=builder /app /app
 
 # Use pnpm deploy to create a standalone directory for the api package
-# This converts all symlinks into hard copies/symlinks that point within the directory
 RUN pnpm --filter @tinkergyan/api --prod deploy --legacy pruned
+
+# MANUALLY COPY the generated Prisma client into the pruned node_modules
+# This is required because pnpm deploy often misses the hidden .prisma folder
+RUN cp -r node_modules/.prisma pruned/node_modules/ || true
 
 # Stage 4: Final slim runtime image
 FROM node:20-alpine AS runner
