@@ -1,0 +1,7 @@
+# This file tells pnpm deploy to INCLUDE the dist folder even if it is in .gitignore
+!dist/
+!prisma/
+node_modules/
+src/
+tsconfig.build.json
+tsconfig.json
