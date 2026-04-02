@@ -18,7 +18,7 @@ COPY packages/shared-types/package.json ./packages/shared-types/
 COPY packages/eslint-config/package.json ./packages/eslint-config/
 
 # Install all dependencies (including devDependencies)
-RUN pnpm install --no-frozen-lockfile --ignore-scripts
+RUN npm i -g tsup && pnpm install --no-frozen-lockfile --ignore-scripts
 
 # Copy the actual source code
 COPY . .
@@ -40,6 +40,9 @@ RUN pnpm --filter @tinkergyan/api --prod deploy --legacy pruned
 # Stage 4: Final slim runtime image
 FROM node:20-alpine AS runner
 WORKDIR /app
+
+# Required for Prisma Client on Alpine
+RUN apk add --no-cache openssl
 
 # Copy the isolated/pruned directory into the final image
 COPY --from=deployer /app/pruned ./

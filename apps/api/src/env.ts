@@ -14,4 +14,16 @@ const envSchema = z.object({
 
 export type Env = z.infer<typeof envSchema>;
 
-export const env = envSchema.parse(process.env);
+export const env = (() => {
+  try {
+    return envSchema.parse(process.env);
+  } catch (err) {
+    if (err instanceof z.ZodError) {
+      const missingVars = err.errors.map(e => e.path.join('.')).join(', ');
+      console.error('❌ [DEPLOY_ERROR] Invalid Environment Variables:', missingVars);
+      // In production, we want a hard crash to prevent running in invalid states
+      process.exit(1); 
+    }
+    throw err;
+  }
+})();
