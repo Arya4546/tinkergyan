@@ -15,6 +15,7 @@ COPY pnpm-lock.yaml pnpm-workspace.yaml package.json setup-husky.mjs ./
 # Copy package manifests (to take advantage of caching)
 COPY apps/api/package.json ./apps/api/
 COPY packages/shared-types/package.json ./packages/shared-types/
+COPY packages/eslint-config/package.json ./packages/eslint-config/
 
 # Install all dependencies (including devDependencies)
 RUN pnpm install --no-frozen-lockfile --ignore-scripts
