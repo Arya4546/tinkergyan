@@ -1,0 +1,49 @@
+{
+  "name": "tinkergyan",
+  "version": "0.0.0",
+  "private": true,
+  "packageManager": "pnpm@10.6.3",
+  "engines": {
+    "node": ">=20.0.0",
+    "pnpm": ">=8.0.0"
+  },
+  "scripts": {
+    "build": "turbo build",
+    "dev": "turbo dev",
+    "format": "prettier --check .",
+    "format:write": "prettier --write .",
+    "lint": "eslint \"apps/**/*.{ts,tsx}\" \"packages/**/*.{js,cjs,mjs,ts,tsx}\" \"*.mjs\" --ignore-pattern \"**/dist/**\" --max-warnings=0 --no-error-on-unmatched-pattern",
+    "lint:fix": "eslint \"apps/**/*.{ts,tsx}\" \"packages/**/*.{js,cjs,mjs,ts,tsx}\" \"*.mjs\" --ignore-pattern \"**/dist/**\" --fix --max-warnings=0 --no-error-on-unmatched-pattern",
+    "lint-staged": "lint-staged",
+    "prepare": "node setup-husky.mjs",
+    "test": "turbo test",
+    "typecheck": "turbo typecheck"
+  },
+  "lint-staged": {
+    "*.{js,cjs,mjs,ts,tsx}": [
+      "eslint --max-warnings=0 --fix",
+      "prettier --write"
+    ],
+    "*.{css,html,json,md,yaml,yml}": [
+      "prettier --write"
+    ]
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.38.0",
+    "@tinkergyan/eslint-config": "workspace:*",
+    "eslint": "^9.38.0",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-react-hooks": "^7.0.0",
+    "eslint-plugin-react-refresh": "^0.4.24",
+    "eslint-plugin-unused-imports": "^4.2.0",
+    "globals": "^16.4.0",
+    "husky": "^9.1.7",
+    "jiti": "^2.6.1",
+    "lint-staged": "^16.2.6",
+    "pnpm": "10.6.3",
+    "prettier": "^3.6.2",
+    "turbo": "^2.5.0",
+    "typescript": "^5.8.2",
+    "typescript-eslint": "^8.46.2"
+  }
+}

@@ -1,0 +1,15 @@
+{
+  "name": "@tinkergyan/eslint-config",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./base": "./base.js",
+    "./node": "./node.js",
+    "./react": "./react.js"
+  },
+  "scripts": {
+    "format": "prettier --check \"*.{js,cjs,mjs,ts}\" --ignore-path ../../.prettierignore",
+    "lint": "eslint \"*.{js,cjs,mjs,ts}\" --max-warnings=0 --no-error-on-unmatched-pattern"
+  }
+}

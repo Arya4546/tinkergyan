@@ -1,0 +1,43 @@
+{
+  "name": "@tinkergyan/api",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "dev": "tsx watch src/server.ts",
+    "format": "prettier --check \"src/**/*.{ts,tsx}\" --ignore-path ../../.prettierignore",
+    "lint": "eslint \"src/**/*.{ts,tsx}\" --max-warnings=0 --no-error-on-unmatched-pattern",
+    "start": "node dist/server.js",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@prisma/client": "^6.16.0",
+    "@tinkergyan/shared-types": "workspace:*",
+    "bcrypt": "^6.0.0",
+    "cookie-parser": "^1.4.7",
+    "cors": "^2.8.5",
+    "dockerode": "^4.0.7",
+    "dotenv": "^16.6.1",
+    "express": "^4.21.2",
+    "express-rate-limit": "^7.5.0",
+    "ioredis": "^5.10.1",
+    "jose": "^6.2.2",
+    "pino": "^9.10.0",
+    "pino-http": "^10.5.0",
+    "zod": "3.23.8"
+  },
+  "devDependencies": {
+    "@types/bcrypt": "^6.0.0",
+    "@types/cookie-parser": "^1.4.8",
+    "@types/cors": "^2.8.19",
+    "@types/dockerode": "^3.3.31",
+    "@types/express": "^4.17.23",
+    "@types/node": "^24.6.0",
+    "prisma": "^6.16.0",
+    "tsx": "^4.20.5"
+  },
+  "prisma": {
+    "seed": "tsx prisma/seed.ts"
+  }
+}

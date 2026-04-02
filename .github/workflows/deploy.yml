@@ -1,0 +1,23 @@
+name: Deploy
+
+on:
+  push:
+    branches: [ "main" ]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    needs: [] # In the future, require the 'ci' workflow to pass here
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Setup Deployment Framework
+      run: echo "Deployment architecture to be configured when target environment is finalized."
+    
+    # Example placeholder for Docker build & push, or Vercel deployment:
+    # - name: Deploy Frontend
+    #   run: npx vercel --prod
+    
+    # - name: Deploy Backend Docker Image
+    #   run: docker build -t tinkergyan/api ./apps/api

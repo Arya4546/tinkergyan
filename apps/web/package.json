@@ -1,0 +1,41 @@
+{
+  "name": "@tinkergyan/web",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview",
+    "format": "prettier --check \"src/**/*.{ts,tsx}\" --ignore-path ../../.prettierignore",
+    "lint": "eslint \"src/**/*.{ts,tsx}\" --max-warnings=0 --no-error-on-unmatched-pattern"
+  },
+  "dependencies": {
+    "@fontsource/inter": "^5.1.1",
+    "@fontsource/jetbrains-mono": "^5.1.1",
+    "@monaco-editor/react": "^4.6.0",
+    "@tanstack/react-query": "^5.64.2",
+    "@tinkergyan/shared-types": "workspace:*",
+    "axios": "^1.7.9",
+    "blockly": "^11.1.2",
+    "framer-motion": "^12.0.0",
+    "lucide-react": "^0.473.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-router-dom": "^6.28.2",
+    "zustand": "^5.0.3",
+    "react-icons": "^5.4.0",
+    "zod": "3.23.8"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.7",
+    "@types/react": "^18.3.18",
+    "@types/react-dom": "^18.3.5",
+    "@vitejs/plugin-react": "^4.3.4",
+    "autoprefixer": "^10.4.20",
+    "postcss": "^8.5.1",
+    "tailwindcss": "^3.4.17",
+    "vite": "^6.0.7",
+    "typescript": "^5.7.3"
+  }
+}

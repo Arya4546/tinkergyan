@@ -1,0 +1,157 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply antialiased bg-white text-slate-900 border-slate-900 overflow-x-hidden;
+    font-feature-settings: "rlig" 1, "calt" 1;
+    font-family: 'Inter', system-ui, sans-serif;
+  }
+
+  /* Force dark mode to strictly use grid colors */
+  html.dark body {
+    @apply bg-[#000000] text-slate-100 border-slate-700;
+  }
+}
+
+@layer utilities {
+
+  /* The Dot Matrix Background */
+  .bg-dot-matrix {
+    background-image: radial-gradient(circle, #cbd5e1 1px, transparent 1px);
+    background-size: 24px 24px;
+  }
+
+  .dark .bg-dot-matrix {
+    background-image: radial-gradient(circle, #1e293b 1px, transparent 1px);
+  }
+
+  /* Hardware specific utilities */
+  .hw-border {
+    @apply border border-slate-900 dark:border-slate-800;
+  }
+
+  .hw-border-b {
+    @apply border-b border-slate-900 dark:border-slate-800;
+  }
+
+  .hw-border-r {
+    @apply border-r border-slate-900 dark:border-slate-800;
+  }
+
+  .hw-border-t {
+    @apply border-t border-slate-900 dark:border-slate-800;
+  }
+
+  .hw-border-l {
+    @apply border-l border-slate-900 dark:border-slate-800;
+  }
+
+  .hw-panel {
+    @apply bg-white dark:bg-[#000000] hw-border rounded-none;
+  }
+
+  .hw-key {
+    @apply font-mono uppercase tracking-widest text-sm font-bold flex items-center justify-center transition-colors cursor-pointer hw-border;
+  }
+
+  .hw-key-primary {
+    @apply bg-white dark:bg-[#000000] text-slate-900 dark:text-white hover:bg-slate-900 hover:text-white dark:hover:bg-white dark:hover:text-slate-900 active:bg-primary-500 active:text-white dark:active:border-primary-500;
+  }
+
+  .hw-key-accent {
+    @apply bg-accent-500 text-slate-900 border-accent-600 hover:bg-accent-400 hover:text-slate-900;
+  }
+
+  /* LED styling for monospace numbers */
+  .led-text {
+    @apply font-mono tracking-wider font-bold;
+  }
+}
+
+/* ========================================================
+   BLOCKLY TOOLBOX HARDWARE OS OVERRIDES 
+   ======================================================== */
+.blocklyToolboxDiv {
+  background-color: #f8fafc !important; /* slate-50 */
+  border-right: 1px solid #0f172a !important; /* slate-900 border */
+  padding: 0 !important;
+}
+
+html.dark .blocklyToolboxDiv {
+  background-color: #0A0A0A !important;
+  border-right: 1px solid #334155 !important;
+}
+
+/* Base Category Row styling */
+.blocklyTreeRow {
+  height: 48px !important;
+  display: flex !important;
+  align-items: center !important;
+  padding: 0 16px !important;
+  border-bottom: 1px solid #e2e8f0 !important; /* slate-200 */
+  margin-bottom: 0 !important;
+  border-radius: 0 !important;
+  transition: all 0.2s ease !important;
+}
+
+html.dark .blocklyTreeRow {
+  border-bottom: 1px solid #1e293b !important;
+}
+
+/* Category Text Label */
+.blocklyTreeLabel {
+  font-family: 'JetBrains Mono', 'Fira Code', monospace !important;
+  font-size: 11px !important;
+  font-weight: 800 !important;
+  letter-spacing: 0.1em !important;
+  color: #0f172a !important; /* slate-900 */
+}
+
+html.dark .blocklyTreeLabel {
+  color: #f1f5f9 !important; /* slate-100 */
+}
+
+/* Hover and Active Colors */
+.blocklyTreeRow:hover {
+  background-color: #0f172a !important; /* slate-900 */
+}
+.blocklyTreeRow:hover .blocklyTreeLabel {
+  color: #ffffff !important;
+}
+
+html.dark .blocklyTreeRow:hover {
+  background-color: #ffffff !important;
+}
+html.dark .blocklyTreeRow:hover .blocklyTreeLabel {
+  color: #000000 !important;
+}
+
+/* Selected Category State */
+.blocklyTreeSelected .blocklyTreeRow {
+  background-color: #10b981 !important; /* emerald-500 */
+  border-bottom: 1px solid #047857 !important; /* emerald-700 */
+}
+
+.blocklyTreeSelected .blocklyTreeLabel {
+  color: #ffffff !important;
+}
+
+/* Category Icon (Hiding default round dot for custom hardware look) */
+.blocklyTreeIcon {
+  display: none !important;
+}
+
+/* Flyout Background (The pop-out where blocks reside) */
+.blocklyFlyoutBackground {
+  fill: #f1f5f9 !important; /* slate-100 */
+  fill-opacity: 0.98 !important;
+  stroke: #0f172a !important;
+  stroke-width: 1px !important;
+}
+
+html.dark .blocklyFlyoutBackground {
+  fill: #111111 !important;
+  stroke: #334155 !important;
+}

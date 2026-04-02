@@ -1,0 +1,16 @@
+node_modules
+dist
+build
+coverage
+.turbo
+.husky/_
+**/node_modules
+**/dist
+**/build
+**/coverage
+**/.turbo
+**/.husky/_
+01_ROADMAP_AND_SETUP.md
+02_PRODUCT_DOCUMENTATION.md
+03_SYSTEM_DESIGN.md
+pnpm-lock.yaml
