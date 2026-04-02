@@ -18,7 +18,7 @@ COPY packages/shared-types/package.json ./packages/shared-types/
 COPY packages/eslint-config/package.json ./packages/eslint-config/
 
 # Install all dependencies (including devDependencies)
-RUN npm i -g tsup && pnpm install --no-frozen-lockfile --ignore-scripts
+RUN npm i -g tsup typescript && pnpm install --no-frozen-lockfile --ignore-scripts
 
 # Copy the actual source code
 COPY . .
