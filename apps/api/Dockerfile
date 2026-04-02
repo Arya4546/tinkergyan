@@ -34,7 +34,7 @@ COPY --from=builder /app /app
 
 # Use pnpm deploy to create a standalone directory for the api package
 # This converts all symlinks into hard copies/symlinks that point within the directory
-RUN pnpm --filter @tinkergyan/api --prod deploy pruned
+RUN pnpm --filter @tinkergyan/api --prod deploy --legacy pruned
 
 # Stage 4: Final slim runtime image
 FROM node:20-alpine AS runner
