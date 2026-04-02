@@ -41,5 +41,9 @@ export const redis = {
     if (isRedisReady && redisClient) return redisClient.del(key);
     memCache.delete(key);
     return 1;
+  },
+  ping: async () => {
+    if (isRedisReady && redisClient) return redisClient.ping();
+    return 'PONG';
   }
 };
