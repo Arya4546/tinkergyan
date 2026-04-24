@@ -7,7 +7,6 @@ const envSchema = z.object({
   PORT: z.coerce.number().default(3001),
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
   FRONTEND_URL: z.string().url().optional().or(z.literal('')),
-  DOCKER_SOCKET: z.string().default('/var/run/docker.sock'),
   MAX_COMPILE_TIMEOUT: z.coerce.number().default(30_000),
   COMPILE_CONCURRENCY: z.coerce.number().default(5),
 });

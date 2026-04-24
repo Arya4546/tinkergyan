@@ -15,9 +15,5 @@ jobs:
     - name: Setup Deployment Framework
       run: echo "Deployment architecture to be configured when target environment is finalized."
     
-    # Example placeholder for Docker build & push, or Vercel deployment:
     # - name: Deploy Frontend
     #   run: npx vercel --prod
-    
-    # - name: Deploy Backend Docker Image
-    #   run: docker build -t tinkergyan/api ./apps/api

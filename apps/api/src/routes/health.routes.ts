@@ -9,7 +9,6 @@ const handleHealthCheck = async () => {
   const services: Record<string, 'ok' | 'error'> = {
     database: 'ok',
     redis: 'ok',
-    docker: 'ok',
   };
 
   try {

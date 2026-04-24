@@ -1,9 +1,9 @@
 services:
   - type: web
     name: tinkergyan-api
-    runtime: docker
-    dockerContext: .
-    dockerfilePath: apps/api/Dockerfile
+    runtime: node
+    buildCommand: pnpm install && pnpm build
+    startCommand: pnpm start
     envVars:
       - key: NODE_ENV
         value: production
