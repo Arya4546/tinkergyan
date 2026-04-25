@@ -7,4 +7,6 @@ export type ErrorCode =
   | 'RATE_LIMITED'
   | 'COMPILE_ERROR'
   | 'COMPILE_TIMEOUT'
+  | 'COMPILE_QUEUE_FULL'
   | 'INTERNAL_ERROR';
+

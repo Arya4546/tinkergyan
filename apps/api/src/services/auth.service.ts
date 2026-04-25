@@ -94,11 +94,6 @@ export class AuthService {
       throw new AppError('UNAUTHORIZED', 'Missing refresh token', 401);
     }
 
-    // A securely generated RT doesn't have the user ID encoded directly, we typically just store it hash -> userId or find it.
-    // Wait, the specification explicitly tells us: Key is `session:{userId}`, Value is `{ refreshTokenHash }`
-    // If we only receive the refresh token from the cookie, we must figure out the user.
-    // Let's change the RT to optionally contain the userId, or we can look it up differently in Redis.
-    // By storing a secondary reverse index in Redis: `rt:${rtHash}` -> `userId`
     const rtHash = this.hashRefreshToken(token);
     const userId = await redis.get(`rt:${rtHash}`);
 
