@@ -4,6 +4,8 @@ import { healthRouter } from './health.routes';
 import { authRouter } from './auth.routes';
 import { projectRouter } from './project.routes';
 import { compileRouter } from './compile.routes';
+import { userRouter } from './user.routes';
+import { courseRouter } from './course.routes';
 
 export const apiRouter = Router();
 
@@ -11,3 +13,5 @@ apiRouter.use(healthRouter);
 apiRouter.use('/auth',     authRouter);
 apiRouter.use('/projects', projectRouter);
 apiRouter.use('/compile',  compileRouter);
+apiRouter.use('/user',     userRouter);
+apiRouter.use('/courses',  courseRouter);

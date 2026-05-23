@@ -42,3 +42,33 @@ export const requireAuth = async (req: Request, res: Response, next: NextFunctio
     next(error);
   }
 };
+
+/**
+ * Optional auth — attaches req.user if a valid token is present,
+ * but does NOT block unauthenticated requests.
+ * Used for public pages that benefit from knowing the user (e.g., enrollment status).
+ */
+export const optionalAuth = async (req: Request, _res: Response, next: NextFunction) => {
+  try {
+    const authHeader = req.headers.authorization;
+    if (!authHeader?.startsWith('Bearer ')) {
+      return next();
+    }
+
+    const token = authHeader.split(' ')[1];
+    if (!token) return next();
+
+    const secret = new TextEncoder().encode(env.JWT_SECRET);
+    const { payload } = await jwtVerify(token, secret);
+
+    if (payload.sub) {
+      const user = await prisma.user.findUnique({
+        where: { id: payload.sub },
+      });
+      if (user) req.user = user;
+    }
+  } catch {
+    // Silently ignore invalid tokens
+  }
+  next();
+};

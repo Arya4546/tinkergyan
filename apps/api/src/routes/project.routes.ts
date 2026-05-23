@@ -8,19 +8,24 @@ import {
   projectIdSchema,
   updateProject,
   updateProjectSchema,
+  getPublicProjects,
+  forkProject,
 } from '../controllers/project.controller';
-import { requireAuth } from '../middleware/auth.middleware';
+import { requireAuth, optionalAuth } from '../middleware/auth.middleware';
 import { validate } from '../middleware/validate.middleware';
 
 const router = Router();
 
-// All project routes require authentication
-router.use(requireAuth);
+// Public
+router.get('/gallery', optionalAuth, getPublicProjects);
 
-router.get('/',     listProjects);
-router.post('/',    validate(createProjectSchema), createProject);
-router.get('/:id',  validate(projectIdSchema),     getProject);
-router.patch('/:id', validate(updateProjectSchema), updateProject);
-router.delete('/:id', validate(projectIdSchema),    deleteProject);
+// Authenticated
+router.use(requireAuth);
+router.get('/',       listProjects);
+router.post('/',      validate(createProjectSchema), createProject);
+router.get('/:id',    validate(projectIdSchema),     getProject);
+router.patch('/:id',  validate(updateProjectSchema), updateProject);
+router.delete('/:id', validate(projectIdSchema),     deleteProject);
+router.post('/:id/fork', validate(projectIdSchema),  forkProject);
 
 export { router as projectRouter };

@@ -2,8 +2,9 @@ import { useAuthStore } from '../stores/auth.store';
 import { useProjectStore } from '../stores/project.store';
 import { TerminalSquare, Play, FolderCode, Beaker, Zap, Activity, Cpu, Plus, Trash2 } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { Loader } from '../components/ui/Loader';
+import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
@@ -84,10 +85,19 @@ function ProjectCard({
 export default function Dashboard() {
   const user         = useAuthStore((s) => s.user);
   const { projects, isLoading, error, hasFetched, fetchProjects, removeProject } = useProjectStore();
+  const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
 
   useEffect(() => {
     if (!hasFetched) fetchProjects();
   }, [hasFetched, fetchProjects]);
+
+  const handleDelete = async () => {
+    if (!deleteTarget) return;
+    await removeProject(deleteTarget);
+    setDeleteTarget(null);
+  };
+
+  const deleteProjectTitle = projects.find((p) => p.id === deleteTarget)?.title ?? '';
 
   return (
     <div className="w-full h-full flex flex-col font-sans">
@@ -188,7 +198,7 @@ export default function Dashboard() {
             {!isLoading && !error && projects.length > 0 && (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {projects.map((p) => (
-                  <ProjectCard key={p.id} project={p} onDelete={removeProject} />
+                  <ProjectCard key={p.id} project={p} onDelete={setDeleteTarget} />
                 ))}
               </div>
             )}
@@ -229,6 +239,17 @@ export default function Dashboard() {
         </div>
 
       </div>
+
+      {/* Delete Confirmation */}
+      <ConfirmDialog
+        open={!!deleteTarget}
+        title="DELETE_PROJECT"
+        message={`Permanently delete "${deleteProjectTitle}"? This cannot be undone.`}
+        confirmLabel="DELETE"
+        variant="danger"
+        onConfirm={handleDelete}
+        onCancel={() => setDeleteTarget(null)}
+      />
     </div>
   );
 }

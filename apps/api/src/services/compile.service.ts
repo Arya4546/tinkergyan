@@ -2,14 +2,11 @@
  * compile.service.ts
  *
  * Orchestrates the compilation pipeline:
- *   1. Acquire a semaphore slot (backpressure)
- *   2. Delegate to the compiler (mock or real)
- *   3. Release the slot in a finally block — guaranteed, no deadlocks
- *
- * Keeping this as a thin orchestration layer means the compiler.ts
- * module stays independently testable.
+ *   1. Acquire semaphore slot (backpressure)
+ *   2. Delegate to compiler (wandbox / arduino / mock)
+ *   3. Release slot in finally — guaranteed, no deadlocks
  */
-import { compile, isMockMode } from '../lib/compiler';
+import { compile, getCompilerMode } from '../lib/compiler';
 import { compileSemaphore } from '../lib/compile-semaphore';
 import { AppError } from '../errors/app-error';
 import { env } from '../env';
@@ -18,7 +15,6 @@ import type { CompileResult } from '../lib/compiler';
 
 export type { CompileResult };
 
-// Supported boards (mirrors the Zod enum in compile.controller.ts)
 export const SUPPORTED_BOARDS = [
   'arduino:avr:uno',
   'arduino:avr:mega',
@@ -28,28 +24,19 @@ export const SUPPORTED_BOARDS = [
 export type BoardFqbn = (typeof SUPPORTED_BOARDS)[number];
 
 export interface CompileRequest {
-  code:    string;
-  board:   BoardFqbn;
+  code:   string;
+  board:  BoardFqbn;
+  stdin?: string;
 }
 
 export class CompileService {
-  /**
-   * Compile user-submitted Arduino C++ code.
-   *
-   * The semaphore slot is ALWAYS released via finally — if the compiler
-   * throws (timeout, spawn error, etc.) the slot is freed automatically.
-   */
   static async compile(
     userId: string,
     request: CompileRequest,
   ): Promise<CompileResult> {
-    if (isMockMode()) {
-      logger.info({ userId, board: request.board }, 'compile.mock');
-    } else {
-      logger.info({ userId, board: request.board }, 'compile.start');
-    }
+    const mode = getCompilerMode();
+    logger.info({ userId, board: request.board, mode }, 'compile.service.start');
 
-    // acquire() rejects immediately with RATE_LIMITED if the queue is full
     const release = await compileSemaphore.acquire();
 
     try {
@@ -57,11 +44,12 @@ export class CompileService {
         request.code,
         request.board,
         env.MAX_COMPILE_TIMEOUT,
+        request.stdin,
       );
 
       logger.info(
-        { userId, success: result.success, durationMs: result.durationMs },
-        'compile.done',
+        { userId, success: result.success, engine: result.engine, durationMs: result.durationMs },
+        'compile.service.done',
       );
 
       return result;
@@ -76,10 +64,9 @@ export class CompileService {
         );
       }
 
-      logger.error({ err, userId }, 'compile.error');
+      logger.error({ err, userId }, 'compile.service.error');
       throw new AppError('COMPILE_ERROR', 'Compilation failed unexpectedly', 500);
     } finally {
-      // This block executes whether compile() resolved, rejected, or timed out.
       release();
     }
   }

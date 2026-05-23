@@ -1,12 +1,12 @@
 /**
  * compiler.ts
  *
- * Thin wrapper around Arduino CLI. When ARDUINO_CLI_PATH is not set in the
- * environment, the compiler runs in MOCK mode — returning a realistic fake
- * result so the entire UI pipeline can be developed and tested without a CLI.
+ * Three-tier compilation strategy:
+ *   1. WANDBOX  — Remote C++ compile + execute via Wandbox API (default, no setup)
+ *   2. ARDUINO  — Local Arduino CLI compile (when ARDUINO_CLI_PATH is set)
+ *   3. MOCK     — Fake results for offline dev (when COMPILER_MODE=mock)
  *
- * Real mode: shells out to arduino-cli via child_process.spawn.
- * Mock mode:  simulates a 1.5s compilation and returns success or parse errors.
+ * The compile() function auto-selects the strategy based on env config.
  */
 import { spawn } from 'node:child_process';
 import { mkdtemp, writeFile, rm } from 'node:fs/promises';
@@ -14,13 +14,12 @@ import path from 'node:path';
 import os from 'node:os';
 import { env } from '../env';
 import { logger } from './logger';
+import { prepareForWandbox, adjustLineNumbers } from './arduino-shim';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 export interface CompileError {
-  /** 1-based line number in the source file, or 0 if unknown. */
   line:     number;
-  /** 1-based column number, or 0 if unknown. */
   column:   number;
   message:  string;
   severity: 'error' | 'warning';
@@ -32,25 +31,40 @@ export interface CompileResult {
   stderr:     string;
   errors:     CompileError[];
   durationMs: number;
+  /** Which engine was used for this compile. */
+  engine:     'wandbox' | 'arduino' | 'mock';
 }
 
-// ─── Error parser ─────────────────────────────────────────────────────────────
+// ─── GCC error parser ─────────────────────────────────────────────────────────
 
-const ARDUINO_ERROR_RE =
-  /^(?:[^:]+):(\d+):(\d+):\s*(error|warning):\s*(.+)$/gm;
+const GCC_ERROR_RE = /prog\.cc?:(\d+):(\d+):\s*(error|warning|fatal error):\s*(.+)/gm;
 
-/**
- * Parse Arduino CLI stderr into structured CompileError objects.
- */
-function parseErrors(stderr: string, sketchFile: string): CompileError[] {
+function parseGccErrors(stderr: string): CompileError[] {
   const results: CompileError[] = [];
-  const pattern = new RegExp(
-    `${path.basename(sketchFile).replace('.', '\\.')}:(\\d+):(\\d+):\\s*(error|warning):\\s*(.+)`,
-    'gm',
-  );
-
   let match: RegExpExecArray | null;
-  // eslint-disable-next-line no-cond-assign
+  const pattern = new RegExp(GCC_ERROR_RE.source, GCC_ERROR_RE.flags);
+  while ((match = pattern.exec(stderr)) !== null) {
+    results.push({
+      line:     parseInt(match[1]!, 10),
+      column:   parseInt(match[2]!, 10),
+      severity: match[3]!.includes('error') ? 'error' : 'warning',
+      message:  match[4]!.trim(),
+    });
+  }
+  return results;
+}
+
+// ─── Arduino CLI error parser ─────────────────────────────────────────────────
+
+const ARDUINO_ERROR_RE = /^(?:[^:]+):(\d+):(\d+):\s*(error|warning):\s*(.+)$/gm;
+
+function parseArduinoErrors(stderr: string, sketchFile: string): CompileError[] {
+  const results: CompileError[] = [];
+  const escapedName = path.basename(sketchFile).replace('.', '\\.');
+  const pattern = new RegExp(
+    `${escapedName}:(\\d+):(\\d+):\\s*(error|warning):\\s*(.+)`, 'gm',
+  );
+  let match: RegExpExecArray | null;
   while ((match = pattern.exec(stderr)) !== null) {
     results.push({
       line:     parseInt(match[1]!, 10),
@@ -59,11 +73,8 @@ function parseErrors(stderr: string, sketchFile: string): CompileError[] {
       message:  match[4]!.trim(),
     });
   }
-
-  // Fallback: generic parse if no filename-matched errors were found
   if (results.length === 0) {
     let generic: RegExpExecArray | null;
-    // eslint-disable-next-line no-cond-assign
     while ((generic = ARDUINO_ERROR_RE.exec(stderr)) !== null) {
       results.push({
         line:     parseInt(generic[1]!, 10),
@@ -73,73 +84,200 @@ function parseErrors(stderr: string, sketchFile: string): CompileError[] {
       });
     }
   }
-
   return results;
 }
 
-// ─── Mock mode ────────────────────────────────────────────────────────────────
+// ─── 1. Wandbox (remote C++ compile + run) ────────────────────────────────────
 
-const MOCK_SUCCESS_STDOUT = [
-  'Sketch uses 924 bytes (2%) of program storage space. Max is 32256 bytes.',
-  'Global variables use 9 bytes (0%) of dynamic memory, leaving 2039 bytes for local variables. Max is 2048 bytes.',
-].join('\n');
+const WANDBOX_COMPILE_URL = 'https://wandbox.org/api/compile.json';
+const WANDBOX_TIMEOUT_MS  = 30_000;
+const WANDBOX_MAX_RETRIES = 2;
+const WANDBOX_RETRY_DELAY = 1_000;
 
-/**
- * Simulate compilation locally.
- * Only checks for obvious syntax issues like unbalanced braces to avoid rejecting valid code.
- */
-async function compileMock(code: string): Promise<CompileResult> {
+interface WandboxResponse {
+  status?:           string;
+  signal?:           string;
+  compiler_output?:  string;
+  compiler_error?:   string;
+  compiler_message?: string;
+  program_output?:   string;
+  program_error?:    string;
+  program_message?:  string;
+}
+
+async function compileWandbox(code: string, stdin?: string): Promise<CompileResult> {
   const start = Date.now();
-  await new Promise((r) => setTimeout(r, 800 + Math.random() * 400));
 
-  const errors: CompileError[] = [];
+  // Detect Arduino sketch and prepend compatibility shim
+  const { code: finalCode, isArduino } = prepareForWandbox(code);
+  logger.info({ isArduino, codeLength: finalCode.length }, 'wandbox.prepare');
 
-  // Very basic heuristic: unbalanced braces
-  const openBraces  = (code.match(/\{/g) ?? []).length;
-  const closeBraces = (code.match(/\}/g) ?? []).length;
-  if (openBraces !== closeBraces) {
-    errors.push({ line: code.split('\\n').length, column: 1, severity: 'error', message: 'Expected \'}\' at end of input (unbalanced braces)' });
+  let lastError: Error | null = null;
+
+  for (let attempt = 0; attempt <= WANDBOX_MAX_RETRIES; attempt++) {
+    if (attempt > 0) {
+      logger.warn({ attempt }, 'wandbox.retry');
+      await new Promise(r => setTimeout(r, WANDBOX_RETRY_DELAY * attempt));
+    }
+
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), WANDBOX_TIMEOUT_MS);
+
+    try {
+      const res = await fetch(WANDBOX_COMPILE_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          code: finalCode,
+          stdin: stdin || '',
+          compiler:               'gcc-13.2.0',
+          options:                'warning',
+          'compiler-option-raw':  '-std=c++17\n-Wall\n-Wextra',
+        }),
+        signal: controller.signal,
+      });
+
+      if (!res.ok) {
+        const text = await res.text().catch(() => '');
+        throw new Error(`Wandbox returned ${res.status}: ${text}`);
+      }
+
+      const data = (await res.json()) as WandboxResponse;
+
+      // Detect OCI/container runtime errors — Wandbox server overload
+      const allOutput = [data.program_output, data.program_error, data.compiler_error]
+        .filter(Boolean).join(' ');
+      if (allOutput.includes('OCI runtime error') || allOutput.includes('crun:')) {
+        // Retry on container errors
+        if (attempt < WANDBOX_MAX_RETRIES) {
+          logger.warn({ attempt }, 'wandbox.oci_error.retry');
+          continue;
+        }
+        return {
+          success:    false,
+          stdout:     '',
+          stderr:     'The compile server is temporarily overloaded. Please try again in a few seconds.',
+          errors:     [{ line: 0, column: 0, severity: 'error', message: 'Server busy — please retry in a moment' }],
+          durationMs: Date.now() - start,
+          engine:     'wandbox',
+        };
+      }
+
+      const compilerStderr = [data.compiler_error, data.compiler_message]
+        .filter(Boolean).join('\n').trim();
+      const programOutput  = data.program_output?.trim() ?? '';
+      const programError   = data.program_error?.trim() ?? '';
+
+      // Parse errors and adjust line numbers for Arduino shim offset
+      const rawErrors = parseGccErrors(compilerStderr);
+      const errors    = adjustLineNumbers(rawErrors, isArduino);
+      const hasError  = errors.some(e => e.severity === 'error') ||
+        compilerStderr.toLowerCase().includes('error:');
+
+      const programRan     = data.status === '0';
+      const compileSuccess = !hasError;
+
+      let stdout = '';
+      if (compileSuccess && programOutput) {
+        stdout = programOutput;
+      } else if (compileSuccess) {
+        stdout = data.compiler_output?.trim() ?? '';
+      }
+
+      let stderr = '';
+      if (compileSuccess && !programRan && data.status !== undefined) {
+        stderr = friendlyExitMessage(data.status, data.signal, programError);
+      } else if (!compileSuccess) {
+        stderr = compilerStderr;
+      }
+
+      return {
+        success:    compileSuccess && (programRan || data.status === undefined),
+        stdout,
+        stderr,
+        errors,
+        durationMs: Date.now() - start,
+        engine:     'wandbox',
+      };
+    } catch (err: any) {
+      lastError = err;
+      if (err.name === 'AbortError' && attempt < WANDBOX_MAX_RETRIES) {
+        continue; // Retry on timeout
+      }
+      if (err.name !== 'AbortError') break; // Non-timeout errors don't retry
+    } finally {
+      clearTimeout(timer);
+    }
   }
 
-  const openParens  = (code.match(/\(/g) ?? []).length;
-  const closeParens = (code.match(/\)/g) ?? []).length;
-  if (openParens !== closeParens) {
-    errors.push({ line: 1, column: 1, severity: 'error', message: 'Unbalanced parentheses () detected' });
+  // All retries exhausted
+  if (lastError?.name === 'AbortError') {
+    return {
+      success:    false,
+      stdout:     '',
+      stderr:     'Compilation timed out (30s limit). Try simplifying your code.',
+      errors:     [{ line: 0, column: 0, severity: 'error', message: 'COMPILE_TIMEOUT: Execution exceeded 30s' }],
+      durationMs: Date.now() - start,
+      engine:     'wandbox',
+    };
   }
 
-  const success = errors.length === 0;
-
-  // Add a helpful note if they are trying to run standard C++ in mock mode
-  let stdout = success ? MOCK_SUCCESS_STDOUT : '';
-  if (success && code.includes('#include <iostream>')) {
-    stdout += '\n\n[SYSTEM NOTE]: You are running in Mock Mode without a local C++ compiler.\nYour standard C++ code syntax looks correct, but it was not executed.\nTo see terminal output (stdout), configure a real compiler in your environment.';
-  }
-
+  logger.error({ err: lastError }, 'wandbox.request.failed');
   return {
-    success,
-    stdout,
-    stderr: success ? '' : errors.map((e) => `sketch.ino:${e.line}:${e.column}: error: ${e.message}`).join('\n'),
-    errors,
+    success:    false,
+    stdout:     '',
+    stderr:     `Compiler service error: ${lastError?.message ?? 'Unknown'}`,
+    errors:     [{ line: 0, column: 0, severity: 'error', message: lastError?.message ?? 'Unknown error' }],
     durationMs: Date.now() - start,
+    engine:     'wandbox',
   };
 }
 
-// ─── Real mode ────────────────────────────────────────────────────────────────
+// ─── Friendly exit/signal messages ────────────────────────────────────────────
 
-/**
- * Compile code using the real Arduino CLI.
- * Writes code to a temp sketch directory, runs the CLI, cleans up.
- */
-async function compileReal(
+function friendlyExitMessage(status: string, signal?: string, programError?: string): string {
+  const code = parseInt(status, 10);
+  const sigName = signal || '';
+
+  // Map common signals/exit codes to human-readable messages
+  if (sigName === 'SIGSEGV' || code === 139) {
+    return 'Segmentation fault (SIGSEGV). Your program tried to access memory it shouldn\'t. '
+      + 'Common causes: reading from stdin without input, array out of bounds, or null pointer dereference. '
+      + 'If your code uses cin/scanf, provide input in the "stdin" field below the editor.';
+  }
+  if (sigName === 'SIGABRT' || code === 134) {
+    return 'Program aborted (SIGABRT). This usually means an assertion failed, '
+      + 'or the program called abort() due to an unrecoverable error like double-free or out-of-memory.';
+  }
+  if (sigName === 'SIGKILL' || code === 137) {
+    return 'Program killed (SIGKILL). The program exceeded memory or time limits. '
+      + 'Try reducing the size of arrays or optimizing your algorithm.';
+  }
+  if (sigName === 'SIGFPE' || code === 136) {
+    return 'Floating point exception (SIGFPE). Division by zero or invalid arithmetic operation detected.';
+  }
+  if (sigName === 'SIGXCPU') {
+    return 'CPU time limit exceeded. Your program took too long. Check for infinite loops or optimize your algorithm.';
+  }
+  if (code === 1) {
+    return programError || 'Program exited with an error (exit code 1). Check your logic.';
+  }
+
+  let msg = programError || `Program exited with status ${status}`;
+  if (sigName) msg += ` (signal: ${sigName})`;
+  return msg;
+}
+
+// ─── 2. Arduino CLI (local compile) ───────────────────────────────────────────
+
+async function compileArduino(
   code: string,
   board: string,
   timeoutMs: number,
 ): Promise<CompileResult> {
   const start = Date.now();
-
-  // Arduino CLI requires the sketch file to be named after its directory
-  const tmpDir    = await mkdtemp(path.join(os.tmpdir(), 'tinkergyan-'));
-  const sketchDir = path.join(tmpDir, 'sketch');
+  const tmpDir     = await mkdtemp(path.join(os.tmpdir(), 'tinkergyan-'));
+  const sketchDir  = path.join(tmpDir, 'sketch');
   const sketchFile = path.join(sketchDir, 'sketch.ino');
 
   try {
@@ -147,39 +285,29 @@ async function compileReal(
     await writeFile(sketchFile, code, 'utf8');
 
     const cliPath = env.ARDUINO_CLI_PATH!;
-    const args = [
-      'compile',
-      '--fqbn',  board,
-      '--format', 'text',
-      sketchDir,
-    ];
-
+    const args = ['compile', '--fqbn', board, '--format', 'text', sketchDir];
     const { stdout, stderr } = await spawnWithTimeout(cliPath, args, timeoutMs);
-    const errors  = parseErrors(stderr, sketchFile);
-    const hasErrors = errors.some((e) => e.severity === 'error') ||
+    const errors   = parseArduinoErrors(stderr, sketchFile);
+    const hasError = errors.some(e => e.severity === 'error') ||
       stderr.toLowerCase().includes('error:');
 
     return {
-      success:    !hasErrors,
+      success:    !hasError,
       stdout,
       stderr,
       errors,
       durationMs: Date.now() - start,
+      engine:     'arduino',
     };
   } finally {
-    // Always clean up temp files — never leak
-    await rm(tmpDir, { recursive: true, force: true }).catch((err) => {
-      logger.warn({ err, tmpDir }, 'Failed to clean up compile temp directory');
+    await rm(tmpDir, { recursive: true, force: true }).catch(e => {
+      logger.warn({ err: e, tmpDir }, 'Failed to clean compile temp dir');
     });
   }
 }
 
-// ─── Process helper ───────────────────────────────────────────────────────────
-
 function spawnWithTimeout(
-  cmd: string,
-  args: string[],
-  timeoutMs: number,
+  cmd: string, args: string[], timeoutMs: number,
 ): Promise<{ stdout: string; stderr: string }> {
   return new Promise((resolve, reject) => {
     const controller = new AbortController();
@@ -191,10 +319,8 @@ function spawnWithTimeout(
     const child = spawn(cmd, args, { signal: controller.signal });
     const stdoutChunks: Buffer[] = [];
     const stderrChunks: Buffer[] = [];
-
     child.stdout.on('data', (d: Buffer) => stdoutChunks.push(d));
     child.stderr.on('data', (d: Buffer) => stderrChunks.push(d));
-
     child.on('close', () => {
       clearTimeout(timer);
       resolve({
@@ -202,7 +328,6 @@ function spawnWithTimeout(
         stderr: Buffer.concat(stderrChunks).toString('utf8'),
       });
     });
-
     child.on('error', (err) => {
       clearTimeout(timer);
       reject(err);
@@ -210,23 +335,68 @@ function spawnWithTimeout(
   });
 }
 
+// ─── 3. Mock mode ─────────────────────────────────────────────────────────────
+
+async function compileMock(code: string): Promise<CompileResult> {
+  const start = Date.now();
+  await new Promise(r => setTimeout(r, 300 + Math.random() * 200));
+
+  const errors: CompileError[] = [];
+  const lines = code.split('\n');
+
+  const openBraces  = (code.match(/\{/g) ?? []).length;
+  const closeBraces = (code.match(/\}/g) ?? []).length;
+  if (openBraces !== closeBraces) {
+    errors.push({ line: lines.length, column: 1, severity: 'error', message: "Expected '}' at end of input" });
+  }
+
+  const openParens  = (code.match(/\(/g) ?? []).length;
+  const closeParens = (code.match(/\)/g) ?? []).length;
+  if (openParens !== closeParens) {
+    errors.push({ line: 1, column: 1, severity: 'error', message: 'Unbalanced parentheses ()' });
+  }
+
+  const success = errors.length === 0;
+  return {
+    success,
+    stdout: success ? '[MOCK] Compilation successful. Output simulation not available in mock mode.' : '',
+    stderr: success ? '' : errors.map(e => `prog.cc:${e.line}:${e.column}: error: ${e.message}`).join('\n'),
+    errors,
+    durationMs: Date.now() - start,
+    engine: 'mock',
+  };
+}
+
 // ─── Public API ───────────────────────────────────────────────────────────────
 
-/** Returns true when running in mock mode (no CLI configured). */
-export const isMockMode = (): boolean => !env.ARDUINO_CLI_PATH;
+export type CompilerMode = 'wandbox' | 'arduino' | 'mock';
+
+export function getCompilerMode(): CompilerMode {
+  if (env.COMPILER_MODE === 'mock') return 'mock';
+  if (env.ARDUINO_CLI_PATH) return 'arduino';
+  return 'wandbox';
+}
 
 /**
- * Compile Arduino C++ source code.
- * Automatically selects mock vs real mode based on ARDUINO_CLI_PATH.
+ * Compile (and optionally execute) C++ source code.
+ * Strategy auto-selected based on environment config.
  */
 export async function compile(
   code: string,
   board: string,
   timeoutMs = env.MAX_COMPILE_TIMEOUT,
+  stdin?: string,
 ): Promise<CompileResult> {
-  if (isMockMode()) {
-    logger.debug('Compiler running in MOCK mode');
-    return compileMock(code);
+  const mode = getCompilerMode();
+  logger.info({ mode, board }, 'compile.start');
+
+  switch (mode) {
+    case 'arduino':
+      return compileArduino(code, board, timeoutMs);
+    case 'mock':
+      return compileMock(code);
+    case 'wandbox':
+    default:
+      return compileWandbox(code, stdin);
   }
-  return compileReal(code, board, timeoutMs);
 }

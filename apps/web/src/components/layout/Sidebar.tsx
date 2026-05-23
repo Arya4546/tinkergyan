@@ -1,12 +1,16 @@
 import { Link, useLocation } from 'react-router-dom';
-import { Home, GraduationCap, FolderCode, User, TerminalSquare } from 'lucide-react';
+import { Home, GraduationCap, FolderCode, User, TerminalSquare, Settings2, Globe, Trophy, Award } from 'lucide-react';
 
 const NAV_ITEMS = [
   { label: 'HQ', icon: Home, href: '/dashboard', activeColor: 'bg-primary-500 text-white' },
   { label: 'Quests', icon: GraduationCap, href: '/courses', activeColor: 'bg-emerald-500 text-white' },
   { label: 'Toybox', icon: FolderCode, href: '/projects', activeColor: 'bg-yellow-400 text-slate-900' },
+  { label: 'Gallery', icon: Globe, href: '/gallery', activeColor: 'bg-violet-500 text-white' },
   { label: 'Engine', icon: TerminalSquare, href: '/editor', activeColor: 'bg-blue-500 text-white' },
+  { label: 'Ranks', icon: Trophy, href: '/leaderboard', activeColor: 'bg-amber-500 text-white' },
+  { label: 'Badges', icon: Award, href: '/badges', activeColor: 'bg-rose-500 text-white' },
   { label: 'ID Card', icon: User, href: '/profile', activeColor: 'bg-pink-500 text-white' },
+  { label: 'Config', icon: Settings2, href: '/settings', activeColor: 'bg-slate-500 text-white' },
 ];
 
 export function Sidebar() {

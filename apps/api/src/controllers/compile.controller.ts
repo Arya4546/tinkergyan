@@ -7,6 +7,7 @@
 import type { Request, Response } from 'express';
 import { z } from 'zod';
 import { CompileService, SUPPORTED_BOARDS } from '../services/compile.service';
+import { BadgeService } from '../services/badge.service';
 import { catchAsync } from '../utils/catchAsync';
 
 // ─── Validation Schema ────────────────────────────────────────────────────────
@@ -22,6 +23,7 @@ export const compileSchema = z.object({
         message: `board must be one of: ${SUPPORTED_BOARDS.join(', ')}`,
       }),
     }),
+    stdin: z.string().max(10_000, 'stdin exceeds 10KB limit').optional().default(''),
   }),
 });
 
@@ -31,7 +33,12 @@ export const compileCode = catchAsync(async (req: Request, res: Response) => {
   const result = await CompileService.compile(req.user!.id, {
     code:  req.body.code,
     board: req.body.board,
+    stdin: req.body.stdin || '',
   });
+
+  if (result.success) {
+    BadgeService.tryAward(req.user!.id, 'FIRST_COMPILE'); // fire-and-forget
+  }
 
   res.status(200).json({
     success: true,

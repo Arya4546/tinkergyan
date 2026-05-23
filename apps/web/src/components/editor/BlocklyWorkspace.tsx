@@ -112,8 +112,20 @@ export const BlocklyWorkspace = forwardRef<BlocklyWorkspaceHandle, BlocklyWorksp
       };
 
       workspaceRef.current.addChangeListener(onChange);
-      // Emit empty code on mount so parent state is initialized
-      onCodeChange('');
+
+      // Auto-place the root arduino_program block so users have setup()/loop()
+      const rootBlock = workspaceRef.current.newBlock('arduino_program');
+      rootBlock.initSvg();
+      rootBlock.render();
+      rootBlock.moveBy(20, 20);
+
+      // Emit initial code from the root block
+      try {
+        const code = arduinoGenerator.workspaceToCode(workspaceRef.current);
+        onCodeChange(code);
+      } catch {
+        onCodeChange('');
+      }
 
       return () => {
         workspaceRef.current?.dispose();

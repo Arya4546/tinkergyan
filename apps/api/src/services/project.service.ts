@@ -7,24 +7,24 @@
  */
 import { AppError } from '../errors/app-error';
 import { prisma } from '../lib/prisma';
-import type { ProjectType } from '@prisma/client';
+import type { ProjectType, Prisma } from '@prisma/client';
 
 // ─── DTOs ─────────────────────────────────────────────────────────────────────
 
 export interface CreateProjectDto {
-  title:       string;
-  type:        ProjectType;
+  title: string;
+  type: ProjectType;
   boardTarget: string;
-  code?:       string;
+  code?: string;
   blockState?: string; // JSON-serialized Blockly workspace XML
 }
 
 export interface UpdateProjectDto {
-  title?:       string;
-  code?:        string;
-  blockState?:  string;
+  title?: string;
+  code?: string;
+  blockState?: string;
   boardTarget?: string;
-  isPublic?:    boolean;
+  isPublic?: boolean;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -35,17 +35,17 @@ export class ProjectService {
    */
   static async findAll(userId: string) {
     return prisma.project.findMany({
-      where:   { userId },
+      where: { userId },
       orderBy: { updatedAt: 'desc' },
       select: {
-        id:          true,
-        title:       true,
-        type:        true,
+        id: true,
+        title: true,
+        type: true,
         boardTarget: true,
-        isPublic:    true,
-        forkCount:   true,
-        createdAt:   true,
-        updatedAt:   true,
+        isPublic: true,
+        forkCount: true,
+        createdAt: true,
+        updatedAt: true,
         // Omit code and blockState from list view for performance
       },
     });
@@ -76,11 +76,11 @@ export class ProjectService {
     return prisma.project.create({
       data: {
         userId,
-        title:       dto.title,
-        type:        dto.type,
+        title: dto.title,
+        type: dto.type,
         boardTarget: dto.boardTarget,
-        code:        dto.code ?? null,
-        blockState:  dto.blockState ?? null,
+        code: dto.code ?? null,
+        blockState: dto.blockState ?? null,
       },
     });
   }
@@ -92,7 +92,7 @@ export class ProjectService {
   static async update(id: string, userId: string, dto: UpdateProjectDto) {
     // Verify ownership first — avoids a wasted UPDATE if unauthorized
     const existing = await prisma.project.findUnique({
-      where:  { id },
+      where: { id },
       select: { userId: true },
     });
 
@@ -106,11 +106,11 @@ export class ProjectService {
     return prisma.project.update({
       where: { id },
       data: {
-        ...(dto.title       !== undefined && { title: dto.title }),
-        ...(dto.code        !== undefined && { code: dto.code }),
-        ...(dto.blockState  !== undefined && { blockState: dto.blockState }),
+        ...(dto.title !== undefined && { title: dto.title }),
+        ...(dto.code !== undefined && { code: dto.code }),
+        ...(dto.blockState !== undefined && { blockState: dto.blockState }),
         ...(dto.boardTarget !== undefined && { boardTarget: dto.boardTarget }),
-        ...(dto.isPublic    !== undefined && { isPublic: dto.isPublic }),
+        ...(dto.isPublic !== undefined && { isPublic: dto.isPublic }),
       },
     });
   }
@@ -121,7 +121,7 @@ export class ProjectService {
    */
   static async delete(id: string, userId: string): Promise<void> {
     const existing = await prisma.project.findUnique({
-      where:  { id },
+      where: { id },
       select: { userId: true },
     });
 
@@ -134,4 +134,49 @@ export class ProjectService {
 
     await prisma.project.delete({ where: { id } });
   }
+
+  /**
+   * Public project gallery — published projects, newest first.
+   */
+  static async findPublic() {
+    return prisma.project.findMany({
+      where:   { isPublic: true },
+      orderBy: { createdAt: 'desc' },
+      select: {
+        id: true, title: true, type: true, boardTarget: true,
+        forkCount: true, createdAt: true,
+        user: { select: { name: true, avatar: true } },
+      },
+    });
+  }
+
+  /**
+   * Fork a public project into the current user's account.
+   */
+  static async fork(projectId: string, userId: string) {
+    const src = await prisma.project.findUnique({ where: { id: projectId } });
+    if (!src) throw new AppError('RESOURCE_NOT_FOUND', 'Project not found', 404);
+    if (!src.isPublic && src.userId !== userId) {
+      throw new AppError('FORBIDDEN', 'Cannot fork a private project', 403);
+    }
+    return prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+      const copy = await tx.project.create({
+        data: {
+          userId,
+          title:       `Remix of ${src.title}`,
+          type:        src.type,
+          boardTarget: src.boardTarget,
+          code:        src.code,
+          blockState:  src.blockState || undefined,
+          forkedFrom:  src.id,
+        },
+      });
+      await tx.project.update({
+        where: { id: src.id },
+        data:  { forkCount: { increment: 1 } },
+      });
+      return copy;
+    });
+  }
 }
+

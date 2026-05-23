@@ -48,13 +48,14 @@ interface MonacoEditorProps {
   onChange?:          (value: string) => void;
   errorDecorations?:  CompileError[];
   readOnly?:          boolean;
+  fontSize?:          number;
   className?:         string;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
 
 export const MonacoEditor = forwardRef<MonacoEditorHandle, MonacoEditorProps>(
-  ({ value, onChange, errorDecorations = [], readOnly = false, className = '' }, ref) => {
+  ({ value, onChange, errorDecorations = [], readOnly = false, fontSize = 14, className = '' }, ref) => {
     const theme     = useUIStore((s: any) => s.theme);
     const monaco    = useMonaco();
     const editorRef = useRef<IStandaloneCodeEditor | null>(null);
@@ -148,7 +149,7 @@ export const MonacoEditor = forwardRef<MonacoEditorHandle, MonacoEditorProps>(
           onMount={handleMount}
           options={{
             readOnly,
-            fontSize:            14,
+            fontSize,
             fontFamily:          '"JetBrains Mono", "Fira Code", monospace',
             fontLigatures:       true,
             minimap:             { enabled: false },

@@ -9,8 +9,10 @@ const envSchema = z.object({
   FRONTEND_URL: z.string().url().optional().or(z.literal('')),
   MAX_COMPILE_TIMEOUT: z.coerce.number().default(30_000),
   COMPILE_CONCURRENCY: z.coerce.number().default(5),
-  /** Path to the arduino-cli binary. When absent, compiler runs in mock mode. */
+  /** Path to the arduino-cli binary. Required only when COMPILER_MODE=arduino. */
   ARDUINO_CLI_PATH: z.string().optional(),
+  /** Compiler strategy: 'wandbox' (default, remote C++ executor), 'arduino' (local CLI), 'mock' (offline dev). */
+  COMPILER_MODE: z.enum(['wandbox', 'arduino', 'mock']).default('wandbox'),
 });
 
 export type Env = z.infer<typeof envSchema>;

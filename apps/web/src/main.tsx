@@ -20,6 +20,15 @@ const ErrorPage = lazy(() => import('@/pages/ErrorPage'));
 const NotFound = lazy(() => import('@/pages/NotFound'));
 const LandingPage = lazy(() => import('@/pages/LandingPage'));
 const Editor = lazy(() => import('@/pages/Editor'));
+const Projects = lazy(() => import('@/pages/Projects'));
+const Profile = lazy(() => import('@/pages/Profile'));
+const Settings = lazy(() => import('@/pages/Settings'));
+const Courses = lazy(() => import('@/pages/Courses'));
+const CourseDetail = lazy(() => import('@/pages/CourseDetail'));
+const LessonView = lazy(() => import('@/pages/LessonView'));
+const Gallery = lazy(() => import('@/pages/Gallery'));
+const Leaderboard = lazy(() => import('@/pages/Leaderboard'));
+const Badges = lazy(() => import('@/pages/Badges'));
 
 const queryClient = new QueryClient();
 
@@ -94,15 +103,19 @@ const router = createBrowserRouter([
             element: <DashboardLayout />,
             children: [
               { path: 'dashboard', element: <Dashboard /> },
-              { path: 'courses', element: <div className="p-10 font-bold text-center">Courses Page (Coming Soon)</div> },
-              { path: 'courses/:slug', element: <div className="p-10 font-bold text-center">Course View (Coming Soon)</div> },
-              { path: 'projects', element: <div className="p-10 font-bold text-center">Projects Page (Coming Soon)</div> },
-              { path: 'profile', element: <div className="p-10 font-bold text-center">Profile Page (Coming Soon)</div> },
-              { path: 'settings', element: <div className="p-10 font-bold text-center">Settings (Coming Soon)</div> },
+              { path: 'courses', element: <Courses /> },
+              { path: 'courses/:slug', element: <CourseDetail /> },
+              { path: 'projects', element: <Projects /> },
+              { path: 'gallery', element: <Gallery /> },
+              { path: 'leaderboard', element: <Leaderboard /> },
+              { path: 'badges', element: <Badges /> },
+              { path: 'profile', element: <Profile /> },
+              { path: 'settings', element: <Settings /> },
             ]
           },
           { path: 'editor', element: <Editor /> },
           { path: 'editor/:id', element: <Editor /> },
+          { path: 'courses/:slug/lessons/:lessonId', element: <LessonView /> },
         ],
       },
       { 
