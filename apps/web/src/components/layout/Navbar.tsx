@@ -9,6 +9,8 @@ export function Navbar() {
   const logout = useAuthStore((s) => s.logout);
   const theme = useUIStore((s) => s.theme);
   const setTheme = useUIStore((s) => s.setTheme);
+  const mobileMenuOpen = useUIStore((s) => s.mobileMenuOpen);
+  const setMobileMenuOpen = useUIStore((s) => s.setMobileMenuOpen);
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
@@ -39,7 +41,11 @@ export function Navbar() {
       
       {/* Mobile Menu Button */}
       <div className="flex items-center sm:hidden border-r border-slate-900 dark:border-slate-800">
-        <button type="button" className="w-20 h-full flex items-center justify-center hover:bg-slate-900 hover:text-white dark:hover:bg-white dark:hover:text-slate-900 transition-colors">
+        <button 
+          type="button" 
+          onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+          className="w-20 h-full flex items-center justify-center hover:bg-slate-900 hover:text-white dark:hover:bg-white dark:hover:text-slate-900 transition-colors"
+        >
           <Menu size={24} strokeWidth={2} />
         </button>
       </div>

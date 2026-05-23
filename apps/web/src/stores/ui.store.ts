@@ -12,10 +12,12 @@ export interface Toast {
 interface UIState {
   theme: 'light' | 'dark' | 'system';
   sidebarCollapsed: boolean;
+  mobileMenuOpen: boolean;
   activeModal: string | null;
   toasts: Toast[];
   setTheme: (theme: 'light' | 'dark' | 'system') => void;
   toggleSidebar: () => void;
+  setMobileMenuOpen: (open: boolean) => void;
   openModal: (modalId: string) => void;
   closeModal: () => void;
   addToast: (toast: Omit<Toast, 'id'>) => void;
@@ -25,11 +27,13 @@ interface UIState {
 export const useUIStore = create<UIState>((set) => ({
   theme: 'system',
   sidebarCollapsed: false,
+  mobileMenuOpen: false,
   activeModal: null,
   toasts: [],
   
   setTheme: (theme) => set({ theme }),
   toggleSidebar: () => set((state) => ({ sidebarCollapsed: !state.sidebarCollapsed })),
+  setMobileMenuOpen: (mobileMenuOpen) => set({ mobileMenuOpen }),
   openModal: (activeModal) => set({ activeModal }),
   closeModal: () => set({ activeModal: null }),
   

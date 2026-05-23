@@ -5,7 +5,7 @@
  * Syncs with backend UserPreferences table.
  */
 import { useEffect, useState } from 'react';
-import { Settings2, Sun, Moon, Monitor, Save, Loader2, RotateCcw } from 'lucide-react';
+import { Settings2, Sun, Moon, Monitor, Save, Loader2, RotateCcw, Lock } from 'lucide-react';
 
 import { api } from '../services/api';
 import { useUIStore } from '../stores/ui.store';
@@ -72,6 +72,9 @@ export default function Settings() {
   const [prefs, setPrefs]       = useState<Preferences>(DEFAULTS);
   const [isLoading, setLoading] = useState(true);
   const [isSaving, setSaving]   = useState(false);
+  const [oldPassword, setOldPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [isChangingPwd, setChangingPwd] = useState(false);
 
   // Load preferences
   useEffect(() => {
@@ -115,6 +118,21 @@ export default function Settings() {
 
   const updatePref = <K extends keyof Preferences>(key: K, value: Preferences[K]) => {
     setPrefs((prev) => ({ ...prev, [key]: value }));
+  };
+
+  const handleChangePassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!oldPassword || !newPassword) return;
+    setChangingPwd(true);
+    try {
+      await api.patch('/auth/password', { oldPassword, newPassword });
+      addToast({ type: 'success', title: 'PASSWORD_UPDATED', message: 'Please log in again.' });
+      setTimeout(() => window.location.href = '/login', 1500);
+    } catch {
+      addToast({ type: 'error', title: 'UPDATE_FAILED', message: 'Check your old password.' });
+    } finally {
+      setChangingPwd(false);
+    }
   };
 
   if (isLoading) {
@@ -253,6 +271,57 @@ export default function Settings() {
                 checked={prefs.emailNotifications}
                 onChange={(v) => updatePref('emailNotifications', v)}
               />
+            </div>
+          </section>
+
+          {/* ── Security ──────────────────────────────────── */}
+          <section>
+            <h2 className="font-mono text-xs font-bold uppercase tracking-widest text-slate-500 mb-4 flex items-center gap-2">
+              <div className="w-1 h-4 bg-red-400" /> SECURITY
+            </h2>
+            <div className="hw-border bg-slate-50 dark:bg-[#111111] p-5">
+              <span className="block font-mono text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-4">
+                CHANGE_PASSWORD
+              </span>
+              <form onSubmit={handleChangePassword} className="space-y-4">
+                <div>
+                  <input
+                    type="password"
+                    placeholder="CURRENT PASSWORD"
+                    value={oldPassword}
+                    onChange={(e) => setOldPassword(e.target.value)}
+                    className="w-full h-12 px-4 hw-border bg-white dark:bg-[#000000] font-mono text-xs font-bold tracking-widest text-slate-900 dark:text-white outline-none placeholder:text-slate-400 dark:placeholder:text-slate-600"
+                    required
+                  />
+                </div>
+                <div>
+                  <input
+                    type="password"
+                    placeholder="NEW PASSWORD"
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    className="w-full h-12 px-4 hw-border bg-white dark:bg-[#000000] font-mono text-xs font-bold tracking-widest text-slate-900 dark:text-white outline-none placeholder:text-slate-400 dark:placeholder:text-slate-600"
+                    required
+                    minLength={8}
+                    pattern="^(?=.*[A-Z])(?=.*\d).+$"
+                    title="Must contain at least one uppercase letter and one number"
+                  />
+                  <p className="text-[10px] font-mono text-slate-500 mt-2 uppercase">
+                    Must be 8+ chars with an uppercase letter and a number.
+                  </p>
+                </div>
+                <Button
+                  type="submit"
+                  variant="outline"
+                  className="h-12 w-full rounded-none border border-slate-900 dark:border-slate-800"
+                  disabled={isChangingPwd || !oldPassword || !newPassword}
+                >
+                  {isChangingPwd ? <Loader2 size={14} className="animate-spin mr-2" /> : <Lock size={14} className="mr-2" />}
+                  <span className="font-mono text-[10px] font-bold uppercase tracking-widest">
+                    Update Password
+                  </span>
+                </Button>
+              </form>
             </div>
           </section>
 
