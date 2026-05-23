@@ -208,6 +208,7 @@ export interface EditorState {
   isSaving:     boolean;
   isLoading:    boolean;
   isDirty:      boolean;
+  isPublic:     boolean;
   setProjectTitle: (title: string) => void;
   setBlockXml:     (xml: string) => void;
   saveProject:     (blockXml: string) => Promise<void>;
@@ -215,6 +216,8 @@ export interface EditorState {
   resetEditor:     () => void;
   loadTemplate:    (template: StarterTemplate) => void;
   markDirty:       () => void;
+  duplicateProject: () => Promise<string>;
+  togglePublic:    () => Promise<boolean>;
 
   // ── Auto-save ─────────────────────────────────────────────────────────────
   _autoSaveTimer:  ReturnType<typeof setTimeout> | null;
@@ -238,6 +241,7 @@ const INITIAL_STATE = {
   isSaving:       false,
   isLoading:      false,
   isDirty:        false,
+  isPublic:       false,
   _autoSaveTimer: null as ReturnType<typeof setTimeout> | null,
 };
 
@@ -305,6 +309,7 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
         manualCode:    project.code || '',
         generatedCode: project.code || '',
         blockXml:      typeof project.blockState === 'string' ? project.blockState : '',
+        isPublic:      !!project.isPublic,
         isDirty:       false,
         compileResult: null,
       });
@@ -357,6 +362,28 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
     } finally {
       set({ isSaving: false });
     }
+  },
+
+  duplicateProject: async () => {
+    const { projectId } = get();
+    if (!projectId) throw new Error('No project to duplicate');
+    const { data } = await api.post(`/projects/${projectId}/fork`);
+    const newProject = data.data.project;
+    set({
+      projectId: newProject.id,
+      projectTitle: newProject.title,
+      isDirty: false,
+    });
+    return newProject.id;
+  },
+
+  togglePublic: async () => {
+    const { projectId, isPublic } = get();
+    if (!projectId) throw new Error('No project to toggle');
+    const newStatus = !isPublic;
+    await api.patch(`/projects/${projectId}`, { isPublic: newStatus });
+    set({ isPublic: newStatus });
+    return newStatus;
   },
 
   // ── Auto-save ─────────────────────────────────────────────────────────────

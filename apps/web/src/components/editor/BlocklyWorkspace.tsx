@@ -27,6 +27,10 @@ export interface BlocklyWorkspaceHandle {
   loadXml: (xml: string) => void;
   /** Return the current generated C++ code without triggering onCodeChange. */
   getCode: () => string;
+  /** Undo the last action */
+  undo: () => void;
+  /** Redo the last undone action */
+  redo: () => void;
 }
 
 // ─── Props ────────────────────────────────────────────────────────────────────
@@ -65,6 +69,14 @@ export const BlocklyWorkspace = forwardRef<BlocklyWorkspaceHandle, BlocklyWorksp
       getCode() {
         if (!workspaceRef.current) return '';
         return arduinoGenerator.workspaceToCode(workspaceRef.current);
+      },
+      undo() {
+        if (!workspaceRef.current) return;
+        workspaceRef.current.undo(false);
+      },
+      redo() {
+        if (!workspaceRef.current) return;
+        workspaceRef.current.undo(true);
       },
     }));
 

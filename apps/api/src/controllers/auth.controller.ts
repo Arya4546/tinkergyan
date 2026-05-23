@@ -18,6 +18,13 @@ export const loginSchema = z.object({
   }),
 });
 
+export const changePasswordSchema = z.object({
+  body: z.object({
+    oldPassword: z.string(),
+    newPassword: z.string().min(8).regex(/[A-Z]/, 'Must contain uppercase').regex(/[0-9]/, 'Must contain number'),
+  }),
+});
+
 const setCookie = (res: Response, token: string) => {
   res.cookie('refreshToken', token, {
     httpOnly: true,
@@ -94,4 +101,10 @@ export const getMe = catchAsync(async (req: Request, res: Response) => {
       },
     },
   });
+});
+
+export const changePassword = catchAsync(async (req: Request, res: Response) => {
+  await AuthService.changePassword(req.user!.id, req.body);
+  res.cookie('refreshToken', '', { maxAge: 0 }); // clear cookie since session revoked
+  res.status(200).json({ success: true, data: null });
 });

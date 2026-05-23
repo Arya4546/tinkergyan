@@ -13,11 +13,12 @@
  *   - Compile + run via Wandbox
  */
 import { useRef, useCallback, useEffect, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useParams, useNavigate } from 'react-router-dom';
 import {
   Terminal, Save, Play, ChevronLeft, LayoutGrid,
   Code2, Loader2,
   Plus, Minus, FileCode, Download,
+  Undo, Redo, Copy, Globe,
 } from 'lucide-react';
 
 import { CompileConsole } from '../components/editor/CompileConsole';
@@ -83,6 +84,7 @@ function TemplatePicker({ onSelect, onClose }: {
 
 export default function Editor() {
   const { projectId: routeProjectId } = useParams<{ projectId?: string }>();
+  const navigate = useNavigate();
   const [showTemplates, setShowTemplates] = useState(false);
 
   const blocklyRef = useRef<BlocklyWorkspaceHandle>(null);
@@ -99,7 +101,8 @@ export default function Editor() {
     projectTitle, setProjectTitle,
     isSaving, saveProject, loadProject, resetEditor, loadTemplate,
     projectId, isLoading, isDirty, blockXml, setBlockXml,
-    scheduleAutoSave,
+    scheduleAutoSave, duplicateProject,
+    isPublic, togglePublic,
   } = useEditorStore();
 
   const addToast = useUIStore((s: any) => s.addToast);
@@ -154,6 +157,30 @@ export default function Editor() {
       addToast({ type: 'error', title: 'SAVE_FAILED', message: 'Could not save project.' });
     }
   }, [saveProject, addToast]);
+
+  const handleDuplicate = useCallback(async () => {
+    try {
+      if (isDirty) await handleSave();
+      const newId = await duplicateProject();
+      navigate(`/editor/${newId}`, { replace: true });
+      addToast({ type: 'success', title: 'DUPLICATED', message: 'Project copied successfully.' });
+    } catch {
+      addToast({ type: 'error', title: 'FAILED', message: 'Could not duplicate project.' });
+    }
+  }, [duplicateProject, navigate, addToast, isDirty, handleSave]);
+
+  const handleTogglePublic = useCallback(async () => {
+    try {
+      const newState = await togglePublic();
+      addToast({
+        type: 'success',
+        title: newState ? 'PUBLIC' : 'PRIVATE',
+        message: newState ? 'Project is now visible in the Gallery.' : 'Project is now private.'
+      });
+    } catch {
+      addToast({ type: 'error', title: 'FAILED', message: 'Could not change visibility.' });
+    }
+  }, [togglePublic, addToast]);
 
   // ── Compile ────────────────────────────────────────────────────────────
   const handleCompile = useCallback(async () => {
@@ -310,6 +337,18 @@ export default function Editor() {
                 </div>
               )}
 
+              {/* Blockly Undo/Redo controls (block mode only) */}
+              {mode === 'block' && (
+                <div className="flex items-center hw-border divide-x divide-slate-900 dark:divide-slate-800">
+                  <button onClick={() => blocklyRef.current?.undo()} className="w-8 h-8 flex items-center justify-center text-slate-500 hover:text-slate-900 dark:hover:text-white" title="Undo (Ctrl+Z)">
+                    <Undo size={14} />
+                  </button>
+                  <button onClick={() => blocklyRef.current?.redo()} className="w-8 h-8 flex items-center justify-center text-slate-500 hover:text-slate-900 dark:hover:text-white" title="Redo (Ctrl+Y)">
+                    <Redo size={14} />
+                  </button>
+                </div>
+              )}
+
               {/* Templates button */}
               <Button
                 variant="outline"
@@ -330,6 +369,37 @@ export default function Editor() {
                 <Download size={12} className="mr-1" />
                 <span className="font-mono text-[10px] font-bold uppercase hidden sm:inline">.ino</span>
               </Button>
+
+              {/* Duplicate Project */}
+              {projectId && (
+                <div className="flex items-center hw-border divide-x divide-slate-900 dark:divide-slate-800">
+                  <Button
+                    variant="outline"
+                    className="h-8 px-3 rounded-none border-none hover:bg-slate-100 dark:hover:bg-slate-800"
+                    onClick={handleDuplicate}
+                    title="Duplicate this project"
+                  >
+                    <Copy size={12} className="mr-1" />
+                    <span className="font-mono text-[10px] font-bold uppercase hidden sm:inline">Fork</span>
+                  </Button>
+
+                  <Button
+                    variant="outline"
+                    className={`h-8 px-3 rounded-none border-none transition-colors ${
+                      isPublic 
+                        ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-400 dark:hover:bg-emerald-900/50' 
+                        : 'hover:bg-slate-100 dark:hover:bg-slate-800'
+                    }`}
+                    onClick={handleTogglePublic}
+                    title={isPublic ? "Make Private" : "Make Public"}
+                  >
+                    <Globe size={12} className="mr-1" />
+                    <span className="font-mono text-[10px] font-bold uppercase hidden sm:inline">
+                      {isPublic ? 'Public' : 'Private'}
+                    </span>
+                  </Button>
+                </div>
+              )}
 
               <Button
                 variant="outline"

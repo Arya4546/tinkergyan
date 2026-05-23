@@ -150,4 +150,21 @@ export class AuthService {
     const rtHash = this.hashRefreshToken(refreshToken);
     await redis.setex(`rt:${rtHash}`, 2592000, userId);
   }
+
+  static async changePassword(userId: string, data: any) {
+    const user = await prisma.user.findUnique({ where: { id: userId } });
+    if (!user) throw new AppError('UNAUTHORIZED', 'User not found', 401);
+
+    const isValid = await bcrypt.compare(data.oldPassword, user.passwordHash);
+    if (!isValid) throw new AppError('UNAUTHORIZED', 'Incorrect current password', 401);
+
+    const passwordHash = await bcrypt.hash(data.newPassword, 12);
+    await prisma.user.update({
+      where: { id: userId },
+      data: { passwordHash },
+    });
+
+    // Optionally revoke all sessions here
+    await this.logout(userId);
+  }
 }
