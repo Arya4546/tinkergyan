@@ -51,7 +51,6 @@ arduino-cli lib install "Servo" || true
 arduino-cli lib install "Adafruit NeoPixel" || true
 arduino-cli lib install "DHT sensor library" || true
 arduino-cli lib install "LiquidCrystal" || true
-arduino-cli lib install "Wire" || true
 
 echo ""
 echo "══════════════════════════════════════════════════════════"
