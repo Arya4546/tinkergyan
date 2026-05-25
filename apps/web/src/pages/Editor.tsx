@@ -18,10 +18,13 @@ import {
   Terminal, Save, Play, ChevronLeft, LayoutGrid,
   Code2, Loader2,
   Plus, Minus, FileCode, Download,
-  Undo, Redo, Copy, Globe,
+  Undo, Redo, Copy, Globe, Usb, Upload,
 } from 'lucide-react';
 
 import { CompileConsole } from '../components/editor/CompileConsole';
+import { SerialMonitor } from '../components/editor/SerialMonitor';
+import { WebSerialFlasher } from '../lib/web-serial-flasher';
+import type { FlashBoard } from '../lib/web-serial-flasher';
 
 import { BlocklyWorkspace, type BlocklyWorkspaceHandle } from '../components/editor/BlocklyWorkspace';
 import { MonacoEditor, type MonacoEditorHandle } from '../components/editor/MonacoEditor';
@@ -86,6 +89,11 @@ export default function Editor() {
   const { projectId: routeProjectId } = useParams<{ projectId?: string }>();
   const navigate = useNavigate();
   const [showTemplates, setShowTemplates] = useState(false);
+  const [hardwarePort, setHardwarePort] = useState<any>(null);
+  const [isFlashing, setIsFlashing] = useState(false);
+  const [flashProgress, setFlashProgress] = useState(0);
+  const [flashMessage, setFlashMessage] = useState('');
+  const [showSerialMonitor, setShowSerialMonitor] = useState(false);
 
   const blocklyRef = useRef<BlocklyWorkspaceHandle>(null);
   const monacoRef  = useRef<MonacoEditorHandle>(null);
@@ -182,6 +190,81 @@ export default function Editor() {
     }
   }, [togglePublic, addToast]);
 
+  const handleConnectHardware = async () => {
+    if (!('serial' in navigator)) {
+      addToast({ type: 'error', title: 'NOT SUPPORTED', message: 'Web Serial API is not supported in this browser. Use Chrome or Edge.' });
+      return;
+    }
+    
+    try {
+      if (hardwarePort) {
+        try { await hardwarePort.close(); } catch { /* may already be closed */ }
+        setHardwarePort(null);
+        setShowSerialMonitor(false);
+        addToast({ type: 'info', title: 'DISCONNECTED', message: 'Hardware disconnected.' });
+        return;
+      }
+
+      const port = await (navigator as any).serial.requestPort();
+      // Don't open yet — let Serial Monitor or Flasher open with the right baud
+      setHardwarePort(port);
+      
+      const info = port.getInfo();
+      addToast({ 
+        type: 'success', 
+        title: 'HARDWARE CONNECTED', 
+        message: `Device ready (VID: ${info.usbVendorId || 'Unknown'})` 
+      });
+      
+      // Listen for disconnect
+      (navigator as any).serial.addEventListener('disconnect', (e: any) => {
+        if (e.target === port) {
+          setHardwarePort(null);
+          setShowSerialMonitor(false);
+          addToast({ type: 'warning', title: 'USB LOST', message: 'Hardware was disconnected.' });
+        }
+      });
+      
+    } catch (err: any) {
+      if (err.name === 'NotFoundError') return; // User cancelled
+      addToast({ type: 'error', title: 'CONNECTION FAILED', message: err.message || 'Could not claim USB interface.' });
+    }
+  };
+
+  // ── Upload to Hardware ───────────────────────────────────────────────────
+  const handleUploadToHardware = useCallback(async () => {
+    if (!hardwarePort || !compileResult?.hexBase64) {
+      addToast({ type: 'error', title: 'UPLOAD FAILED', message: 'No firmware or hardware connected.' });
+      return;
+    }
+
+    setIsFlashing(true);
+    setFlashProgress(0);
+    setFlashMessage('Starting upload...');
+    setShowSerialMonitor(false); // Close serial monitor during flash
+
+    try {
+      const flasher = new WebSerialFlasher(hardwarePort);
+      await flasher.flash(compileResult.hexBase64, {
+        board: board as FlashBoard,
+        onProgress: (percent, message) => {
+          setFlashProgress(percent);
+          setFlashMessage(message);
+        },
+        onLog: (msg) => console.log('[Flash]', msg),
+      });
+
+      addToast({ type: 'success', title: 'UPLOAD COMPLETE', message: 'Firmware flashed successfully!' });
+      setShowSerialMonitor(true); // Auto-open serial monitor after flash
+    } catch (err: any) {
+      addToast({ type: 'error', title: 'FLASH ERROR', message: err.message || 'Upload failed.' });
+    } finally {
+      setIsFlashing(false);
+      setFlashProgress(0);
+      setFlashMessage('');
+    }
+  }, [hardwarePort, compileResult, board, addToast]);
+
   // ── Compile ────────────────────────────────────────────────────────────
   const handleCompile = useCallback(async () => {
     const code = mode === 'block'
@@ -192,8 +275,14 @@ export default function Editor() {
       addToast({ type: 'info', title: 'EMPTY_SKETCH', message: 'Add blocks or code first.' });
       return;
     }
-    await compile(code);
-  }, [mode, generatedCode, manualCode, compile, addToast]);
+    
+    if (hardwarePort) {
+      addToast({ type: 'info', title: 'BUILDING FIRMWARE', message: 'Compiling for hardware upload...' });
+      await compile(code, 'firmware');
+    } else {
+      await compile(code, 'simulate');
+    }
+  }, [mode, generatedCode, manualCode, compile, hardwarePort, addToast]);
 
   // ── Blockly code change → also schedule auto-save ──────────────────────
   const handleBlocklyCodeChange = useCallback((code: string) => {
@@ -418,10 +507,62 @@ export default function Editor() {
               </Button>
 
               <Button
+                variant={hardwarePort ? "primary" : "outline"}
+                className={`h-8 px-3 rounded-none ${
+                  hardwarePort 
+                    ? 'bg-amber-500 border-amber-600 hover:bg-amber-600 text-white' 
+                    : 'border border-slate-900 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800'
+                }`}
+                onClick={handleConnectHardware}
+                title={hardwarePort ? 'Disconnect Hardware' : 'Connect Hardware (Web Serial)'}
+              >
+                <Usb size={12} className="mr-1" />
+                <span className="font-mono text-[10px] font-bold uppercase hidden sm:inline">
+                  {hardwarePort ? 'USB' : 'Connect'}
+                </span>
+              </Button>
+
+              {/* Upload to hardware (only when hex is ready) */}
+              {hardwarePort && compileResult?.success && compileResult?.hexBase64 && (
+                <Button
+                  variant="primary"
+                  className="h-8 px-4 rounded-none bg-blue-500 border-blue-600 hover:bg-blue-600"
+                  onClick={handleUploadToHardware}
+                  disabled={isFlashing}
+                  title="Upload firmware to hardware"
+                >
+                  {isFlashing
+                    ? <Loader2 size={12} className="animate-spin mr-1" />
+                    : <Upload size={12} className="mr-1" />
+                  }
+                  <span className="font-mono text-[10px] font-bold uppercase hidden sm:inline">
+                    {isFlashing ? `${flashProgress}%` : 'Upload'}
+                  </span>
+                </Button>
+              )}
+
+              {/* Serial Monitor toggle */}
+              {hardwarePort && (
+                <Button
+                  variant={showSerialMonitor ? 'primary' : 'outline'}
+                  className={`h-8 px-3 rounded-none ${
+                    showSerialMonitor
+                      ? 'bg-violet-500 border-violet-600 hover:bg-violet-600 text-white'
+                      : 'border border-slate-900 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800'
+                  }`}
+                  onClick={() => setShowSerialMonitor(!showSerialMonitor)}
+                  title="Toggle Serial Monitor"
+                >
+                  <Terminal size={12} className="mr-1" />
+                  <span className="font-mono text-[10px] font-bold uppercase hidden sm:inline">Serial</span>
+                </Button>
+              )}
+
+              <Button
                 variant="primary"
                 className="h-8 px-5 rounded-none bg-emerald-500 border-emerald-600 hover:bg-emerald-600"
                 onClick={handleCompile}
-                disabled={isCompiling}
+                disabled={isCompiling || isFlashing}
                 title="Compile & Run (Ctrl+Enter)"
               >
                 {isCompiling
@@ -433,6 +574,16 @@ export default function Editor() {
                 </span>
               </Button>
             </div>
+
+            {/* Flash progress bar */}
+            {isFlashing && (
+              <div className="absolute left-0 right-0 top-14 h-1 bg-slate-900 z-10">
+                <div
+                  className="h-full bg-blue-500 transition-all duration-300 ease-out"
+                  style={{ width: `${flashProgress}%` }}
+                />
+              </div>
+            )}
           </div>
 
           {/* ── Main Area (below toolbar) ────────────────────────────────── */}
@@ -464,66 +615,103 @@ export default function Editor() {
 
             {/* ── Output / Compiler Terminal Pane ─────────────────────────── */}
             <div className="w-[340px] lg:w-[420px] hw-border-l bg-[#050505] flex flex-col shrink-0">
-              {/* C++ preview header (block mode) */}
-              {mode === 'block' && !isCompiling && !compileResult && (
-                <div className="hw-border-b bg-[#0a0a0a] px-4 py-2 flex items-center gap-2 shrink-0">
-                  <Code2 size={12} className="text-slate-500" />
-                  <span className="font-mono text-[10px] text-slate-500 uppercase tracking-widest">
-                    Generated C++ Preview
-                  </span>
-                </div>
-              )}
 
-              {/* Stdin input for programs that need cin/scanf */}
-              {mode === 'code' && (
-                <div className="hw-border-b bg-[#0a0a0a] shrink-0">
-                  <div className="px-3 py-1.5 flex items-center gap-2">
-                    <span className="font-mono text-[9px] text-slate-500 uppercase tracking-widest">📥 stdin input</span>
-                  </div>
-                  <textarea
-                    value={stdinInput}
-                    onChange={(e) => setStdinInput(e.target.value)}
-                    placeholder="Enter input here (for cin/scanf programs)..."
-                    spellCheck={false}
-                    className="w-full bg-[#0a0a0a] text-slate-300 font-mono text-[11px] px-3 py-2 outline-none resize-none border-none h-16 placeholder:text-slate-700"
-                  />
-                </div>
-              )}
-
-              {/* Console (has compile result or is compiling) OR code preview */}
-              {(isCompiling || compileResult) ? (
-                <CompileConsole isCompiling={isCompiling} compileResult={compileResult} />
+              {/* Serial Monitor (when active and hardware connected) */}
+              {showSerialMonitor && hardwarePort && !isFlashing ? (
+                <SerialMonitor
+                  port={hardwarePort}
+                  onDisconnect={() => {
+                    setHardwarePort(null);
+                    setShowSerialMonitor(false);
+                  }}
+                />
               ) : (
-                <div className="flex-1 overflow-y-auto p-4">
-                  {mode === 'block' && (
-                    generatedCode ? (
-                      <pre className="font-mono text-xs text-emerald-400 leading-relaxed whitespace-pre-wrap">
-                        {generatedCode}
-                      </pre>
-                    ) : (
-                      <div className="flex flex-col items-center justify-center h-full text-slate-700">
-                        <Terminal size={40} className="mb-4 opacity-20" />
-                        <p className="font-mono text-xs uppercase tracking-widest text-center leading-loose">
-                          AWAITING_LOGIC_BLOCKS<br />
-                          <span className="text-[10px] opacity-60">
-                            Drop blocks on the canvas to preview C++ output
-                          </span>
-                        </p>
-                      </div>
-                    )
+                <>
+                  {/* C++ preview header (block mode) */}
+                  {mode === 'block' && !isCompiling && !compileResult && !isFlashing && (
+                    <div className="hw-border-b bg-[#0a0a0a] px-4 py-2 flex items-center gap-2 shrink-0">
+                      <Code2 size={12} className="text-slate-500" />
+                      <span className="font-mono text-[10px] text-slate-500 uppercase tracking-widest">
+                        Generated C++ Preview
+                      </span>
+                    </div>
                   )}
-                  {mode === 'code' && (
-                    <div className="flex flex-col items-center justify-center h-full text-slate-700">
-                      <Play size={40} className="mb-4 opacity-20" />
-                      <p className="font-mono text-xs uppercase tracking-widest text-center leading-loose">
-                        READY_TO_COMPILE<br />
-                        <span className="text-[10px] opacity-60">
-                          Press Execute to compile and run your code
-                        </span>
+
+                  {/* Stdin input for programs that need cin/scanf */}
+                  {mode === 'code' && !isFlashing && (
+                    <div className="hw-border-b bg-[#0a0a0a] shrink-0">
+                      <div className="px-3 py-1.5 flex items-center gap-2">
+                        <span className="font-mono text-[9px] text-slate-500 uppercase tracking-widest">📥 stdin input</span>
+                      </div>
+                      <textarea
+                        value={stdinInput}
+                        onChange={(e) => setStdinInput(e.target.value)}
+                        placeholder="Enter input here (for cin/scanf programs)..."
+                        spellCheck={false}
+                        className="w-full bg-[#0a0a0a] text-slate-300 font-mono text-[11px] px-3 py-2 outline-none resize-none border-none h-16 placeholder:text-slate-700"
+                      />
+                    </div>
+                  )}
+
+                  {/* Flash progress overlay */}
+                  {isFlashing && (
+                    <div className="flex-1 flex flex-col items-center justify-center p-6">
+                      <div className="w-16 h-16 rounded-full bg-blue-500/10 flex items-center justify-center mb-4">
+                        <Upload size={24} className="text-blue-400 animate-pulse" />
+                      </div>
+                      <p className="font-mono text-xs font-bold uppercase tracking-widest text-blue-400 mb-3">
+                        Flashing Firmware
+                      </p>
+                      <div className="w-full max-w-[200px] h-2 bg-slate-800 rounded-sm overflow-hidden mb-2">
+                        <div
+                          className="h-full bg-blue-500 transition-all duration-300 ease-out rounded-sm"
+                          style={{ width: `${flashProgress}%` }}
+                        />
+                      </div>
+                      <p className="font-mono text-[10px] text-slate-500 text-center">
+                        {flashMessage || 'Preparing...'}
                       </p>
                     </div>
                   )}
-                </div>
+
+                  {/* Console (has compile result or is compiling) OR code preview */}
+                  {!isFlashing && (
+                    (isCompiling || compileResult) ? (
+                      <CompileConsole isCompiling={isCompiling} compileResult={compileResult} />
+                    ) : (
+                      <div className="flex-1 overflow-y-auto p-4">
+                        {mode === 'block' && (
+                          generatedCode ? (
+                            <pre className="font-mono text-xs text-emerald-400 leading-relaxed whitespace-pre-wrap">
+                              {generatedCode}
+                            </pre>
+                          ) : (
+                            <div className="flex flex-col items-center justify-center h-full text-slate-700">
+                              <Terminal size={40} className="mb-4 opacity-20" />
+                              <p className="font-mono text-xs uppercase tracking-widest text-center leading-loose">
+                                AWAITING_LOGIC_BLOCKS<br />
+                                <span className="text-[10px] opacity-60">
+                                  Drop blocks on the canvas to preview C++ output
+                                </span>
+                              </p>
+                            </div>
+                          )
+                        )}
+                        {mode === 'code' && (
+                          <div className="flex flex-col items-center justify-center h-full text-slate-700">
+                            <Play size={40} className="mb-4 opacity-20" />
+                            <p className="font-mono text-xs uppercase tracking-widest text-center leading-loose">
+                              READY_TO_COMPILE<br />
+                              <span className="text-[10px] opacity-60">
+                                Press Execute to compile and run your code
+                              </span>
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    )
+                  )}
+                </>
               )}
             </div>
 

@@ -12,6 +12,7 @@ import { spawn } from 'node:child_process';
 import { mkdtemp, writeFile, rm } from 'node:fs/promises';
 import path from 'node:path';
 import os from 'node:os';
+import { readdir, readFile } from 'node:fs/promises';
 import { env } from '../env';
 import { logger } from './logger';
 import { prepareForWandbox, adjustLineNumbers } from './arduino-shim';
@@ -33,6 +34,8 @@ export interface CompileResult {
   durationMs: number;
   /** Which engine was used for this compile. */
   engine:     'wandbox' | 'arduino' | 'mock';
+  /** The compiled firmware binary (if available) */
+  hexBase64?: string;
 }
 
 // ─── GCC error parser ─────────────────────────────────────────────────────────
@@ -278,18 +281,35 @@ async function compileArduino(
   const start = Date.now();
   const tmpDir     = await mkdtemp(path.join(os.tmpdir(), 'tinkergyan-'));
   const sketchDir  = path.join(tmpDir, 'sketch');
+  const buildDir   = path.join(tmpDir, 'build');
   const sketchFile = path.join(sketchDir, 'sketch.ino');
 
   try {
     await (await import('node:fs/promises')).mkdir(sketchDir, { recursive: true });
+    await (await import('node:fs/promises')).mkdir(buildDir, { recursive: true });
     await writeFile(sketchFile, code, 'utf8');
 
     const cliPath = env.ARDUINO_CLI_PATH!;
-    const args = ['compile', '--fqbn', board, '--format', 'text', sketchDir];
+    const args = ['compile', '--fqbn', board, '--format', 'text', '--output-dir', buildDir, sketchDir];
     const { stdout, stderr } = await spawnWithTimeout(cliPath, args, timeoutMs);
     const errors   = parseArduinoErrors(stderr, sketchFile);
     const hasError = errors.some(e => e.severity === 'error') ||
       stderr.toLowerCase().includes('error:');
+
+    let hexBase64: string | undefined;
+    if (!hasError) {
+      try {
+        const files = await readdir(buildDir);
+        const binFile = files.find(f => f.endsWith('.hex') || f.endsWith('.bin'));
+        if (binFile) {
+          const binData = await readFile(path.join(buildDir, binFile));
+          hexBase64 = binData.toString('base64');
+          logger.info({ board, size: binData.length, file: binFile }, 'compiler.hex_extracted');
+        }
+      } catch (err) {
+        logger.warn({ err }, 'Failed to read compiled firmware');
+      }
+    }
 
     return {
       success:    !hasError,
@@ -298,6 +318,7 @@ async function compileArduino(
       errors,
       durationMs: Date.now() - start,
       engine:     'arduino',
+      ...(hexBase64 ? { hexBase64 } : {}),
     };
   } finally {
     await rm(tmpDir, { recursive: true, force: true }).catch(e => {
@@ -398,5 +419,104 @@ export async function compile(
     case 'wandbox':
     default:
       return compileWandbox(code, stdin);
+  }
+}
+
+/**
+ * Resolve the arduino-cli binary path.
+ * Checks env.ARDUINO_CLI_PATH first, then common install locations.
+ */
+function resolveArduinoCliPath(): string {
+  if (env.ARDUINO_CLI_PATH) return env.ARDUINO_CLI_PATH;
+
+  // Common locations on Linux (Render, Docker)
+  const candidates = [
+    '/usr/local/bin/arduino-cli',
+    '/usr/bin/arduino-cli',
+    path.join(os.homedir(), 'bin', 'arduino-cli'),
+    path.join(os.homedir(), '.local', 'bin', 'arduino-cli'),
+  ];
+
+  // On Windows dev
+  if (process.platform === 'win32') {
+    candidates.push(
+      'C:\\Program Files\\Arduino CLI\\arduino-cli.exe',
+      path.join(os.homedir(), 'AppData', 'Local', 'Arduino15', 'arduino-cli.exe'),
+    );
+  }
+
+  for (const candidate of candidates) {
+    try {
+      const fs = require('node:fs');
+      if (fs.existsSync(candidate)) return candidate;
+    } catch { /* skip */ }
+  }
+
+  return 'arduino-cli'; // Fall back to PATH lookup
+}
+
+/**
+ * Compile for firmware output (always uses arduino-cli).
+ * Called when frontend requests target='firmware' for hardware upload.
+ * This bypasses the env-based strategy selection.
+ */
+export async function compileForFirmware(
+  code: string,
+  board: string,
+  timeoutMs = env.MAX_COMPILE_TIMEOUT,
+): Promise<CompileResult> {
+  const cliPath = resolveArduinoCliPath();
+  logger.info({ board, cliPath }, 'compileForFirmware.start');
+
+  const start = Date.now();
+  const tmpDir     = await mkdtemp(path.join(os.tmpdir(), 'tinkergyan-fw-'));
+  const sketchDir  = path.join(tmpDir, 'sketch');
+  const buildDir   = path.join(tmpDir, 'build');
+  const sketchFile = path.join(sketchDir, 'sketch.ino');
+
+  try {
+    const { mkdir } = await import('node:fs/promises');
+    await mkdir(sketchDir, { recursive: true });
+    await mkdir(buildDir,  { recursive: true });
+    await writeFile(sketchFile, code, 'utf8');
+
+    const args = ['compile', '--fqbn', board, '--output-dir', buildDir, sketchDir];
+    const { stdout, stderr } = await spawnWithTimeout(cliPath, args, timeoutMs);
+    const errors = parseArduinoErrors(stderr, sketchFile);
+    const hasError = errors.some(e => e.severity === 'error') ||
+      stderr.toLowerCase().includes('error:');
+
+    // Extract hex/bin firmware
+    let hexBase64: string | undefined;
+    if (!hasError) {
+      try {
+        const files = await readdir(buildDir);
+        // Prefer .hex for AVR, .bin for ESP
+        const binFile = files.find(f => f.endsWith('.hex')) || files.find(f => f.endsWith('.bin'));
+        if (binFile) {
+          const binData = await readFile(path.join(buildDir, binFile));
+          hexBase64 = binData.toString('base64');
+          logger.info({ board, size: binData.length, file: binFile }, 'compileForFirmware.hex_extracted');
+        } else {
+          logger.warn({ buildFiles: files }, 'compileForFirmware.no_hex_found');
+        }
+      } catch (err) {
+        logger.warn({ err }, 'compileForFirmware.read_hex_failed');
+      }
+    }
+
+    return {
+      success:    !hasError,
+      stdout,
+      stderr,
+      errors,
+      durationMs: Date.now() - start,
+      engine:     'arduino',
+      ...(hexBase64 ? { hexBase64 } : {}),
+    };
+  } finally {
+    await rm(tmpDir, { recursive: true, force: true }).catch(e => {
+      logger.warn({ err: e, tmpDir }, 'Failed to clean firmware temp dir');
+    });
   }
 }

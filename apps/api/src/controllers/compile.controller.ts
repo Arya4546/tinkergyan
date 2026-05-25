@@ -24,6 +24,7 @@ export const compileSchema = z.object({
       }),
     }),
     stdin: z.string().max(10_000, 'stdin exceeds 10KB limit').optional().default(''),
+    target: z.enum(['simulate', 'firmware']).optional().default('simulate'),
   }),
 });
 
@@ -31,9 +32,10 @@ export const compileSchema = z.object({
 
 export const compileCode = catchAsync(async (req: Request, res: Response) => {
   const result = await CompileService.compile(req.user!.id, {
-    code:  req.body.code,
-    board: req.body.board,
-    stdin: req.body.stdin || '',
+    code:   req.body.code,
+    board:  req.body.board,
+    stdin:  req.body.stdin || '',
+    target: req.body.target || 'simulate',
   });
 
   if (result.success) {

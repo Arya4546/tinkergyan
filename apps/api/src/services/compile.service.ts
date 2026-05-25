@@ -24,9 +24,10 @@ export const SUPPORTED_BOARDS = [
 export type BoardFqbn = (typeof SUPPORTED_BOARDS)[number];
 
 export interface CompileRequest {
-  code:   string;
-  board:  BoardFqbn;
-  stdin?: string;
+  code:    string;
+  board:   BoardFqbn;
+  stdin?:  string;
+  target?: 'simulate' | 'firmware';
 }
 
 export class CompileService {
@@ -34,21 +35,34 @@ export class CompileService {
     userId: string,
     request: CompileRequest,
   ): Promise<CompileResult> {
-    const mode = getCompilerMode();
-    logger.info({ userId, board: request.board, mode }, 'compile.service.start');
+    const isFirmware = request.target === 'firmware';
+    const mode = isFirmware ? 'arduino' : getCompilerMode();
+    logger.info({ userId, board: request.board, mode, target: request.target }, 'compile.service.start');
 
     const release = await compileSemaphore.acquire();
 
     try {
-      const result = await compile(
-        request.code,
-        request.board,
-        env.MAX_COMPILE_TIMEOUT,
-        request.stdin,
-      );
+      let result: CompileResult;
+
+      if (isFirmware) {
+        // Force arduino-cli for firmware builds
+        const { compileForFirmware } = await import('../lib/compiler');
+        result = await compileForFirmware(
+          request.code,
+          request.board,
+          env.MAX_COMPILE_TIMEOUT,
+        );
+      } else {
+        result = await compile(
+          request.code,
+          request.board,
+          env.MAX_COMPILE_TIMEOUT,
+          request.stdin,
+        );
+      }
 
       logger.info(
-        { userId, success: result.success, engine: result.engine, durationMs: result.durationMs },
+        { userId, success: result.success, engine: result.engine, durationMs: result.durationMs, hasHex: !!result.hexBase64 },
         'compile.service.done',
       );
 

@@ -32,6 +32,7 @@ export interface CompileResult {
   errors:     CompileError[];
   durationMs: number;
   engine:     'wandbox' | 'arduino' | 'mock';
+  hexBase64?: string;
 }
 
 export type EditorMode = 'block' | 'code';
@@ -198,7 +199,7 @@ export interface EditorState {
   compileResult: CompileResult | null;
   stdinInput:    string;
   setStdinInput: (val: string) => void;
-  compile:       (code: string) => Promise<void>;
+  compile:       (code: string, target?: 'simulate' | 'firmware') => Promise<void>;
   clearResult:   () => void;
 
   // ── Project ───────────────────────────────────────────────────────────────
@@ -267,13 +268,14 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
   setStdinInput: (val: string) => set({ stdinInput: val }),
 
   // ── Compile ───────────────────────────────────────────────────────────────
-  compile: async (code: string) => {
+  compile: async (code: string, target?: 'simulate' | 'firmware') => {
     set({ isCompiling: true, compileResult: null });
     try {
       const { data } = await api.post('/compile', {
         code,
         board: get().board,
         stdin: get().stdinInput,
+        target,
       });
       set({ compileResult: data.data.result as CompileResult });
     } catch (err: any) {

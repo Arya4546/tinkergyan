@@ -2,7 +2,7 @@ services:
   - type: web
     name: tinkergyan-api
     runtime: node
-    buildCommand: pnpm install && pnpm build
+    buildCommand: chmod +x scripts/setup-arduino-cli.sh && ./scripts/setup-arduino-cli.sh && pnpm install && pnpm build
     startCommand: pnpm start
     envVars:
       - key: NODE_ENV
@@ -16,7 +16,7 @@ services:
       - key: JWT_SECRET
         generateValue: true
       - key: FRONTEND_URL
-        value: https://tinkergyan.vercel.app # Update this after frontend deployment
+        value: https://tinkergyan-web.vercel.app
 
 databases:
   - name: tinkergyan-db
