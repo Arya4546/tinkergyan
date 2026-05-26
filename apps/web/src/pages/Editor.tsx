@@ -233,19 +233,52 @@ export default function Editor() {
 
   // ── Upload to Hardware ───────────────────────────────────────────────────
   const handleUploadToHardware = useCallback(async () => {
-    if (!hardwarePort || !compileResult?.hexBase64) {
-      addToast({ type: 'error', title: 'UPLOAD FAILED', message: 'No firmware or hardware connected.' });
+    if (!hardwarePort) {
+      addToast({ type: 'error', title: 'UPLOAD FAILED', message: 'No hardware connected.' });
+      return;
+    }
+
+    const code = mode === 'block'
+      ? (blocklyRef.current?.getCode() ?? generatedCode)
+      : (monacoRef.current?.getValue() ?? manualCode);
+
+    if (!code.trim()) {
+      addToast({ type: 'info', title: 'EMPTY_SKETCH', message: 'Add blocks or code first.' });
       return;
     }
 
     setIsFlashing(true);
     setFlashProgress(0);
-    setFlashMessage('Starting upload...');
+    setFlashMessage('Compiling firmware...');
     setShowSerialMonitor(false); // Close serial monitor during flash
 
     try {
+      // Step 1: Compile for firmware (uses arduino-cli on server)
+      addToast({ type: 'info', title: 'BUILDING FIRMWARE', message: 'Compiling for hardware upload...' });
+      const { data } = await (await import('../services/api')).api.post('/compile', {
+        code,
+        board,
+        stdin: '',
+        target: 'firmware',
+      });
+
+      const firmwareResult = data.data.result;
+
+      if (!firmwareResult.success || !firmwareResult.hexBase64) {
+        const errMsg = firmwareResult.errors?.[0]?.message || firmwareResult.stderr || 'Firmware compilation failed';
+        addToast({ type: 'error', title: 'BUILD FAILED', message: errMsg });
+        setIsFlashing(false);
+        setFlashProgress(0);
+        setFlashMessage('');
+        return;
+      }
+
+      setFlashMessage('Uploading to board...');
+      setFlashProgress(10);
+
+      // Step 2: Flash the compiled firmware to the board
       const flasher = new WebSerialFlasher(hardwarePort);
-      await flasher.flash(compileResult.hexBase64, {
+      await flasher.flash(firmwareResult.hexBase64, {
         board: board as FlashBoard,
         onProgress: (percent, message) => {
           setFlashProgress(percent);
@@ -257,13 +290,14 @@ export default function Editor() {
       addToast({ type: 'success', title: 'UPLOAD COMPLETE', message: 'Firmware flashed successfully!' });
       setShowSerialMonitor(true); // Auto-open serial monitor after flash
     } catch (err: any) {
-      addToast({ type: 'error', title: 'FLASH ERROR', message: err.message || 'Upload failed.' });
+      const message = err?.response?.data?.error?.message || err.message || 'Upload failed.';
+      addToast({ type: 'error', title: 'UPLOAD ERROR', message });
     } finally {
       setIsFlashing(false);
       setFlashProgress(0);
       setFlashMessage('');
     }
-  }, [hardwarePort, compileResult, board, addToast]);
+  }, [hardwarePort, board, mode, generatedCode, manualCode, addToast]);
 
   // ── Compile ────────────────────────────────────────────────────────────
   const handleCompile = useCallback(async () => {
@@ -276,13 +310,9 @@ export default function Editor() {
       return;
     }
     
-    if (hardwarePort) {
-      addToast({ type: 'info', title: 'BUILDING FIRMWARE', message: 'Compiling for hardware upload...' });
-      await compile(code, 'firmware');
-    } else {
-      await compile(code, 'simulate');
-    }
-  }, [mode, generatedCode, manualCode, compile, hardwarePort, addToast]);
+    // Always simulate on Execute — firmware build only happens on Upload
+    await compile(code, 'simulate');
+  }, [mode, generatedCode, manualCode, compile, addToast]);
 
   // ── Blockly code change → also schedule auto-save ──────────────────────
   const handleBlocklyCodeChange = useCallback((code: string) => {
@@ -522,14 +552,14 @@ export default function Editor() {
                 </span>
               </Button>
 
-              {/* Upload to hardware (only when hex is ready) */}
-              {hardwarePort && compileResult?.success && compileResult?.hexBase64 && (
+              {/* Upload to hardware — always visible when board connected */}
+              {hardwarePort && (
                 <Button
                   variant="primary"
                   className="h-8 px-4 rounded-none bg-blue-500 border-blue-600 hover:bg-blue-600"
                   onClick={handleUploadToHardware}
-                  disabled={isFlashing}
-                  title="Upload firmware to hardware"
+                  disabled={isFlashing || isCompiling}
+                  title="Compile firmware & upload to hardware"
                 >
                   {isFlashing
                     ? <Loader2 size={12} className="animate-spin mr-1" />

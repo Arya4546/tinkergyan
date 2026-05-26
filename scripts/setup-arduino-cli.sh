@@ -58,4 +58,4 @@ echo "  ✅ arduino-cli setup complete!"
 echo "  📍 Path: $(which arduino-cli)"
 echo "  📦 Installed cores:"
 arduino-cli core list
-echo "══════════════════════════════════════════════════════════"
+echo "══════════════════════════════════════════════════════════"Execute is working when the arduino uno board is not connected
