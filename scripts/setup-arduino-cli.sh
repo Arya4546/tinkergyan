@@ -11,7 +11,19 @@
 set -euo pipefail
 
 ARDUINO_CLI_VERSION="1.1.1"
-INSTALL_DIR="$HOME/bin"
+
+# Resolve project-level bin directory so it gets preserved on Render's runner image
+if [ -n "${ARDUINO_CLI_PATH:-}" ]; then
+  INSTALL_DIR="$(dirname "$ARDUINO_CLI_PATH")"
+else
+  SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+  INSTALL_DIR="$(cd "$SCRIPT_DIR/.." && pwd)/bin"
+fi
+
+# Ensure arduino-cli directories are inside the workspace so they are persisted
+export ARDUINO_DIRECTORIES_DATA="${ARDUINO_DIRECTORIES_DATA:-$INSTALL_DIR/arduino-cli-data}"
+export ARDUINO_DIRECTORIES_USER="${ARDUINO_DIRECTORIES_USER:-$INSTALL_DIR/arduino-cli-user}"
+export ARDUINO_DIRECTORIES_DOWNLOADS="${ARDUINO_DIRECTORIES_DOWNLOADS:-$INSTALL_DIR/arduino-cli-downloads}"
 
 echo "══════════════════════════════════════════════════════════"
 echo "  🔧 TinkerGyan: Setting up arduino-cli v${ARDUINO_CLI_VERSION}"
@@ -22,6 +34,9 @@ if command -v arduino-cli &>/dev/null; then
   echo "✅ arduino-cli already installed: $(arduino-cli version)"
 else
   mkdir -p "$INSTALL_DIR"
+  mkdir -p "$ARDUINO_DIRECTORIES_DATA"
+  mkdir -p "$ARDUINO_DIRECTORIES_USER"
+  mkdir -p "$ARDUINO_DIRECTORIES_DOWNLOADS"
   
   echo "⬇️  Downloading arduino-cli..."
   curl -fsSL "https://raw.githubusercontent.com/arduino/arduino-cli/master/install.sh" | BINDIR="$INSTALL_DIR" sh -s "$ARDUINO_CLI_VERSION"

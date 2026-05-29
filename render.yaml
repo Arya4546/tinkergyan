@@ -17,6 +17,14 @@ services:
         generateValue: true
       - key: FRONTEND_URL
         value: https://tinkergyan-web.vercel.app
+      - key: ARDUINO_CLI_PATH
+        value: /opt/render/project/src/bin/arduino-cli
+      - key: ARDUINO_DIRECTORIES_DATA
+        value: /opt/render/project/src/bin/arduino-cli-data
+      - key: ARDUINO_DIRECTORIES_USER
+        value: /opt/render/project/src/bin/arduino-cli-user
+      - key: ARDUINO_DIRECTORIES_DOWNLOADS
+        value: /opt/render/project/src/bin/arduino-cli-downloads
 
 databases:
   - name: tinkergyan-db
