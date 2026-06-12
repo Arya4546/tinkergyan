@@ -46,7 +46,16 @@ export function createBaseConfig({ tsconfigRootDir }) {
       files: ['**/*.{ts,tsx,mts,cts}'],
       languageOptions: {
         parserOptions: {
-          project: ['./apps/api/tsconfig.json', './packages/*/tsconfig.json'],
+          projectService: {
+            allowDefaultProject: [
+              '*.config.{js,cjs,mjs,ts}',
+              '*.{js,cjs,mjs,ts}',
+              'apps/*/tailwind.config.ts',
+              'apps/*/postcss.config.js',
+              'setup-husky.mjs',
+            ],
+            defaultProject: 'tsconfig.eslint.json',
+          },
           tsconfigRootDir,
         },
       },

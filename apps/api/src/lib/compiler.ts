@@ -216,10 +216,10 @@ async function compileWandbox(code: string, stdin?: string): Promise<CompileResu
     } catch (err) {
       const error = err instanceof Error ? err : new Error(String(err));
       lastError = error;
-      if (error.name === 'AbortError' && attempt < WANDBOX_MAX_RETRIES) {
-        continue; // Retry on timeout
+      if (attempt < WANDBOX_MAX_RETRIES) {
+        continue; // Retry on timeout or 5xx server errors
       }
-      if (error.name !== 'AbortError') break; // Non-timeout errors don't retry
+      break; // Retries exhausted
     } finally {
       clearTimeout(timer);
     }
@@ -336,7 +336,9 @@ async function compileArduino(
     if (!hasError) {
       try {
         const files = await readdir(buildDir);
-        const binFile = files.find((f) => f.endsWith('.hex') || f.endsWith('.bin'));
+        const binFile =
+          files.find((f) => f.endsWith('.hex') && !f.includes('with_bootloader')) ||
+          files.find((f) => f.endsWith('.bin'));
         if (binFile) {
           const binData = await readFile(path.join(buildDir, binFile));
           hexBase64 = binData.toString('base64');
@@ -541,9 +543,10 @@ export async function compileForFirmware(
     if (!hasError) {
       try {
         const files = await readdir(buildDir);
-        // Prefer .hex for AVR, .bin for ESP
+        // Prefer .hex for AVR, .bin for ESP, but exclude the with_bootloader variant
         const binFile =
-          files.find((f) => f.endsWith('.hex')) || files.find((f) => f.endsWith('.bin'));
+          files.find((f) => f.endsWith('.hex') && !f.includes('with_bootloader')) ||
+          files.find((f) => f.endsWith('.bin'));
         if (binFile) {
           const binData = await readFile(path.join(buildDir, binFile));
           hexBase64 = binData.toString('base64');

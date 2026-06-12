@@ -5,7 +5,9 @@
 @layer base {
   body {
     @apply antialiased bg-white text-slate-900 border-slate-900 overflow-x-hidden;
-    font-feature-settings: "rlig" 1, "calt" 1;
+    font-feature-settings:
+      'rlig' 1,
+      'calt' 1;
     font-family: 'Inter', system-ui, sans-serif;
   }
 
@@ -16,7 +18,6 @@
 }
 
 @layer utilities {
-
   /* The Dot Matrix Background */
   .bg-dot-matrix {
     background-image: radial-gradient(circle, #cbd5e1 1px, transparent 1px);
@@ -80,8 +81,16 @@
 }
 
 html.dark .blocklyToolboxDiv {
-  background-color: #0A0A0A !important;
+  background-color: #0a0a0a !important;
   border-right: 1px solid #334155 !important;
+}
+
+/* Fix for dragging blocks in modern browsers / touch devices */
+.blocklySvg {
+  touch-action: none !important;
+}
+.blocklyBlockCanvas {
+  touch-action: none !important;
 }
 
 /* Base Category Row styling */
@@ -302,4 +311,3 @@ html.dark .lesson-content .md-table td {
 html.dark .lesson-content .md-table tr:nth-child(even) {
   background-color: rgba(15, 23, 42, 0.5);
 }
-

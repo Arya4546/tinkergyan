@@ -20,7 +20,7 @@ export interface FlashOptions {
 
 // Intel HEX parser — converts .hex file content to raw binary
 function parseIntelHex(hexString: string): Uint8Array {
-  const lines = hexString.split('\n').filter(l => l.startsWith(':'));
+  const lines = hexString.split('\n').filter((l) => l.startsWith(':'));
   const chunks: { address: number; data: number[] }[] = [];
   let maxAddr = 0;
   let baseAddress = 0;
@@ -51,7 +51,7 @@ function parseIntelHex(hexString: string): Uint8Array {
   }
 
   const binary = new Uint8Array(maxAddr);
-  binary.fill(0xFF); // Flash default is 0xFF
+  binary.fill(0xff); // Flash default is 0xFF
   for (const chunk of chunks) {
     binary.set(chunk.data, chunk.address);
   }
@@ -70,22 +70,34 @@ const STK_LOAD_ADDRESS = 0x55;
 const STK_PROG_PAGE = 0x64;
 
 export class WebSerialFlasher {
-  private port: any;
+  private port: {
+    open(options: { baudRate: number }): Promise<void>;
+    close(): Promise<void>;
+    readable: ReadableStream<Uint8Array> | null;
+    writable: WritableStream<Uint8Array> | null;
+    setSignals(signals: { dataTerminalReady?: boolean; requestToSend?: boolean }): Promise<void>;
+  };
   private reader: ReadableStreamDefaultReader<Uint8Array> | null = null;
   private writer: WritableStreamDefaultWriter<Uint8Array> | null = null;
 
-  constructor(port: any) {
+  private readBuffer: number[] = [];
+  private isReading = false;
+  private readError: Error | null = null;
+  private readerPromise: Promise<void> | null = null;
+
+  constructor(port: typeof WebSerialFlasher.prototype.port) {
     this.port = port;
   }
 
   async flash(hexBase64: string, options: FlashOptions): Promise<void> {
+    this.readBuffer = []; // Reset buffer before flash
     const { board, onProgress, onLog } = options;
     const log = onLog || (() => {});
 
     try {
       // Decode base64 to text (Intel HEX format)
       const hexText = atob(hexBase64);
-      
+
       // Check if this is Intel HEX or raw binary
       let firmware: Uint8Array;
       if (hexText.startsWith(':')) {
@@ -93,7 +105,7 @@ export class WebSerialFlasher {
         log(`Parsed Intel HEX: ${firmware.length} bytes`);
       } else {
         // Raw binary (e.g., for ESP)
-        firmware = Uint8Array.from(hexText, c => c.charCodeAt(0));
+        firmware = Uint8Array.from(hexText, (c) => c.charCodeAt(0));
         log(`Raw binary: ${firmware.length} bytes`);
       }
 
@@ -106,8 +118,9 @@ export class WebSerialFlasher {
       }
 
       onProgress?.(100, 'Upload complete!');
-    } catch (err: any) {
-      throw new Error(`Flash failed: ${err.message || err}`);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      throw new Error(`Flash failed: ${msg}`);
     }
   }
 
@@ -118,7 +131,11 @@ export class WebSerialFlasher {
     log: (m: string) => void = () => {},
   ): Promise<void> {
     // Ensure port is closed so we can reopen with correct baud
-    try { await this.port.close(); } catch { /* may already be closed */ }
+    try {
+      await this.port.close();
+    } catch {
+      /* may already be closed */
+    }
 
     // Arduino Uno uses 115200 baud for upload, Mega uses 115200 too
     const uploadBaud = 115200;
@@ -127,37 +144,58 @@ export class WebSerialFlasher {
     log(`Port opened at ${uploadBaud} baud for flashing`);
     onProgress?.(10, 'Port ready');
 
+    if (!this.port.readable || !this.port.writable) {
+      throw new Error('Port streams are not available');
+    }
     this.reader = this.port.readable.getReader();
     this.writer = this.port.writable.getWriter();
 
+    this.startBackgroundRead();
+
     try {
-      // Reset the board by toggling DTR (simulated via close/open cycle)
-      // Web Serial doesn't support DTR directly, but the open cycle triggers auto-reset
-      // on boards with DTR-reset circuit (Arduino Uno, Mega, etc.)
-      log('Waiting for bootloader...');
+      // Reset the board by toggling DTR and RTS signals
+      log('Asserting DTR to reset board...');
       onProgress?.(15, 'Waiting for bootloader');
-      await this.delay(250); // Wait for bootloader to initialize
+      await this.port.setSignals({ dataTerminalReady: false, requestToSend: false });
+      await this.delay(250);
+      await this.port.setSignals({ dataTerminalReady: true, requestToSend: true });
+      await this.delay(50);
 
       // Sync with bootloader
       log('Syncing with STK500 bootloader...');
       onProgress?.(20, 'Syncing with bootloader');
-      
+
       let synced = false;
       for (let attempt = 0; attempt < 10; attempt++) {
         try {
           await this.sendCommand([STK_GET_SYNC, CRC_EOP]);
-          const resp = await this.readResponse(2, 500);
-          if (resp[0] === STK_INSYNC && resp[1] === STK_OK) {
-            synced = true;
-            break;
+          // Read bytes one by one to avoid framing errors with junk data
+          const deadline = Date.now() + 500;
+          let foundSync = false;
+          while (Date.now() < deadline) {
+            const b = await this.readResponse(1, 100).catch(() => null);
+            if (b && b[0] === STK_INSYNC) {
+              foundSync = true;
+              break;
+            }
+          }
+          if (foundSync) {
+            const b2 = await this.readResponse(1, 100).catch(() => null);
+            if (b2 && b2[0] === STK_OK) {
+              synced = true;
+              break;
+            }
           }
         } catch {
-          await this.delay(50);
+          // ignore
         }
+        await this.delay(50);
       }
 
       if (!synced) {
-        throw new Error('Could not sync with bootloader. Make sure the board is connected and has a bootloader.');
+        throw new Error(
+          'Could not sync with bootloader. Make sure the board is connected and has a bootloader.',
+        );
       }
 
       log('Bootloader synced ✓');
@@ -172,7 +210,7 @@ export class WebSerialFlasher {
       // Flash pages
       const pageSize = board.includes('mega') ? 256 : 128;
       const totalPages = Math.ceil(firmware.length / pageSize);
-      
+
       for (let page = 0; page < totalPages; page++) {
         const address = page * pageSize;
         const wordAddress = address >> 1; // STK500 uses word addresses
@@ -180,20 +218,29 @@ export class WebSerialFlasher {
         // Load address
         await this.sendCommand([
           STK_LOAD_ADDRESS,
-          wordAddress & 0xFF,
-          (wordAddress >> 8) & 0xFF,
+          wordAddress & 0xff,
+          (wordAddress >> 8) & 0xff,
           CRC_EOP,
         ]);
         await this.expectInSync();
 
         // Program page
-        const pageData = firmware.slice(address, address + pageSize);
+        let pageData = firmware.slice(address, address + pageSize);
+
+        // Pad the final page with 0xFF to match pageSize exactly (required by some bootloaders)
+        if (pageData.length < pageSize) {
+          const padded = new Uint8Array(pageSize);
+          padded.fill(0xff);
+          padded.set(pageData);
+          pageData = padded;
+        }
+
         const actualSize = pageData.length;
 
         const cmd = [
           STK_PROG_PAGE,
-          (actualSize >> 8) & 0xFF,
-          actualSize & 0xFF,
+          (actualSize >> 8) & 0xff,
+          actualSize & 0xff,
           0x46, // 'F' for flash memory
           ...Array.from(pageData),
           CRC_EOP,
@@ -215,8 +262,16 @@ export class WebSerialFlasher {
       await this.expectInSync();
       log('Programming mode exited ✓');
       onProgress?.(95, 'Finalizing');
-
     } finally {
+      this.isReading = false;
+      this.reader?.cancel().catch(() => {}); // Force read loop to exit
+
+      try {
+        await this.readerPromise;
+      } catch {
+        /* ignore */
+      }
+
       this.reader?.releaseLock();
       this.writer?.releaseLock();
       this.reader = null;
@@ -235,38 +290,106 @@ export class WebSerialFlasher {
   private async flashESP(
     firmware: Uint8Array,
     onProgress?: (p: number, m: string) => void,
-    log: (m: string) => void = () => {},
+    onLog?: (m: string) => void,
   ): Promise<void> {
-    // ESP flashing is significantly more complex (SLIP protocol, stub loader, etc.)
-    // For now, we use a simplified approach: write raw binary at 115200
-    try { await this.port.close(); } catch { /* ignore */ }
-    await this.port.open({ baudRate: 115200 });
+    onLog?.('Initializing ESP Flasher...');
 
-    log(`ESP flash: ${firmware.length} bytes`);
-    onProgress?.(10, 'ESP: Port opened');
+    // Dynamically import esptool-js to avoid inflating the main bundle size
+    const { ESPLoader, Transport } = await import('esptool-js');
 
-    const writer = this.port.writable.getWriter();
-    
+    // ESPTool-JS terminal interface
+    const terminal = {
+      clean: () => {},
+      writeLine: (data: string) => {
+        onLog?.(`[esptool] ${data}`);
+      },
+      write: (data: string) => {
+        // Some output from esptool doesn't have newlines
+        onLog?.(`[esptool] ${data}`);
+      },
+    };
+
+    // We must release the locks created in the constructor so ESPLoader can use the port!
+    if (this.reader) {
+      this.isReading = false;
+      await this.reader.cancel().catch(() => {});
+      this.reader.releaseLock();
+      this.reader = null;
+    }
+    if (this.writer) {
+      this.writer.releaseLock();
+      this.writer = null;
+    }
+
     try {
-      const chunkSize = 1024;
-      const totalChunks = Math.ceil(firmware.length / chunkSize);
-      
-      for (let i = 0; i < totalChunks; i++) {
-        const chunk = firmware.slice(i * chunkSize, (i + 1) * chunkSize);
-        await writer.write(chunk);
-        
-        const progress = 10 + Math.round((i / totalChunks) * 85);
-        onProgress?.(progress, `Uploading chunk ${i + 1}/${totalChunks}`);
+      onProgress?.(5, 'Connecting to ROM bootloader...');
+
+      const transport = new Transport(this.port);
+      const esploader = new ESPLoader({
+        transport,
+        baudrate: 115200,
+        terminal,
+      });
+
+      await esploader.main();
+      await esploader.flashId();
+
+      onProgress?.(15, 'Preparing flash...');
+
+      // The compiled binary for ESP8266 is usually written at 0x0000.
+      // For ESP32 it varies (usually bootloader at 0x1000, partitions at 0x8000, app at 0x10000).
+      // Standard arduino-cli outputs a single combined binary for ESP32 at 0x0000.
+      const fileArray = [
+        {
+          data: firmware,
+          address: 0x0000,
+        },
+      ];
+
+      await esploader.writeFlash({
+        fileArray,
+        flashSize: 'keep',
+        flashMode: 'keep',
+        flashFreq: 'keep',
+        eraseAll: false,
+        compress: true,
+        reportProgress: (fileIndex: number, written: number, total: number) => {
+          const percent = 15 + Math.round((written / total) * 85);
+          onProgress?.(percent, `Flashing... ${Math.round((written / total) * 100)}%`);
+        },
+      });
+
+      onLog?.('ESP Flashing complete. Resetting board...');
+      await transport.disconnect(); // This asserts DTR/RTS to reset the board automatically
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      onLog?.(`ESP Flash Error: ${msg}`);
+      throw new Error(`Failed to flash ESP: ${msg}`);
+    }
+  }
+
+  private startBackgroundRead() {
+    this.isReading = true;
+    this.readError = null;
+    this.readerPromise = this.readLoop();
+  }
+
+  private async readLoop() {
+    if (!this.reader) return;
+    try {
+      while (this.isReading) {
+        const { value, done } = await this.reader.read();
+        if (done) break;
+        if (value) {
+          for (let i = 0; i < value.length; i++) {
+            this.readBuffer.push(value[i]!);
+          }
+        }
       }
-      
-      log('ESP firmware written ✓');
-      onProgress?.(95, 'Finalizing');
+    } catch (err) {
+      this.readError = err as Error;
     } finally {
-      writer.releaseLock();
-      try {
-        await this.port.close();
-        await this.port.open({ baudRate: 9600 });
-      } catch { /* best-effort */ }
+      this.isReading = false;
     }
   }
 
@@ -276,23 +399,19 @@ export class WebSerialFlasher {
   }
 
   private async readResponse(length: number, timeoutMs = 2000): Promise<Uint8Array> {
-    if (!this.reader) throw new Error('Reader not available');
-
     const result = new Uint8Array(length);
     let offset = 0;
-
     const deadline = Date.now() + timeoutMs;
 
     while (offset < length && Date.now() < deadline) {
-      const readResult = await Promise.race([
-        this.reader.read(),
-        this.delay(timeoutMs).then(() => ({ value: undefined as Uint8Array | undefined, done: true as const })),
-      ]);
+      if (this.readError) {
+        throw new Error(`Background read failed: ${this.readError.message}`);
+      }
 
-      if (readResult.done || !readResult.value) break;
-      const val = readResult.value;
-      for (let i = 0; i < val.length && offset < length; i++) {
-        result[offset++] = val[i]!;
+      if (this.readBuffer.length > 0) {
+        result[offset++] = this.readBuffer.shift()!;
+      } else {
+        await this.delay(5); // Fast polling
       }
     }
 
@@ -306,11 +425,13 @@ export class WebSerialFlasher {
   private async expectInSync(): Promise<void> {
     const resp = await this.readResponse(2);
     if (resp[0] !== STK_INSYNC || resp[1] !== STK_OK) {
-      throw new Error(`Expected INSYNC/OK, got 0x${(resp[0] ?? 0).toString(16)}/0x${(resp[1] ?? 0).toString(16)}`);
+      throw new Error(
+        `Expected INSYNC/OK, got 0x${(resp[0] ?? 0).toString(16)}/0x${(resp[1] ?? 0).toString(16)}`,
+      );
     }
   }
 
   private delay(ms: number): Promise<void> {
-    return new Promise(r => setTimeout(r, ms));
+    return new Promise((r) => setTimeout(r, ms));
   }
 }

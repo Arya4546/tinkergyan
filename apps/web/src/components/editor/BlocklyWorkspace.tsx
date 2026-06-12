@@ -17,7 +17,7 @@ import { arduinoGenerator } from './arduino-generator';
 import { INITIAL_TOOLBOX } from './toolbox';
 import { useUIStore } from '../../stores/ui.store';
 
-Blockly.setLocale(En as any);
+Blockly.setLocale(En as unknown as Record<string, string>);
 
 // ─── Public ref handle ────────────────────────────────────────────────────────
 export interface BlocklyWorkspaceHandle {
@@ -42,9 +42,9 @@ interface BlocklyWorkspaceProps {
 // ─── Component ────────────────────────────────────────────────────────────────
 export const BlocklyWorkspace = forwardRef<BlocklyWorkspaceHandle, BlocklyWorkspaceProps>(
   ({ onCodeChange, className = '' }, ref) => {
-    const blocklyDiv   = useRef<HTMLDivElement>(null);
+    const blocklyDiv = useRef<HTMLDivElement>(null);
     const workspaceRef = useRef<Blockly.WorkspaceSvg | null>(null);
-    const theme        = useUIStore((s: any) => s.theme);
+    const theme = useUIStore((s) => s.theme);
 
     // Expose imperative methods for save/load/getCode
     useImperativeHandle(ref, () => ({
@@ -59,8 +59,8 @@ export const BlocklyWorkspace = forwardRef<BlocklyWorkspaceHandle, BlocklyWorksp
           workspaceRef.current.clear();
           // Blockly 11 removed Xml.textToDom — use the native DOMParser instead.
           const parser = new DOMParser();
-          const doc    = parser.parseFromString(xml, 'text/xml');
-          const dom    = doc.documentElement;
+          const doc = parser.parseFromString(xml, 'text/xml');
+          const dom = doc.documentElement;
           Blockly.Xml.domToWorkspace(dom, workspaceRef.current);
         } catch {
           // Ignore malformed XML — workspace stays as-is
@@ -80,37 +80,44 @@ export const BlocklyWorkspace = forwardRef<BlocklyWorkspaceHandle, BlocklyWorksp
       },
     }));
 
+    const isInit = useRef(false);
+
     // Initialize Blockly once the container div is mounted
     useEffect(() => {
-      if (workspaceRef.current || !blocklyDiv.current) return;
+      if (isInit.current || workspaceRef.current || !blocklyDiv.current) return;
+
+      // Clear out any ghost DOM nodes from React 18 StrictMode unmounts
+      blocklyDiv.current.innerHTML = '';
+      isInit.current = true;
 
       workspaceRef.current = Blockly.inject(blocklyDiv.current, {
         toolbox: INITIAL_TOOLBOX,
-        theme:   Blockly.Themes.Classic,
+        theme: Blockly.Themes.Classic,
         grid: {
           spacing: 20,
-          length:  3,
-          colour:  theme === 'dark' ? '#333' : '#ccc',
-          snap:    true,
+          length: 3,
+          colour: theme === 'dark' ? '#333' : '#ccc',
+          snap: true,
         },
         zoom: {
-          controls:   true,
-          wheel:      true,
+          controls: true,
+          wheel: true,
           startScale: 1.0,
-          maxScale:   3,
-          minScale:   0.3,
+          maxScale: 3,
+          minScale: 0.3,
           scaleSpeed: 1.2,
         },
         trashcan: true,
       });
 
       const onChange = (event: Blockly.Events.Abstract) => {
+        const type = event.type;
         // Skip pure UI events that don't affect code
         if (
-          event.type === Blockly.Events.VIEWPORT_CHANGE ||
-          event.type === Blockly.Events.THEME_CHANGE ||
-          event.type === Blockly.Events.BUBBLE_OPEN ||
-          event.type === Blockly.Events.TRASHCAN_OPEN
+          type === (Blockly.Events.VIEWPORT_CHANGE as string) ||
+          type === (Blockly.Events.THEME_CHANGE as string) ||
+          type === (Blockly.Events.BUBBLE_OPEN as string) ||
+          type === (Blockly.Events.TRASHCAN_OPEN as string)
         ) {
           return;
         }
@@ -139,11 +146,8 @@ export const BlocklyWorkspace = forwardRef<BlocklyWorkspaceHandle, BlocklyWorksp
         onCodeChange('');
       }
 
-      return () => {
-        workspaceRef.current?.dispose();
-        workspaceRef.current = null;
-      };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+      // DO NOT put dispose() here to prevent strict mode from breaking global drag event listeners
+      // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []); // Intentionally runs once — workspace lifecycle is managed internally
 
     // Sync theme changes without re-mounting the workspace
@@ -166,7 +170,7 @@ export const BlocklyWorkspace = forwardRef<BlocklyWorkspaceHandle, BlocklyWorksp
         <div ref={blocklyDiv} className="absolute inset-0" />
       </div>
     );
-  }
+  },
 );
 
 BlocklyWorkspace.displayName = 'BlocklyWorkspace';
