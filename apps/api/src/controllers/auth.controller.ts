@@ -1,13 +1,18 @@
 import type { Request, Response } from 'express';
 import { z } from 'zod';
 import { AuthService } from '../services/auth.service';
+import type { RegisterDto, LoginDto, ChangePasswordDto } from '../services/auth.service';
 import { catchAsync } from '../utils/catchAsync';
 
 export const registerSchema = z.object({
   body: z.object({
     name: z.string().min(2).max(50),
     email: z.string().email(),
-    password: z.string().min(8).regex(/[A-Z]/, 'Must contain uppercase').regex(/[0-9]/, 'Must contain number'),
+    password: z
+      .string()
+      .min(8)
+      .regex(/[A-Z]/, 'Must contain uppercase')
+      .regex(/[0-9]/, 'Must contain number'),
   }),
 });
 
@@ -21,7 +26,11 @@ export const loginSchema = z.object({
 export const changePasswordSchema = z.object({
   body: z.object({
     oldPassword: z.string(),
-    newPassword: z.string().min(8).regex(/[A-Z]/, 'Must contain uppercase').regex(/[0-9]/, 'Must contain number'),
+    newPassword: z
+      .string()
+      .min(8)
+      .regex(/[A-Z]/, 'Must contain uppercase')
+      .regex(/[0-9]/, 'Must contain number'),
   }),
 });
 
@@ -35,10 +44,9 @@ const setCookie = (res: Response, token: string) => {
 };
 
 export const register = catchAsync(async (req: Request, res: Response) => {
-  const result = await AuthService.register(req.body);
-  await AuthService.setupSessionIndex(result.user.id, result.refreshToken);
+  const result = await AuthService.register(req.body as RegisterDto);
   setCookie(res, result.refreshToken);
-  
+
   res.status(201).json({
     success: true,
     data: {
@@ -49,8 +57,7 @@ export const register = catchAsync(async (req: Request, res: Response) => {
 });
 
 export const login = catchAsync(async (req: Request, res: Response) => {
-  const result = await AuthService.login(req.body);
-  await AuthService.setupSessionIndex(result.user.id, result.refreshToken);
+  const result = await AuthService.login(req.body as LoginDto);
   setCookie(res, result.refreshToken);
 
   res.status(200).json({
@@ -71,9 +78,9 @@ export const logout = catchAsync(async (req: Request, res: Response) => {
 });
 
 export const refresh = catchAsync(async (req: Request, res: Response) => {
-  const token = req.cookies.refreshToken;
+  const token = String(req.cookies.refreshToken || '');
   const result = await AuthService.refresh(token);
-  
+
   setCookie(res, result.refreshToken);
 
   res.status(200).json({
@@ -86,6 +93,7 @@ export const refresh = catchAsync(async (req: Request, res: Response) => {
 });
 
 export const getMe = catchAsync(async (req: Request, res: Response) => {
+  await Promise.resolve();
   const user = req.user!;
   res.status(200).json({
     success: true,
@@ -104,7 +112,7 @@ export const getMe = catchAsync(async (req: Request, res: Response) => {
 });
 
 export const changePassword = catchAsync(async (req: Request, res: Response) => {
-  await AuthService.changePassword(req.user!.id, req.body);
+  await AuthService.changePassword(req.user!.id, req.body as ChangePasswordDto);
   res.cookie('refreshToken', '', { maxAge: 0 }); // clear cookie since session revoked
   res.status(200).json({ success: true, data: null });
 });

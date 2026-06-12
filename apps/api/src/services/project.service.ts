@@ -7,7 +7,8 @@
  */
 import { AppError } from '../errors/app-error';
 import { prisma } from '../lib/prisma';
-import type { ProjectType, Prisma } from '@prisma/client';
+import type { ProjectType } from '@prisma/client';
+import { Prisma } from '@prisma/client';
 
 // ─── DTOs ─────────────────────────────────────────────────────────────────────
 
@@ -80,7 +81,7 @@ export class ProjectService {
         type: dto.type,
         boardTarget: dto.boardTarget,
         code: dto.code ?? null,
-        blockState: dto.blockState ?? null,
+        blockState: dto.blockState ?? Prisma.DbNull,
       },
     });
   }
@@ -140,11 +141,15 @@ export class ProjectService {
    */
   static async findPublic() {
     return prisma.project.findMany({
-      where:   { isPublic: true },
+      where: { isPublic: true },
       orderBy: { createdAt: 'desc' },
       select: {
-        id: true, title: true, type: true, boardTarget: true,
-        forkCount: true, createdAt: true,
+        id: true,
+        title: true,
+        type: true,
+        boardTarget: true,
+        forkCount: true,
+        createdAt: true,
         user: { select: { name: true, avatar: true } },
       },
     });
@@ -163,20 +168,19 @@ export class ProjectService {
       const copy = await tx.project.create({
         data: {
           userId,
-          title:       `Remix of ${src.title}`,
-          type:        src.type,
+          title: `Remix of ${src.title}`,
+          type: src.type,
           boardTarget: src.boardTarget,
-          code:        src.code,
-          blockState:  src.blockState || undefined,
-          forkedFrom:  src.id,
+          code: src.code,
+          blockState: src.blockState ?? Prisma.DbNull,
+          forkedFrom: src.id,
         },
       });
       await tx.project.update({
         where: { id: src.id },
-        data:  { forkCount: { increment: 1 } },
+        data: { forkCount: { increment: 1 } },
       });
       return copy;
     });
   }
 }
-

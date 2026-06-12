@@ -4,6 +4,7 @@
  * Business logic for courses, enrollment, and lesson progress.
  * All ownership and authorization checks happen here.
  */
+import type { Prisma } from '@prisma/client';
 import { AppError } from '../errors/app-error';
 import { prisma } from '../lib/prisma';
 
@@ -16,21 +17,21 @@ export class CourseService {
    */
   static async listCourses(userId?: string) {
     const courses = await prisma.course.findMany({
-      where:   { isPublished: true },
+      where: { isPublished: true },
       orderBy: { order: 'asc' },
       select: {
-        id:          true,
-        slug:        true,
-        title:       true,
+        id: true,
+        slug: true,
+        title: true,
         description: true,
-        thumbnail:   true,
-        difficulty:  true,
-        order:       true,
-        createdAt:   true,
-        _count:      { select: { modules: true, enrollments: true } },
-        modules:     {
+        thumbnail: true,
+        difficulty: true,
+        order: true,
+        createdAt: true,
+        _count: { select: { modules: true, enrollments: true } },
+        modules: {
           orderBy: { order: 'asc' },
-          select:  {
+          select: {
             _count: { select: { lessons: true } },
           },
         },
@@ -41,23 +42,26 @@ export class CourseService {
     let enrolledSlugs: Set<string> = new Set();
     if (userId) {
       const enrollments = await prisma.enrollment.findMany({
-        where:  { userId },
+        where: { userId },
         select: { course: { select: { slug: true } } },
       });
       enrolledSlugs = new Set(enrollments.map((e: { course: { slug: string } }) => e.course.slug));
     }
 
-    return courses.map((c: typeof courses[number]) => ({
-      id:              c.id,
-      slug:            c.slug,
-      title:           c.title,
-      description:     c.description,
-      thumbnail:       c.thumbnail,
-      difficulty:      c.difficulty,
-      moduleCount:     c._count.modules,
+    return courses.map((c: (typeof courses)[number]) => ({
+      id: c.id,
+      slug: c.slug,
+      title: c.title,
+      description: c.description,
+      thumbnail: c.thumbnail,
+      difficulty: c.difficulty,
+      moduleCount: c._count.modules,
       enrollmentCount: c._count.enrollments,
-      lessonCount:     c.modules.reduce((sum: number, m: { _count: { lessons: number } }) => sum + m._count.lessons, 0),
-      isEnrolled:      enrolledSlugs.has(c.slug),
+      lessonCount: c.modules.reduce(
+        (sum: number, m: { _count: { lessons: number } }) => sum + m._count.lessons,
+        0,
+      ),
+      isEnrolled: enrolledSlugs.has(c.slug),
     }));
   }
 
@@ -75,11 +79,11 @@ export class CourseService {
             lessons: {
               orderBy: { order: 'asc' },
               select: {
-                id:          true,
-                title:       true,
-                type:        true,
-                order:       true,
-                xpReward:    true,
+                id: true,
+                title: true,
+                type: true,
+                order: true,
+                xpReward: true,
                 // content is heavy — only fetched in getLesson()
               },
             },
@@ -103,7 +107,9 @@ export class CourseService {
       });
 
       if (enrollment) {
-        const allLessonIds = course.modules.flatMap((m: { lessons: { id: string }[] }) => m.lessons.map((l: { id: string }) => l.id));
+        const allLessonIds = course.modules.flatMap((m: { lessons: { id: string }[] }) =>
+          m.lessons.map((l: { id: string }) => l.id),
+        );
         const progress = await prisma.lessonProgress.findMany({
           where: { userId, lessonId: { in: allLessonIds } },
           select: { lessonId: true, completed: true },
@@ -114,26 +120,29 @@ export class CourseService {
       }
     }
 
-    const totalLessons     = course.modules.reduce((s: number, m: { lessons: unknown[] }) => s + m.lessons.length, 0);
+    const totalLessons = course.modules.reduce(
+      (s: number, m: { lessons: unknown[] }) => s + m.lessons.length,
+      0,
+    );
     const completedLessons = Object.values(lessonProgress).filter(Boolean).length;
 
     return {
-      id:              course.id,
-      slug:            course.slug,
-      title:           course.title,
-      description:     course.description,
-      thumbnail:       course.thumbnail,
-      difficulty:      course.difficulty,
+      id: course.id,
+      slug: course.slug,
+      title: course.title,
+      description: course.description,
+      thumbnail: course.thumbnail,
+      difficulty: course.difficulty,
       enrollmentCount: course._count.enrollments,
-      isEnrolled:      !!enrollment,
+      isEnrolled: !!enrollment,
       totalLessons,
       completedLessons,
-      progressPct:     totalLessons > 0 ? Math.round((completedLessons / totalLessons) * 100) : 0,
-      modules: course.modules.map((m: any) => ({
-        id:    m.id,
+      progressPct: totalLessons > 0 ? Math.round((completedLessons / totalLessons) * 100) : 0,
+      modules: course.modules.map((m) => ({
+        id: m.id,
         title: m.title,
         order: m.order,
-        lessons: m.lessons.map((l: any) => ({
+        lessons: m.lessons.map((l) => ({
           ...l,
           completed: lessonProgress[l.id] ?? false,
         })),
@@ -174,20 +183,20 @@ export class CourseService {
     }
 
     return {
-      id:          lesson.id,
-      title:       lesson.title,
-      content:     lesson.content,
-      type:        lesson.type,
+      id: lesson.id,
+      title: lesson.title,
+      content: lesson.content,
+      type: lesson.type,
       starterCode: lesson.starterCode,
-      order:       lesson.order,
-      xpReward:    lesson.xpReward,
+      order: lesson.order,
+      xpReward: lesson.xpReward,
       completed,
       module: {
-        id:    lesson.module.id,
+        id: lesson.module.id,
         title: lesson.module.title,
       },
       course: {
-        id:   lesson.module.course.id,
+        id: lesson.module.course.id,
         slug: lesson.module.course.slug,
         title: lesson.module.course.title,
       },
@@ -209,7 +218,7 @@ export class CourseService {
 
     // Upsert to be idempotent
     await prisma.enrollment.upsert({
-      where:  { userId_courseId: { userId, courseId } },
+      where: { userId_courseId: { userId, courseId } },
       create: { userId, courseId },
       update: {},
     });
@@ -231,58 +240,77 @@ export class CourseService {
       throw new AppError('RESOURCE_NOT_FOUND', 'Lesson not found', 404);
     }
 
-    // Check if already completed
-    const existing = await prisma.lessonProgress.findUnique({
-      where: { userId_lessonId: { userId, lessonId } },
+    const result = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+      // 1. Lock the user row to serialize all lesson completions for this user
+      const users = await tx.$queryRaw<{ xp: number; level: number; lastActiveAt: Date }[]>`
+        SELECT xp, level, "lastActiveAt" FROM users WHERE id = ${userId} FOR UPDATE
+      `;
+
+      if (!users || users.length === 0) {
+        throw new AppError('UNAUTHORIZED', 'User not found', 401);
+      }
+
+      const user = users[0];
+      if (!user) {
+        throw new AppError('UNAUTHORIZED', 'User not found', 401);
+      }
+
+      // 2. Check if progress exists and is completed inside the transaction
+      const existing = await tx.lessonProgress.findUnique({
+        where: { userId_lessonId: { userId, lessonId } },
+      });
+
+      if (existing?.completed) {
+        return { alreadyCompleted: true };
+      }
+
+      // 3. Mark complete
+      await tx.lessonProgress.upsert({
+        where: { userId_lessonId: { userId, lessonId } },
+        create: { userId, lessonId, completed: true, completedAt: new Date() },
+        update: { completed: true, completedAt: new Date() },
+      });
+
+      // 4. Calculate level and streak changes
+      const newXp = user.xp + lesson.xpReward;
+      const newLevel = CourseService.calculateLevel(newXp);
+      const levelUp = newLevel > user.level;
+
+      const now = new Date();
+      const lastDate = new Date(user.lastActiveAt);
+      const dayDiff = Math.floor((now.getTime() - lastDate.getTime()) / 86_400_000);
+
+      // 5. Update user atomically inside transaction
+      const updateData: Prisma.UserUpdateInput = {
+        xp: newXp,
+        level: newLevel,
+        lastActiveAt: now,
+      };
+
+      if (dayDiff === 1) {
+        updateData.streak = { increment: 1 };
+      } else if (dayDiff !== 0) {
+        updateData.streak = 1;
+      }
+
+      await tx.user.update({
+        where: { id: userId },
+        data: updateData,
+      });
+
+      return {
+        alreadyCompleted: false,
+        xpAwarded: lesson.xpReward,
+        levelUp,
+        newLevel,
+      };
     });
 
-    if (existing?.completed) {
+    if (result.alreadyCompleted) {
       return { alreadyCompleted: true, xpAwarded: 0, levelUp: false, newLevel: 0 };
     }
 
-    // Mark complete + award XP atomically
-    await prisma.$transaction([
-      prisma.lessonProgress.upsert({
-        where:  { userId_lessonId: { userId, lessonId } },
-        create: { userId, lessonId, completed: true, completedAt: new Date() },
-        update: { completed: true, completedAt: new Date() },
-      }),
-      prisma.user.update({
-        where: { id: userId },
-        data:  { xp: { increment: lesson.xpReward } },
-      }),
-    ]);
-
-    // Calculate new level and update if changed
-    const user = await prisma.user.findUnique({
-      where: { id: userId },
-      select: { xp: true, level: true, lastActiveAt: true },
-    });
-
-    const newLevel = CourseService.calculateLevel(user!.xp);
-    const levelUp  = newLevel > user!.level;
-
-    // Update level + streak in one call
-    const now      = new Date();
-    const lastDate = user!.lastActiveAt;
-    const dayDiff  = Math.floor((now.getTime() - lastDate.getTime()) / 86_400_000);
-
-    await prisma.user.update({
-      where: { id: userId },
-      data: {
-        level:        newLevel,
-        lastActiveAt: now,
-        // If last active yesterday, increment streak. If today, keep. Otherwise reset to 1.
-        streak: dayDiff === 1 ? { increment: 1 } : dayDiff === 0 ? undefined : 1,
-      },
-    });
-
-    return {
-      alreadyCompleted: false,
-      xpAwarded:        lesson.xpReward,
-      levelUp,
-      newLevel,
-    };
+    return result;
   }
 
   /**

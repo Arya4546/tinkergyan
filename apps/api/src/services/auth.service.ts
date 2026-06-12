@@ -1,13 +1,30 @@
 import bcrypt from 'bcrypt';
-import { SignJWT, jwtVerify } from 'jose';
+import { SignJWT } from 'jose';
 import crypto from 'node:crypto';
+import type { RegisterRequest, LoginRequest } from '@tinkergyan/shared-types';
 import { env } from '../env';
 import { AppError } from '../errors/app-error';
 import { prisma } from '../lib/prisma';
 import { redis } from '../lib/redis';
 
+export type RegisterDto = RegisterRequest;
+export type LoginDto = LoginRequest;
+
+export interface ChangePasswordDto {
+  oldPassword: string;
+  newPassword: string;
+}
+
+interface UserSession {
+  refreshTokenHash: string;
+  oldRefreshTokenHash?: string;
+  rotatedAt?: number;
+  lastSeen: number;
+}
+
 export class AuthService {
   private static async getSecret() {
+    await Promise.resolve();
     return new TextEncoder().encode(env.JWT_SECRET);
   }
 
@@ -29,7 +46,7 @@ export class AuthService {
       .sign(secret);
   }
 
-  static async register(data: any) {
+  static async register(data: RegisterDto) {
     const existingUser = await prisma.user.findUnique({
       where: { email: data.email },
     });
@@ -52,8 +69,13 @@ export class AuthService {
     const refreshToken = this.generateRefreshToken();
     const rtHash = this.hashRefreshToken(refreshToken);
 
-    // Store in Redis (30 days = 2592000 seconds)
-    await redis.setex(`session:${user.id}`, 2592000, JSON.stringify({ refreshTokenHash: rtHash, lastSeen: Date.now() }));
+    // Store session and index in Redis (30 days = 2592000 seconds)
+    const sessionData: UserSession = {
+      refreshTokenHash: rtHash,
+      lastSeen: Date.now(),
+    };
+    await redis.setex(`session:${user.id}`, 2592000, JSON.stringify(sessionData));
+    await redis.setex(`rt:${rtHash}`, 2592000, user.id);
 
     return {
       user: { id: user.id, name: user.name, email: user.email, xp: user.xp, level: user.level },
@@ -62,7 +84,7 @@ export class AuthService {
     };
   }
 
-  static async login(data: any) {
+  static async login(data: LoginDto) {
     const user = await prisma.user.findUnique({
       where: { email: data.email },
     });
@@ -80,7 +102,13 @@ export class AuthService {
     const refreshToken = this.generateRefreshToken();
     const rtHash = this.hashRefreshToken(refreshToken);
 
-    await redis.setex(`session:${user.id}`, 2592000, JSON.stringify({ refreshTokenHash: rtHash, lastSeen: Date.now() }));
+    // Store session and index in Redis (30 days = 2592000 seconds)
+    const sessionData: UserSession = {
+      refreshTokenHash: rtHash,
+      lastSeen: Date.now(),
+    };
+    await redis.setex(`session:${user.id}`, 2592000, JSON.stringify(sessionData));
+    await redis.setex(`rt:${rtHash}`, 2592000, user.id);
 
     return {
       user: { id: user.id, name: user.name, email: user.email, xp: user.xp, level: user.level },
@@ -106,12 +134,22 @@ export class AuthService {
       throw new AppError('UNAUTHORIZED', 'Session expired', 401);
     }
 
-    const session = JSON.parse(sessionRaw);
+    const session = JSON.parse(sessionRaw) as UserSession;
+
+    // Check if the provided token matches the current active token
     if (session.refreshTokenHash !== rtHash) {
-      // Possible token reuse / hijack
-      await redis.del(`session:${userId}`);
-      await redis.del(`rt:${rtHash}`);
-      throw new AppError('UNAUTHORIZED', 'Invalid token session', 401);
+      // Check if it's the old token within the grace period (10 seconds)
+      const isGracePeriod =
+        session.oldRefreshTokenHash === rtHash &&
+        session.rotatedAt &&
+        Date.now() - session.rotatedAt < 10000;
+
+      if (!isGracePeriod) {
+        // Possible token reuse / hijack outside grace period -> clear session
+        await redis.del(`session:${userId}`);
+        await redis.del(`rt:${rtHash}`);
+        throw new AppError('UNAUTHORIZED', 'Invalid token session', 401);
+      }
     }
 
     // Generate new tokens
@@ -124,10 +162,17 @@ export class AuthService {
       throw new AppError('UNAUTHORIZED', 'User not found', 401);
     }
 
-    // Update session
-    await redis.setex(`session:${userId}`, 2592000, JSON.stringify({ refreshTokenHash: newRtHash, lastSeen: Date.now() }));
-    // Delete old index and set new index
-    await redis.del(`rt:${rtHash}`);
+    // Update session, keeping the old token hash and rotation time for grace period
+    const sessionData: UserSession = {
+      refreshTokenHash: newRtHash,
+      oldRefreshTokenHash: rtHash,
+      rotatedAt: Date.now(),
+      lastSeen: Date.now(),
+    };
+    await redis.setex(`session:${userId}`, 2592000, JSON.stringify(sessionData));
+
+    // Keep old token mapping for 15 seconds to support concurrent request lookup
+    await redis.setex(`rt:${rtHash}`, 15, userId);
     await redis.setex(`rt:${newRtHash}`, 2592000, userId);
 
     return {
@@ -140,18 +185,16 @@ export class AuthService {
   static async logout(userId: string) {
     const sessionRaw = await redis.get(`session:${userId}`);
     if (sessionRaw) {
-      const session = JSON.parse(sessionRaw);
+      const session = JSON.parse(sessionRaw) as UserSession;
       await redis.del(`rt:${session.refreshTokenHash}`);
+      if (session.oldRefreshTokenHash) {
+        await redis.del(`rt:${session.oldRefreshTokenHash}`);
+      }
     }
     await redis.del(`session:${userId}`);
   }
 
-  static async setupSessionIndex(userId: string, refreshToken: string) {
-    const rtHash = this.hashRefreshToken(refreshToken);
-    await redis.setex(`rt:${rtHash}`, 2592000, userId);
-  }
-
-  static async changePassword(userId: string, data: any) {
+  static async changePassword(userId: string, data: ChangePasswordDto) {
     const user = await prisma.user.findUnique({ where: { id: userId } });
     if (!user) throw new AppError('UNAUTHORIZED', 'User not found', 401);
 
@@ -164,7 +207,7 @@ export class AuthService {
       data: { passwordHash },
     });
 
-    // Optionally revoke all sessions here
+    // Revoke all sessions here
     await this.logout(userId);
   }
 }
