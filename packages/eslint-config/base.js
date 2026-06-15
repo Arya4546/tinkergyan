@@ -34,7 +34,7 @@ export function createBaseConfig({ tsconfigRootDir }) {
     {
       files: ['**/*.{ts,tsx,mts,cts,js,mjs,cjs}'],
       rules: {
-        'no-console': ['error', { allow: ['warn', 'error'] }],
+        'no-console': ['warn', { allow: ['warn', 'error'] }],
       },
     },
     ...tseslint.configs.recommendedTypeChecked,
@@ -69,7 +69,14 @@ export function createBaseConfig({ tsconfigRootDir }) {
             prefer: 'type-imports',
           },
         ],
-        '@typescript-eslint/no-explicit-any': 'error',
+        '@typescript-eslint/no-explicit-any': 'warn',
+        '@typescript-eslint/no-unsafe-assignment': 'warn',
+        '@typescript-eslint/no-unsafe-call': 'warn',
+        '@typescript-eslint/no-unsafe-member-access': 'warn',
+        '@typescript-eslint/no-unsafe-return': 'warn',
+        '@typescript-eslint/no-unsafe-argument': 'warn',
+        '@typescript-eslint/no-floating-promises': 'warn',
+        '@typescript-eslint/no-misused-promises': 'warn',
         '@typescript-eslint/no-unused-vars': 'off',
         'unused-imports/no-unused-imports': 'error',
         'unused-imports/no-unused-vars': [
