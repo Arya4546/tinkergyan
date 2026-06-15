@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-return, @typescript-eslint/no-floating-promises, @typescript-eslint/no-misused-promises, @typescript-eslint/no-unsafe-argument, no-console */
 /**
  * Editor.tsx
  *
@@ -15,10 +16,23 @@
 import { useRef, useCallback, useEffect, useState } from 'react';
 import { Link, useParams, useNavigate } from 'react-router-dom';
 import {
-  Terminal, Save, Play, ChevronLeft, LayoutGrid,
-  Code2, Loader2,
-  Plus, Minus, FileCode, Download,
-  Undo, Redo, Copy, Globe, Usb, Upload,
+  Terminal,
+  Save,
+  Play,
+  ChevronLeft,
+  LayoutGrid,
+  Code2,
+  Loader2,
+  Plus,
+  Minus,
+  FileCode,
+  Download,
+  Undo,
+  Redo,
+  Copy,
+  Globe,
+  Usb,
+  Upload,
 } from 'lucide-react';
 
 import { CompileConsole } from '../components/editor/CompileConsole';
@@ -26,29 +40,35 @@ import { SerialMonitor } from '../components/editor/SerialMonitor';
 import { WebSerialFlasher } from '../lib/web-serial-flasher';
 import type { FlashBoard } from '../lib/web-serial-flasher';
 
-import { BlocklyWorkspace, type BlocklyWorkspaceHandle } from '../components/editor/BlocklyWorkspace';
+import {
+  BlocklyWorkspace,
+  type BlocklyWorkspaceHandle,
+} from '../components/editor/BlocklyWorkspace';
 import { MonacoEditor, type MonacoEditorHandle } from '../components/editor/MonacoEditor';
 import { Button } from '../components/ui/Button';
-import {
-  useEditorStore,
-  STARTER_TEMPLATES, type StarterTemplate,
-} from '../stores/editor.store';
+import { useEditorStore, STARTER_TEMPLATES, type StarterTemplate } from '../stores/editor.store';
 import { useUIStore } from '../stores/ui.store';
 
 // ─── Board dropdown options ───────────────────────────────────────────────────
 const BOARDS = [
-  { fqbn: 'arduino:avr:uno',              label: 'Arduino Uno'     },
-  { fqbn: 'arduino:avr:mega',             label: 'Arduino Mega'    },
-  { fqbn: 'esp8266:esp8266:nodemcuv2',    label: 'NodeMCU (ESP8266)' },
+  { fqbn: 'arduino:avr:uno', label: 'Arduino Uno' },
+  { fqbn: 'arduino:avr:mega', label: 'Arduino Mega' },
+  { fqbn: 'esp8266:esp8266:nodemcuv2', label: 'NodeMCU (ESP8266)' },
 ] as const;
 
 // ─── Template Picker Modal ────────────────────────────────────────────────────
-function TemplatePicker({ onSelect, onClose }: {
+function TemplatePicker({
+  onSelect,
+  onClose,
+}: {
   onSelect: (t: StarterTemplate) => void;
-  onClose:  () => void;
+  onClose: () => void;
 }) {
   return (
-    <div className="absolute inset-0 z-50 bg-black/60 flex items-center justify-center p-4" onClick={onClose}>
+    <div
+      className="absolute inset-0 z-50 bg-black/60 flex items-center justify-center p-4"
+      onClick={onClose}
+    >
       <div
         className="bg-white dark:bg-[#111111] hw-border max-w-2xl w-full max-h-[80vh] overflow-y-auto"
         onClick={(e) => e.stopPropagation()}
@@ -57,7 +77,10 @@ function TemplatePicker({ onSelect, onClose }: {
           <h2 className="font-mono text-sm font-bold uppercase tracking-widest text-slate-900 dark:text-white">
             STARTER_TEMPLATES
           </h2>
-          <button onClick={onClose} className="font-mono text-xs text-slate-400 hover:text-slate-900 dark:hover:text-white">
+          <button
+            onClick={onClose}
+            className="font-mono text-xs text-slate-400 hover:text-slate-900 dark:hover:text-white"
+          >
             [ESC]
           </button>
         </div>
@@ -65,12 +88,17 @@ function TemplatePicker({ onSelect, onClose }: {
           {STARTER_TEMPLATES.map((t) => (
             <button
               key={t.id}
-              onClick={() => { onSelect(t); onClose(); }}
+              onClick={() => {
+                onSelect(t);
+                onClose();
+              }}
               className="text-left p-4 hw-border bg-slate-50 dark:bg-[#0a0a0a] hover:bg-slate-900 hover:text-white dark:hover:bg-white dark:hover:text-slate-900 transition-colors group"
             >
               <div className="flex items-center gap-2 mb-2">
                 <FileCode size={14} className="text-emerald-500" />
-                <span className="font-mono text-xs font-bold uppercase tracking-widest">{t.title}</span>
+                <span className="font-mono text-xs font-bold uppercase tracking-widest">
+                  {t.title}
+                </span>
               </div>
               <p className="font-mono text-[10px] text-slate-400 group-hover:text-slate-300 dark:group-hover:text-slate-600 uppercase">
                 {t.desc}
@@ -96,21 +124,41 @@ export default function Editor() {
   const [showSerialMonitor, setShowSerialMonitor] = useState(false);
 
   const blocklyRef = useRef<BlocklyWorkspaceHandle>(null);
-  const monacoRef  = useRef<MonacoEditorHandle>(null);
+  const monacoRef = useRef<MonacoEditorHandle>(null);
 
   const {
-    mode, setMode,
-    generatedCode, setGeneratedCode,
-    manualCode, setManualCode,
-    board, setBoard,
-    fontSize, increaseFontSize, decreaseFontSize,
-    isCompiling, compileResult, compile, clearResult,
-    stdinInput, setStdinInput,
-    projectTitle, setProjectTitle,
-    isSaving, saveProject, loadProject, resetEditor, loadTemplate,
-    projectId, isLoading, isDirty, blockXml, setBlockXml,
-    scheduleAutoSave, duplicateProject,
-    isPublic, togglePublic,
+    mode,
+    setMode,
+    generatedCode,
+    setGeneratedCode,
+    manualCode,
+    setManualCode,
+    board,
+    setBoard,
+    fontSize,
+    increaseFontSize,
+    decreaseFontSize,
+    isCompiling,
+    compileResult,
+    compile,
+    clearResult,
+    stdinInput,
+    setStdinInput,
+    projectTitle,
+    setProjectTitle,
+    isSaving,
+    saveProject,
+    loadProject,
+    resetEditor,
+    loadTemplate,
+    projectId,
+    isLoading,
+    isDirty,
+    blockXml,
+    scheduleAutoSave,
+    duplicateProject,
+    isPublic,
+    togglePublic,
   } = useEditorStore();
 
   const addToast = useUIStore((s: any) => s.addToast);
@@ -126,11 +174,16 @@ export default function Editor() {
   }, [routeProjectId]);
 
   // ── Load blockXml into Blockly after project loads ─────────────────────
+  const hasLoadedProjectXml = useRef<string | null>(null);
+
   useEffect(() => {
     if (blockXml && blocklyRef.current && !isLoading) {
-      blocklyRef.current.loadXml(blockXml);
+      if (hasLoadedProjectXml.current !== projectId) {
+        blocklyRef.current.loadXml(blockXml);
+        hasLoadedProjectXml.current = projectId;
+      }
     }
-  }, [blockXml, isLoading]);
+  }, [blockXml, isLoading, projectId]);
 
   // ── Auto-save on changes ───────────────────────────────────────────────
   useEffect(() => {
@@ -148,7 +201,9 @@ export default function Editor() {
 
   const switchToBlock = useCallback(() => {
     if (mode === 'code' && manualCode !== generatedCode) {
-      const ok = window.confirm('Switching back to Block mode will discard manual code edits. Continue?');
+      const ok = window.confirm(
+        'Switching back to Block mode will discard manual code edits. Continue?',
+      );
       if (!ok) return;
     }
     clearResult();
@@ -183,7 +238,7 @@ export default function Editor() {
       addToast({
         type: 'success',
         title: newState ? 'PUBLIC' : 'PRIVATE',
-        message: newState ? 'Project is now visible in the Gallery.' : 'Project is now private.'
+        message: newState ? 'Project is now visible in the Gallery.' : 'Project is now private.',
       });
     } catch {
       addToast({ type: 'error', title: 'FAILED', message: 'Could not change visibility.' });
@@ -192,13 +247,21 @@ export default function Editor() {
 
   const handleConnectHardware = async () => {
     if (!('serial' in navigator)) {
-      addToast({ type: 'error', title: 'NOT SUPPORTED', message: 'Web Serial API is not supported in this browser. Use Chrome or Edge.' });
+      addToast({
+        type: 'error',
+        title: 'NOT SUPPORTED',
+        message: 'Web Serial API is not supported in this browser. Use Chrome or Edge.',
+      });
       return;
     }
-    
+
     try {
       if (hardwarePort) {
-        try { await hardwarePort.close(); } catch { /* may already be closed */ }
+        try {
+          await hardwarePort.close();
+        } catch {
+          /* may already be closed */
+        }
         setHardwarePort(null);
         setShowSerialMonitor(false);
         addToast({ type: 'info', title: 'DISCONNECTED', message: 'Hardware disconnected.' });
@@ -208,14 +271,14 @@ export default function Editor() {
       const port = await (navigator as any).serial.requestPort();
       // Don't open yet — let Serial Monitor or Flasher open with the right baud
       setHardwarePort(port);
-      
+
       const info = port.getInfo();
-      addToast({ 
-        type: 'success', 
-        title: 'HARDWARE CONNECTED', 
-        message: `Device ready (VID: ${info.usbVendorId || 'Unknown'})` 
+      addToast({
+        type: 'success',
+        title: 'HARDWARE CONNECTED',
+        message: `Device ready (VID: ${info.usbVendorId || 'Unknown'})`,
       });
-      
+
       // Listen for disconnect
       (navigator as any).serial.addEventListener('disconnect', (e: any) => {
         if (e.target === port) {
@@ -224,10 +287,13 @@ export default function Editor() {
           addToast({ type: 'warning', title: 'USB LOST', message: 'Hardware was disconnected.' });
         }
       });
-      
     } catch (err: any) {
       if (err.name === 'NotFoundError') return; // User cancelled
-      addToast({ type: 'error', title: 'CONNECTION FAILED', message: err.message || 'Could not claim USB interface.' });
+      addToast({
+        type: 'error',
+        title: 'CONNECTION FAILED',
+        message: err.message || 'Could not claim USB interface.',
+      });
     }
   };
 
@@ -238,9 +304,10 @@ export default function Editor() {
       return;
     }
 
-    const code = mode === 'block'
-      ? (blocklyRef.current?.getCode() ?? generatedCode)
-      : (monacoRef.current?.getValue() ?? manualCode);
+    const code =
+      mode === 'block'
+        ? (blocklyRef.current?.getCode() ?? generatedCode)
+        : (monacoRef.current?.getValue() ?? manualCode);
 
     if (!code.trim()) {
       addToast({ type: 'info', title: 'EMPTY_SKETCH', message: 'Add blocks or code first.' });
@@ -254,8 +321,14 @@ export default function Editor() {
 
     try {
       // Step 1: Compile for firmware (uses arduino-cli on server)
-      addToast({ type: 'info', title: 'BUILDING FIRMWARE', message: 'Compiling for hardware upload...' });
-      const { data } = await (await import('../services/api')).api.post('/compile', {
+      addToast({
+        type: 'info',
+        title: 'BUILDING FIRMWARE',
+        message: 'Compiling for hardware upload...',
+      });
+      const { data } = await (
+        await import('../services/api')
+      ).api.post('/compile', {
         code,
         board,
         stdin: '',
@@ -265,7 +338,10 @@ export default function Editor() {
       const firmwareResult = data.data.result;
 
       if (!firmwareResult.success || !firmwareResult.hexBase64) {
-        const errMsg = firmwareResult.errors?.[0]?.message || firmwareResult.stderr || 'Firmware compilation failed';
+        const errMsg =
+          firmwareResult.errors?.[0]?.message ||
+          firmwareResult.stderr ||
+          'Firmware compilation failed';
         addToast({ type: 'error', title: 'BUILD FAILED', message: errMsg });
         setIsFlashing(false);
         setFlashProgress(0);
@@ -287,7 +363,11 @@ export default function Editor() {
         onLog: (msg) => console.log('[Flash]', msg),
       });
 
-      addToast({ type: 'success', title: 'UPLOAD COMPLETE', message: 'Firmware flashed successfully!' });
+      addToast({
+        type: 'success',
+        title: 'UPLOAD COMPLETE',
+        message: 'Firmware flashed successfully!',
+      });
       setShowSerialMonitor(true); // Auto-open serial monitor after flash
     } catch (err: any) {
       const message = err?.response?.data?.error?.message || err.message || 'Upload failed.';
@@ -301,30 +381,37 @@ export default function Editor() {
 
   // ── Compile ────────────────────────────────────────────────────────────
   const handleCompile = useCallback(async () => {
-    const code = mode === 'block'
-      ? (blocklyRef.current?.getCode() ?? generatedCode)
-      : (monacoRef.current?.getValue() ?? manualCode);
+    const code =
+      mode === 'block'
+        ? (blocklyRef.current?.getCode() ?? generatedCode)
+        : (monacoRef.current?.getValue() ?? manualCode);
 
     if (!code.trim()) {
       addToast({ type: 'info', title: 'EMPTY_SKETCH', message: 'Add blocks or code first.' });
       return;
     }
-    
+
     // Always simulate on Execute — firmware build only happens on Upload
     await compile(code, 'simulate');
   }, [mode, generatedCode, manualCode, compile, addToast]);
 
   // ── Blockly code change → also schedule auto-save ──────────────────────
-  const handleBlocklyCodeChange = useCallback((code: string) => {
-    setGeneratedCode(code);
-    setBlockXml(blocklyRef.current?.getXml() ?? '');
-  }, [setGeneratedCode, setBlockXml]);
+  const handleBlocklyCodeChange = useCallback(
+    (code: string) => {
+      setGeneratedCode(code);
+      // Note: Do NOT call setBlockXml here. Updating the store's blockXml on every change
+      // triggers the loadXml effect which forcefully recreates blocks and interrupts dragging.
+      // Auto-save and manual save fetch the XML on-demand via blocklyRef.current.getXml().
+    },
+    [setGeneratedCode],
+  );
 
   // ── Download .ino file ─────────────────────────────────────────────────
   const handleDownload = useCallback(() => {
-    const code = mode === 'block'
-      ? (blocklyRef.current?.getCode() ?? generatedCode)
-      : (monacoRef.current?.getValue() ?? manualCode);
+    const code =
+      mode === 'block'
+        ? (blocklyRef.current?.getCode() ?? generatedCode)
+        : (monacoRef.current?.getValue() ?? manualCode);
 
     if (!code.trim()) {
       addToast({ type: 'info', title: 'EMPTY_SKETCH', message: 'No code to export.' });
@@ -333,9 +420,9 @@ export default function Editor() {
 
     const sanitized = projectTitle.replace(/[^a-zA-Z0-9_-]/g, '_');
     const blob = new Blob([code], { type: 'text/plain' });
-    const url  = URL.createObjectURL(blob);
-    const a    = document.createElement('a');
-    a.href     = url;
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
     a.download = `${sanitized}.ino`;
     a.click();
     URL.revokeObjectURL(url);
@@ -372,7 +459,9 @@ export default function Editor() {
       <div className="flex h-screen items-center justify-center bg-slate-50 dark:bg-[#0A0A0A]">
         <div className="text-center">
           <Loader2 size={32} className="animate-spin text-yellow-400 mx-auto mb-4" />
-          <p className="font-mono text-xs uppercase tracking-widest text-slate-500">LOADING_PROJECT...</p>
+          <p className="font-mono text-xs uppercase tracking-widest text-slate-500">
+            LOADING_PROJECT...
+          </p>
         </div>
       </div>
     );
@@ -383,10 +472,8 @@ export default function Editor() {
     <div className="flex h-screen bg-slate-50 dark:bg-[#0A0A0A] font-sans overflow-hidden bg-dot-matrix">
       <div className="flex w-full h-full p-2 sm:p-4">
         <div className="flex w-full h-full hw-panel shadow-[0_20px_50px_rgba(0,0,0,0.1)] overflow-hidden relative">
-
           {/* ── Top Control Bar ─────────────────────────────────────────── */}
           <div className="absolute top-0 left-0 w-full h-14 hw-border-b bg-white dark:bg-[#000000] flex justify-between items-center z-10 px-4 gap-3">
-
             {/* Left: Back + project title + dirty indicator */}
             <div className="flex items-center gap-3 min-w-0">
               <Link
@@ -439,18 +526,30 @@ export default function Editor() {
                 className="h-8 px-2 font-mono text-[10px] font-bold uppercase tracking-widest bg-white dark:bg-[#111111] text-slate-900 dark:text-white hw-border outline-none cursor-pointer"
               >
                 {BOARDS.map((b) => (
-                  <option key={b.fqbn} value={b.fqbn}>{b.label}</option>
+                  <option key={b.fqbn} value={b.fqbn}>
+                    {b.label}
+                  </option>
                 ))}
               </select>
 
               {/* Font size controls (code mode only) */}
               {mode === 'code' && (
                 <div className="flex items-center hw-border divide-x divide-slate-900 dark:divide-slate-800">
-                  <button onClick={decreaseFontSize} className="w-8 h-8 flex items-center justify-center text-slate-500 hover:text-slate-900 dark:hover:text-white" title="Decrease font">
+                  <button
+                    onClick={decreaseFontSize}
+                    className="w-8 h-8 flex items-center justify-center text-slate-500 hover:text-slate-900 dark:hover:text-white"
+                    title="Decrease font"
+                  >
                     <Minus size={12} />
                   </button>
-                  <span className="w-8 h-8 flex items-center justify-center font-mono text-[10px] font-bold text-slate-500">{fontSize}</span>
-                  <button onClick={increaseFontSize} className="w-8 h-8 flex items-center justify-center text-slate-500 hover:text-slate-900 dark:hover:text-white" title="Increase font">
+                  <span className="w-8 h-8 flex items-center justify-center font-mono text-[10px] font-bold text-slate-500">
+                    {fontSize}
+                  </span>
+                  <button
+                    onClick={increaseFontSize}
+                    className="w-8 h-8 flex items-center justify-center text-slate-500 hover:text-slate-900 dark:hover:text-white"
+                    title="Increase font"
+                  >
                     <Plus size={12} />
                   </button>
                 </div>
@@ -459,10 +558,18 @@ export default function Editor() {
               {/* Blockly Undo/Redo controls (block mode only) */}
               {mode === 'block' && (
                 <div className="flex items-center hw-border divide-x divide-slate-900 dark:divide-slate-800">
-                  <button onClick={() => blocklyRef.current?.undo()} className="w-8 h-8 flex items-center justify-center text-slate-500 hover:text-slate-900 dark:hover:text-white" title="Undo (Ctrl+Z)">
+                  <button
+                    onClick={() => blocklyRef.current?.undo()}
+                    className="w-8 h-8 flex items-center justify-center text-slate-500 hover:text-slate-900 dark:hover:text-white"
+                    title="Undo (Ctrl+Z)"
+                  >
                     <Undo size={14} />
                   </button>
-                  <button onClick={() => blocklyRef.current?.redo()} className="w-8 h-8 flex items-center justify-center text-slate-500 hover:text-slate-900 dark:hover:text-white" title="Redo (Ctrl+Y)">
+                  <button
+                    onClick={() => blocklyRef.current?.redo()}
+                    className="w-8 h-8 flex items-center justify-center text-slate-500 hover:text-slate-900 dark:hover:text-white"
+                    title="Redo (Ctrl+Y)"
+                  >
                     <Redo size={14} />
                   </button>
                 </div>
@@ -475,7 +582,9 @@ export default function Editor() {
                 onClick={() => setShowTemplates(true)}
               >
                 <FileCode size={12} className="mr-1" />
-                <span className="font-mono text-[10px] font-bold uppercase hidden sm:inline">Templates</span>
+                <span className="font-mono text-[10px] font-bold uppercase hidden sm:inline">
+                  Templates
+                </span>
               </Button>
 
               {/* Download .ino */}
@@ -486,7 +595,9 @@ export default function Editor() {
                 title="Download as .ino (Ctrl+Shift+D)"
               >
                 <Download size={12} className="mr-1" />
-                <span className="font-mono text-[10px] font-bold uppercase hidden sm:inline">.ino</span>
+                <span className="font-mono text-[10px] font-bold uppercase hidden sm:inline">
+                  .ino
+                </span>
               </Button>
 
               {/* Duplicate Project */}
@@ -499,18 +610,20 @@ export default function Editor() {
                     title="Duplicate this project"
                   >
                     <Copy size={12} className="mr-1" />
-                    <span className="font-mono text-[10px] font-bold uppercase hidden sm:inline">Fork</span>
+                    <span className="font-mono text-[10px] font-bold uppercase hidden sm:inline">
+                      Fork
+                    </span>
                   </Button>
 
                   <Button
                     variant="outline"
                     className={`h-8 px-3 rounded-none border-none transition-colors ${
-                      isPublic 
-                        ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-400 dark:hover:bg-emerald-900/50' 
+                      isPublic
+                        ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-400 dark:hover:bg-emerald-900/50'
                         : 'hover:bg-slate-100 dark:hover:bg-slate-800'
                     }`}
                     onClick={handleTogglePublic}
-                    title={isPublic ? "Make Private" : "Make Public"}
+                    title={isPublic ? 'Make Private' : 'Make Public'}
                   >
                     <Globe size={12} className="mr-1" />
                     <span className="font-mono text-[10px] font-bold uppercase hidden sm:inline">
@@ -527,20 +640,21 @@ export default function Editor() {
                 disabled={isSaving}
                 title="Save project (Ctrl+S)"
               >
-                {isSaving
-                  ? <Loader2 size={12} className="animate-spin mr-2" />
-                  : <Save size={12} className="mr-2" />
-                }
+                {isSaving ? (
+                  <Loader2 size={12} className="animate-spin mr-2" />
+                ) : (
+                  <Save size={12} className="mr-2" />
+                )}
                 <span className="font-mono text-[10px] font-bold uppercase">
                   {isSaving ? 'Saving...' : 'Save'}
                 </span>
               </Button>
 
               <Button
-                variant={hardwarePort ? "primary" : "outline"}
+                variant={hardwarePort ? 'primary' : 'outline'}
                 className={`h-8 px-3 rounded-none ${
-                  hardwarePort 
-                    ? 'bg-amber-500 border-amber-600 hover:bg-amber-600 text-white' 
+                  hardwarePort
+                    ? 'bg-amber-500 border-amber-600 hover:bg-amber-600 text-white'
                     : 'border border-slate-900 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800'
                 }`}
                 onClick={handleConnectHardware}
@@ -561,10 +675,11 @@ export default function Editor() {
                   disabled={isFlashing || isCompiling}
                   title="Compile firmware & upload to hardware"
                 >
-                  {isFlashing
-                    ? <Loader2 size={12} className="animate-spin mr-1" />
-                    : <Upload size={12} className="mr-1" />
-                  }
+                  {isFlashing ? (
+                    <Loader2 size={12} className="animate-spin mr-1" />
+                  ) : (
+                    <Upload size={12} className="mr-1" />
+                  )}
                   <span className="font-mono text-[10px] font-bold uppercase hidden sm:inline">
                     {isFlashing ? `${flashProgress}%` : 'Upload'}
                   </span>
@@ -584,7 +699,9 @@ export default function Editor() {
                   title="Toggle Serial Monitor"
                 >
                   <Terminal size={12} className="mr-1" />
-                  <span className="font-mono text-[10px] font-bold uppercase hidden sm:inline">Serial</span>
+                  <span className="font-mono text-[10px] font-bold uppercase hidden sm:inline">
+                    Serial
+                  </span>
                 </Button>
               )}
 
@@ -595,10 +712,11 @@ export default function Editor() {
                 disabled={isCompiling || isFlashing}
                 title="Compile & Run (Ctrl+Enter)"
               >
-                {isCompiling
-                  ? <Loader2 size={12} className="animate-spin mr-2" />
-                  : <Play size={12} className="mr-2" />
-                }
+                {isCompiling ? (
+                  <Loader2 size={12} className="animate-spin mr-2" />
+                ) : (
+                  <Play size={12} className="mr-2" />
+                )}
                 <span className="font-mono text-[10px] font-bold uppercase tracking-widest">
                   {isCompiling ? 'Running' : 'Execute'}
                 </span>
@@ -618,11 +736,12 @@ export default function Editor() {
 
           {/* ── Main Area (below toolbar) ────────────────────────────────── */}
           <div className="flex w-full h-full pt-14">
-
             {/* ── Editor Pane ─────────────────────────────────────────────── */}
             <div className="flex-1 relative overflow-hidden">
               {/* Blockly canvas */}
-              <div className={`absolute inset-0 transition-opacity duration-150 ${mode === 'block' ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}>
+              <div
+                className={`absolute inset-0 transition-opacity duration-150 ${mode === 'block' ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}
+              >
                 <BlocklyWorkspace
                   ref={blocklyRef}
                   onCodeChange={handleBlocklyCodeChange}
@@ -631,7 +750,9 @@ export default function Editor() {
               </div>
 
               {/* Monaco editor */}
-              <div className={`absolute inset-0 bg-[#1e1e1e] transition-opacity duration-150 ${mode === 'code' ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}>
+              <div
+                className={`absolute inset-0 bg-[#1e1e1e] transition-opacity duration-150 ${mode === 'code' ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}
+              >
                 <MonacoEditor
                   ref={monacoRef}
                   value={manualCode}
@@ -645,7 +766,6 @@ export default function Editor() {
 
             {/* ── Output / Compiler Terminal Pane ─────────────────────────── */}
             <div className="w-[340px] lg:w-[420px] hw-border-l bg-[#050505] flex flex-col shrink-0">
-
               {/* Serial Monitor (when active and hardware connected) */}
               {showSerialMonitor && hardwarePort && !isFlashing ? (
                 <SerialMonitor
@@ -671,7 +791,9 @@ export default function Editor() {
                   {mode === 'code' && !isFlashing && (
                     <div className="hw-border-b bg-[#0a0a0a] shrink-0">
                       <div className="px-3 py-1.5 flex items-center gap-2">
-                        <span className="font-mono text-[9px] text-slate-500 uppercase tracking-widest">📥 stdin input</span>
+                        <span className="font-mono text-[9px] text-slate-500 uppercase tracking-widest">
+                          📥 stdin input
+                        </span>
                       </div>
                       <textarea
                         value={stdinInput}
@@ -705,13 +827,13 @@ export default function Editor() {
                   )}
 
                   {/* Console (has compile result or is compiling) OR code preview */}
-                  {!isFlashing && (
-                    (isCompiling || compileResult) ? (
+                  {!isFlashing &&
+                    (isCompiling || compileResult ? (
                       <CompileConsole isCompiling={isCompiling} compileResult={compileResult} />
                     ) : (
                       <div className="flex-1 overflow-y-auto p-4">
-                        {mode === 'block' && (
-                          generatedCode ? (
+                        {mode === 'block' &&
+                          (generatedCode ? (
                             <pre className="font-mono text-xs text-emerald-400 leading-relaxed whitespace-pre-wrap">
                               {generatedCode}
                             </pre>
@@ -719,19 +841,20 @@ export default function Editor() {
                             <div className="flex flex-col items-center justify-center h-full text-slate-700">
                               <Terminal size={40} className="mb-4 opacity-20" />
                               <p className="font-mono text-xs uppercase tracking-widest text-center leading-loose">
-                                AWAITING_LOGIC_BLOCKS<br />
+                                AWAITING_LOGIC_BLOCKS
+                                <br />
                                 <span className="text-[10px] opacity-60">
                                   Drop blocks on the canvas to preview C++ output
                                 </span>
                               </p>
                             </div>
-                          )
-                        )}
+                          ))}
                         {mode === 'code' && (
                           <div className="flex flex-col items-center justify-center h-full text-slate-700">
                             <Play size={40} className="mb-4 opacity-20" />
                             <p className="font-mono text-xs uppercase tracking-widest text-center leading-loose">
-                              READY_TO_COMPILE<br />
+                              READY_TO_COMPILE
+                              <br />
                               <span className="text-[10px] opacity-60">
                                 Press Execute to compile and run your code
                               </span>
@@ -739,22 +862,17 @@ export default function Editor() {
                           </div>
                         )}
                       </div>
-                    )
-                  )}
+                    ))}
                 </>
               )}
             </div>
-
           </div>
         </div>
       </div>
 
       {/* ── Template Picker Overlay ─────────────────────────────────────── */}
       {showTemplates && (
-        <TemplatePicker
-          onSelect={loadTemplate}
-          onClose={() => setShowTemplates(false)}
-        />
+        <TemplatePicker onSelect={loadTemplate} onClose={() => setShowTemplates(false)} />
       )}
     </div>
   );
