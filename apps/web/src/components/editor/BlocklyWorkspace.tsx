@@ -57,9 +57,12 @@ export const BlocklyWorkspace = forwardRef<BlocklyWorkspaceHandle, BlocklyWorksp
         if (!workspaceRef.current || !xml) return;
         try {
           workspaceRef.current.clear();
+          // Remove movable="false" and deletable="false" from legacy block saves
+          const cleanXml = xml.replace(/movable="false"/g, '').replace(/deletable="false"/g, '');
+
           // Blockly 11 removed Xml.textToDom — use the native DOMParser instead.
           const parser = new DOMParser();
-          const doc = parser.parseFromString(xml, 'text/xml');
+          const doc = parser.parseFromString(cleanXml, 'text/xml');
           const dom = doc.documentElement;
           Blockly.Xml.domToWorkspace(dom, workspaceRef.current);
         } catch {
@@ -93,6 +96,11 @@ export const BlocklyWorkspace = forwardRef<BlocklyWorkspaceHandle, BlocklyWorksp
       workspaceRef.current = Blockly.inject(blocklyDiv.current, {
         toolbox: INITIAL_TOOLBOX,
         theme: Blockly.Themes.Classic,
+        move: {
+          scrollbars: true,
+          drag: true,
+          wheel: true,
+        },
         grid: {
           spacing: 20,
           length: 3,

@@ -114,7 +114,7 @@ function TemplatePicker({
 // ─────────────────────────────────────────────────────────────────────────────
 
 export default function Editor() {
-  const { projectId: routeProjectId } = useParams<{ projectId?: string }>();
+  const { id: routeProjectId } = useParams<{ id?: string }>();
   const navigate = useNavigate();
   const [showTemplates, setShowTemplates] = useState(false);
   const [hardwarePort, setHardwarePort] = useState<any>(null);
@@ -122,6 +122,8 @@ export default function Editor() {
   const [flashProgress, setFlashProgress] = useState(0);
   const [flashMessage, setFlashMessage] = useState('');
   const [showSerialMonitor, setShowSerialMonitor] = useState(false);
+  const [terminalWidth, setTerminalWidth] = useState(() => (window.innerWidth < 1024 ? 340 : 420));
+  const isResizing = useRef(false);
 
   const blocklyRef = useRef<BlocklyWorkspaceHandle>(null);
   const monacoRef = useRef<MonacoEditorHandle>(null);
@@ -163,11 +165,55 @@ export default function Editor() {
 
   const addToast = useUIStore((s: any) => s.addToast);
 
+  // ── Resizer Effect ───────────────────────────────────────────────────
+  useEffect(() => {
+    let animationFrameId: number;
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!isResizing.current) return;
+      const paddingRight = window.innerWidth < 640 ? 8 : 16;
+      let newWidth = window.innerWidth - e.clientX - paddingRight;
+      newWidth = Math.max(200, Math.min(newWidth, window.innerWidth - 300));
+      setTerminalWidth(newWidth);
+
+      // Request animation frame for smooth resize
+      if (animationFrameId) cancelAnimationFrame(animationFrameId);
+      animationFrameId = requestAnimationFrame(() => {
+        window.dispatchEvent(new Event('resize'));
+      });
+    };
+
+    const handleMouseUp = () => {
+      if (isResizing.current) {
+        isResizing.current = false;
+        document.body.style.cursor = '';
+        document.body.style.userSelect = '';
+        window.dispatchEvent(new Event('resize'));
+      }
+    };
+
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleMouseUp);
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+      if (animationFrameId) cancelAnimationFrame(animationFrameId);
+    };
+  }, []);
+
+  // ── Sync URL with newly created project ──────────────────────────────
+  useEffect(() => {
+    if (projectId && routeProjectId !== projectId) {
+      navigate(`/editor/${projectId}`, { replace: true });
+    }
+  }, [projectId, routeProjectId, navigate]);
+
   // ── Load project on mount if URL has an ID ─────────────────────────────
   useEffect(() => {
-    if (routeProjectId && routeProjectId !== projectId) {
-      loadProject(routeProjectId);
-    } else if (!routeProjectId && projectId) {
+    if (routeProjectId) {
+      if (projectId !== routeProjectId) {
+        loadProject(routeProjectId);
+      }
+    } else {
       resetEditor();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -764,8 +810,21 @@ export default function Editor() {
               </div>
             </div>
 
+            {/* ── Resizer ─────────────────────────────────────────────────── */}
+            <div
+              className="w-1.5 bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 cursor-col-resize transition-colors shrink-0 z-10"
+              onMouseDown={() => {
+                isResizing.current = true;
+                document.body.style.cursor = 'col-resize';
+                document.body.style.userSelect = 'none';
+              }}
+            />
+
             {/* ── Output / Compiler Terminal Pane ─────────────────────────── */}
-            <div className="w-[340px] lg:w-[420px] hw-border-l bg-[#050505] flex flex-col shrink-0">
+            <div
+              style={{ width: terminalWidth }}
+              className="hw-border-l bg-[#050505] flex flex-col shrink-0"
+            >
               {/* Serial Monitor (when active and hardware connected) */}
               {showSerialMonitor && hardwarePort && !isFlashing ? (
                 <SerialMonitor

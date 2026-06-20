@@ -7,10 +7,7 @@
  * and provides baud rate selection.
  */
 import { useState, useEffect, useRef, useCallback } from 'react';
-import {
-  Radio, Send, Trash2, Download, Pause, Play,
-  ChevronDown,
-} from 'lucide-react';
+import { Radio, Send, Trash2, Download, Pause, Play, ChevronDown } from 'lucide-react';
 
 const BAUD_RATES = [300, 1200, 2400, 4800, 9600, 19200, 38400, 57600, 115200] as const;
 
@@ -19,7 +16,7 @@ interface SerialMonitorProps {
   onDisconnect?: () => void;
 }
 
-export function SerialMonitor({ port, onDisconnect }: SerialMonitorProps) {
+export function SerialMonitor({ port }: SerialMonitorProps) {
   const [lines, setLines] = useState<string[]>([]);
   const [inputValue, setInputValue] = useState('');
   const [baudRate, setBaudRate] = useState(9600);
@@ -52,12 +49,18 @@ export function SerialMonitor({ port, onDisconnect }: SerialMonitorProps) {
       if (!port.readable) {
         try {
           await port.open({ baudRate });
-        } catch {
-          // Port might already be open
+        } catch (openErr: any) {
+          console.warn('Port open error:', openErr);
+          setLines((prev) => [...prev, `> Error opening port: ${openErr.message || openErr}`]);
+          setIsReading(false);
+          return;
         }
       }
 
-      if (!port.readable) return;
+      if (!port.readable) {
+        setLines((prev) => [...prev, '> Error: Port is not readable after open.']);
+        return;
+      }
 
       setIsReading(true);
 
@@ -79,7 +82,7 @@ export function SerialMonitor({ port, onDisconnect }: SerialMonitorProps) {
             buffer = parts.pop() || '';
 
             if (parts.length > 0) {
-              setLines(prev => {
+              setLines((prev) => {
                 const newLines = [...prev, ...parts];
                 // Cap at 500 lines to prevent memory issues
                 return newLines.slice(-500);
@@ -95,7 +98,11 @@ export function SerialMonitor({ port, onDisconnect }: SerialMonitorProps) {
         reader.releaseLock();
         readerRef.current = null;
         setIsReading(false);
-        try { await readableStreamClosed; } catch { /* ignore */ }
+        try {
+          await readableStreamClosed;
+        } catch {
+          /* ignore */
+        }
       }
     } catch (err) {
       console.warn('Failed to start serial reader:', err);
@@ -127,7 +134,7 @@ export function SerialMonitor({ port, onDisconnect }: SerialMonitorProps) {
       writer.releaseLock();
 
       // Show sent data in monitor
-      setLines(prev => [...prev, `> ${inputValue}`]);
+      setLines((prev) => [...prev, `> ${inputValue}`]);
       setInputValue('');
     } catch (err) {
       console.warn('Failed to send serial data:', err);
@@ -164,7 +171,7 @@ export function SerialMonitor({ port, onDisconnect }: SerialMonitorProps) {
     try {
       await port.close();
       await port.open({ baudRate: newBaud });
-      setLines(prev => [...prev, `--- Baud rate changed to ${newBaud} ---`]);
+      setLines((prev) => [...prev, `--- Baud rate changed to ${newBaud} ---`]);
       startReading();
     } catch (err) {
       console.warn('Failed to change baud rate:', err);
@@ -177,7 +184,9 @@ export function SerialMonitor({ port, onDisconnect }: SerialMonitorProps) {
       <div className="h-10 hw-border-b bg-[#111111] flex items-center px-2 gap-1 shrink-0">
         {/* Status indicator */}
         <div className="flex items-center gap-2 px-2">
-          <div className={`w-2 h-2 rounded-full ${isReading ? 'bg-emerald-500 animate-pulse' : 'bg-slate-600'}`} />
+          <div
+            className={`w-2 h-2 rounded-full ${isReading ? 'bg-emerald-500 animate-pulse' : 'bg-slate-600'}`}
+          />
           <span className="font-mono text-[10px] font-bold uppercase tracking-widest text-slate-400">
             Serial Monitor
           </span>
@@ -198,7 +207,7 @@ export function SerialMonitor({ port, onDisconnect }: SerialMonitorProps) {
 
           {showBaudDropdown && (
             <div className="absolute right-0 top-8 z-50 bg-[#111111] border border-slate-800 shadow-xl min-w-[120px]">
-              {BAUD_RATES.map(rate => (
+              {BAUD_RATES.map((rate) => (
                 <button
                   key={rate}
                   onClick={() => handleBaudChange(rate)}
@@ -269,8 +278,8 @@ export function SerialMonitor({ port, onDisconnect }: SerialMonitorProps) {
                 line.startsWith('>')
                   ? 'text-cyan-400'
                   : line.startsWith('---')
-                  ? 'text-amber-500/60 italic'
-                  : 'text-emerald-400/90'
+                    ? 'text-amber-500/60 italic'
+                    : 'text-emerald-400/90'
               }`}
             >
               {line}

@@ -1,6 +1,16 @@
 import { useAuthStore } from '../stores/auth.store';
 import { useProjectStore } from '../stores/project.store';
-import { TerminalSquare, Play, FolderCode, Beaker, Zap, Activity, Cpu, Plus, Trash2 } from 'lucide-react';
+import {
+  TerminalSquare,
+  Play,
+  FolderCode,
+  Beaker,
+  Zap,
+  Activity,
+  Cpu,
+  Plus,
+  Trash2,
+} from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 import { Loader } from '../components/ui/Loader';
@@ -15,7 +25,8 @@ function EmptyProjects() {
         <FolderCode size={28} />
       </div>
       <p className="font-mono text-xs uppercase tracking-widest text-slate-400 mb-6">
-        NO_LOCAL_DISKS_FOUND<br />
+        NO_LOCAL_DISKS_FOUND
+        <br />
         <span className="text-[10px] opacity-60">Create your first project to get started</span>
       </p>
       <Link
@@ -41,18 +52,24 @@ function ProjectCard({
   return (
     <div className="hw-border bg-slate-50 dark:bg-[#111111] p-4 flex flex-col group hover:bg-slate-900 dark:hover:bg-white hover:text-white dark:hover:text-slate-900 transition-colors">
       <div className="flex justify-between items-start mb-6">
-        <div className={`w-10 h-10 border-2 border-${accentColor}-400 bg-${accentColor}-500/10 flex items-center justify-center shrink-0`}>
-          {isBlock
-            ? <Beaker size={20} className={`text-${accentColor}-500`} />
-            : <TerminalSquare size={20} className={`text-${accentColor}-500`} />
-          }
+        <div
+          className={`w-10 h-10 border-2 border-${accentColor}-400 bg-${accentColor}-500/10 flex items-center justify-center shrink-0`}
+        >
+          {isBlock ? (
+            <Beaker size={20} className={`text-${accentColor}-500`} />
+          ) : (
+            <TerminalSquare size={20} className={`text-${accentColor}-500`} />
+          )}
         </div>
         <div className="flex items-center gap-2">
           <span className="font-mono text-[10px] text-slate-400 uppercase">
             {isBlock ? 'BLOCK_MODE' : 'C_CPP_MODE'}
           </span>
           <button
-            onClick={(e) => { e.preventDefault(); onDelete(project.id); }}
+            onClick={(e) => {
+              e.preventDefault();
+              onDelete(project.id);
+            }}
             className="opacity-0 group-hover:opacity-100 transition-opacity p-1 text-slate-400 hover:text-red-400"
             title="Delete project"
           >
@@ -83,13 +100,13 @@ function ProjectCard({
 // ─── Main component ───────────────────────────────────────────────────────────
 
 export default function Dashboard() {
-  const user         = useAuthStore((s) => s.user);
-  const { projects, isLoading, error, hasFetched, fetchProjects, removeProject } = useProjectStore();
+  const user = useAuthStore((s) => s.user);
+  const { projects, isLoading, error, fetchProjects, removeProject } = useProjectStore();
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!hasFetched) fetchProjects();
-  }, [hasFetched, fetchProjects]);
+    fetchProjects();
+  }, [fetchProjects]);
 
   const handleDelete = async () => {
     if (!deleteTarget) return;
@@ -101,7 +118,6 @@ export default function Dashboard() {
 
   return (
     <div className="w-full h-full flex flex-col font-sans">
-
       {/* Top Banner */}
       <div className="w-full hw-border-b bg-white dark:bg-[#000000] p-6 lg:p-10 flex flex-col md:flex-row md:items-end justify-between shrink-0">
         <div>
@@ -110,7 +126,8 @@ export default function Dashboard() {
             User Identified
           </div>
           <h1 className="text-4xl md:text-5xl font-bold tracking-tighter uppercase leading-none text-slate-900 dark:text-white">
-            Welcome,<br className="md:hidden" /> {user?.name?.split(' ')[0] || 'Maker'}
+            Welcome,
+            <br className="md:hidden" /> {user?.name?.split(' ')[0] || 'Maker'}
           </h1>
         </div>
         <div className="mt-6 md:mt-0 flex gap-4">
@@ -131,17 +148,17 @@ export default function Dashboard() {
 
       {/* Main Grid */}
       <div className="flex-1 flex flex-col lg:flex-row overflow-hidden">
-
         {/* Left: Stats + Projects */}
         <div className="flex-1 hw-border-r flex flex-col overflow-y-auto">
-
           {/* Stats LED Strip */}
           <div className="grid grid-cols-3 hw-border-b bg-slate-50 dark:bg-[#0a0a0a] shrink-0">
             <div className="hw-border-r p-6 flex flex-col justify-center relative overflow-hidden group">
               <div className="absolute right-0 bottom-0 opacity-5 group-hover:opacity-10 transition-opacity">
                 <Activity size={100} />
               </div>
-              <span className="font-mono text-[10px] text-slate-500 tracking-widest uppercase mb-1">XP_LEVEL</span>
+              <span className="font-mono text-[10px] text-slate-500 tracking-widest uppercase mb-1">
+                XP_LEVEL
+              </span>
               <span className="font-mono text-4xl font-bold text-slate-900 dark:text-white tracking-tighter">
                 {user?.xp ?? '0000'}
               </span>
@@ -150,7 +167,9 @@ export default function Dashboard() {
               <div className="absolute right-0 bottom-0 opacity-5 group-hover:opacity-10 transition-opacity">
                 <Zap size={100} />
               </div>
-              <span className="font-mono text-[10px] text-slate-500 tracking-widest uppercase mb-1">STREAK</span>
+              <span className="font-mono text-[10px] text-slate-500 tracking-widest uppercase mb-1">
+                STREAK
+              </span>
               <span className="font-mono text-4xl font-bold text-slate-900 dark:text-white tracking-tighter">
                 {user?.streak ?? '00'}
               </span>
@@ -159,7 +178,9 @@ export default function Dashboard() {
               <div className="absolute right-0 bottom-0 opacity-5 group-hover:opacity-10 transition-opacity">
                 <Cpu size={100} />
               </div>
-              <span className="font-mono text-[10px] text-slate-500 tracking-widest uppercase mb-1">RANK</span>
+              <span className="font-mono text-[10px] text-slate-500 tracking-widest uppercase mb-1">
+                RANK
+              </span>
               <span className="font-mono text-4xl font-bold text-emerald-500 tracking-tighter">
                 {user?.level ?? '01'}
               </span>
@@ -208,7 +229,9 @@ export default function Dashboard() {
         {/* Right: Active Quest Console (static for now, Phase 3 will pull real data) */}
         <div className="w-full lg:w-[400px] xl:w-[500px] bg-slate-900 dark:bg-[#000000] text-slate-100 flex flex-col shrink-0">
           <div className="p-4 border-b border-slate-800 flex items-center justify-between shrink-0">
-            <span className="font-mono text-xs font-bold text-slate-400 uppercase tracking-widest">TRANSMISSION_TX</span>
+            <span className="font-mono text-xs font-bold text-slate-400 uppercase tracking-widest">
+              TRANSMISSION_TX
+            </span>
             <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
           </div>
 
@@ -237,7 +260,6 @@ export default function Dashboard() {
             </Link>
           </div>
         </div>
-
       </div>
 
       {/* Delete Confirmation */}

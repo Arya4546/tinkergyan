@@ -9,19 +9,40 @@ import * as Blockly from 'blockly/core';
 
 // ─── Color palette (consistent with toolbox categories) ──────────────────────
 const COLOR_STRUCTURE = '#1565C0'; // Dark blue  — program structure
-const COLOR_DIGITAL   = '#2E7D32'; // Dark green — digital I/O
-const COLOR_ANALOG    = '#E65100'; // Deep orange — analog I/O
-const COLOR_CONTROL   = '#6A1B9A'; // Purple — timing & control
-const COLOR_SERIAL    = '#B71C1C'; // Dark red — serial comms
+const COLOR_DIGITAL = '#2E7D32'; // Dark green — digital I/O
+const COLOR_ANALOG = '#E65100'; // Deep orange — analog I/O
+const COLOR_CONTROL = '#6A1B9A'; // Purple — timing & control
+const COLOR_SERIAL = '#B71C1C'; // Dark red — serial comms
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
-const PIN_DROPDOWN = (pins: string[]): [string, string][] =>
-  pins.map((p) => [p, p]);
+const PIN_DROPDOWN = (pins: string[]): [string, string][] => pins.map((p) => [p, p]);
 
-const DIGITAL_PINS   = PIN_DROPDOWN(['0','1','2','3','4','5','6','7','8','9','10','11','12','13','LED_BUILTIN']);
-const PWM_PINS       = PIN_DROPDOWN(['3','5','6','9','10','11']); // Uno PWM pins
-const ANALOG_PINS    = PIN_DROPDOWN(['A0','A1','A2','A3','A4','A5']);
-const BAUD_RATES     = [['9600','9600'],['19200','19200'],['38400','38400'],['57600','57600'],['115200','115200']] as [string,string][];
+const DIGITAL_PINS = PIN_DROPDOWN([
+  '0',
+  '1',
+  '2',
+  '3',
+  '4',
+  '5',
+  '6',
+  '7',
+  '8',
+  '9',
+  '10',
+  '11',
+  '12',
+  '13',
+  'LED_BUILTIN',
+]);
+const PWM_PINS = PIN_DROPDOWN(['3', '5', '6', '9', '10', '11']); // Uno PWM pins
+const ANALOG_PINS = PIN_DROPDOWN(['A0', 'A1', 'A2', 'A3', 'A4', 'A5']);
+const BAUD_RATES = [
+  ['9600', '9600'],
+  ['19200', '19200'],
+  ['38400', '38400'],
+  ['57600', '57600'],
+  ['115200', '115200'],
+] as [string, string][];
 
 // ─────────────────────────────────────────────────────────────────────────────
 // STRUCTURE BLOCKS
@@ -30,18 +51,11 @@ const BAUD_RATES     = [['9600','9600'],['19200','19200'],['38400','38400'],['57
 /** The root block of every sketch — provides setup() and loop() statements. */
 Blockly.Blocks['arduino_program'] = {
   init(this: Blockly.Block): void {
-    this.appendDummyInput()
-      .appendField('Arduino Program');
-    this.appendStatementInput('SETUP')
-      .setCheck(null)
-      .appendField('setup ()  — runs once');
-    this.appendStatementInput('LOOP')
-      .setCheck(null)
-      .appendField('loop ()  — runs forever');
+    this.appendDummyInput().appendField('Arduino Program');
+    this.appendStatementInput('SETUP').appendField('setup ()  — runs once');
+    this.appendStatementInput('LOOP').appendField('loop ()  — runs forever');
     this.setColour(COLOR_STRUCTURE);
     this.setTooltip('Root block. setup() runs once on boot, loop() runs repeatedly.');
-    this.setDeletable(false);
-    this.setMovable(false);
   },
 };
 
@@ -56,11 +70,14 @@ Blockly.Blocks['arduino_pin_mode'] = {
       .appendField('pinMode(')
       .appendField(new Blockly.FieldDropdown(DIGITAL_PINS), 'PIN')
       .appendField(',')
-      .appendField(new Blockly.FieldDropdown([
-        ['OUTPUT',       'OUTPUT'],
-        ['INPUT',        'INPUT'],
-        ['INPUT_PULLUP', 'INPUT_PULLUP'],
-      ]), 'MODE')
+      .appendField(
+        new Blockly.FieldDropdown([
+          ['OUTPUT', 'OUTPUT'],
+          ['INPUT', 'INPUT'],
+          ['INPUT_PULLUP', 'INPUT_PULLUP'],
+        ]),
+        'MODE',
+      )
       .appendField(')');
     this.setPreviousStatement(true, null);
     this.setNextStatement(true, null);
@@ -76,10 +93,13 @@ Blockly.Blocks['arduino_digital_write'] = {
       .appendField('digitalWrite(')
       .appendField(new Blockly.FieldDropdown(DIGITAL_PINS), 'PIN')
       .appendField(',')
-      .appendField(new Blockly.FieldDropdown([
-        ['HIGH', 'HIGH'],
-        ['LOW',  'LOW'],
-      ]), 'VALUE')
+      .appendField(
+        new Blockly.FieldDropdown([
+          ['HIGH', 'HIGH'],
+          ['LOW', 'LOW'],
+        ]),
+        'VALUE',
+      )
       .appendField(')');
     this.setPreviousStatement(true, null);
     this.setNextStatement(true, null);
@@ -139,26 +159,33 @@ Blockly.Blocks['arduino_analog_write'] = {
 // CONTROL / TIMING BLOCKS
 // ─────────────────────────────────────────────────────────────────────────────
 
-/** delay(ms) */
+/** delay */
 Blockly.Blocks['arduino_delay'] = {
   init(this: Blockly.Block): void {
-    this.appendValueInput('MS')
-      .setCheck('Number')
-      .appendField('delay(');
-    this.appendDummyInput().appendField('ms )');
+    this.appendDummyInput()
+      .appendField('delay(')
+      .appendField(new Blockly.FieldNumber(1000, 0), 'DELAY_TIME')
+      .appendField(
+        new Blockly.FieldDropdown([
+          ['ms', 'milli'],
+          ['μs', 'micro'],
+          ['s', 'sec'],
+        ]),
+        'TIME_UNIT',
+      )
+      .appendField(')');
     this.setInputsInline(true);
     this.setPreviousStatement(true, null);
     this.setNextStatement(true, null);
     this.setColour(COLOR_CONTROL);
-    this.setTooltip('Pause execution for the given number of milliseconds.');
+    this.setTooltip('Pause execution for the given amount of time.');
   },
 };
 
 /** millis() — value block, returns elapsed ms */
 Blockly.Blocks['arduino_millis'] = {
   init(this: Blockly.Block): void {
-    this.appendDummyInput()
-      .appendField('millis()');
+    this.appendDummyInput().appendField('millis()');
     this.setOutput(true, 'Number');
     this.setColour(COLOR_CONTROL);
     this.setTooltip('Returns the number of milliseconds since the board started.');
@@ -186,9 +213,7 @@ Blockly.Blocks['arduino_serial_begin'] = {
 /** Serial.print(value) */
 Blockly.Blocks['arduino_serial_print'] = {
   init(this: Blockly.Block): void {
-    this.appendValueInput('VALUE')
-      .setCheck(null)
-      .appendField('Serial.print(');
+    this.appendValueInput('VALUE').setCheck(null).appendField('Serial.print(');
     this.appendDummyInput().appendField(')');
     this.setInputsInline(true);
     this.setPreviousStatement(true, null);
@@ -201,9 +226,7 @@ Blockly.Blocks['arduino_serial_print'] = {
 /** Serial.println(value) */
 Blockly.Blocks['arduino_serial_println'] = {
   init(this: Blockly.Block): void {
-    this.appendValueInput('VALUE')
-      .setCheck(null)
-      .appendField('Serial.println(');
+    this.appendValueInput('VALUE').setCheck(null).appendField('Serial.println(');
     this.appendDummyInput().appendField(')');
     this.setInputsInline(true);
     this.setPreviousStatement(true, null);

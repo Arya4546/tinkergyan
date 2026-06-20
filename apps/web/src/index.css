@@ -165,6 +165,12 @@ html.dark .blocklyFlyoutBackground {
   stroke: #334155 !important;
 }
 
+/* Hide all Blockly scrollbars (workspace and flyout) */
+.blocklyScrollbarHandle,
+.blocklyScrollbarBackground {
+  display: none !important;
+}
+
 /* ========================================================
    LESSON CONTENT MARKDOWN STYLES
    ======================================================== */

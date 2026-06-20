@@ -109,6 +109,20 @@ export const INITIAL_TOOLBOX = {
       ],
     },
 
+    // ── Text ─────────────────────────────────────────────────────────────────
+    {
+      kind: 'category',
+      name: 'TEXT',
+      colour: '#5BA58C',
+      contents: [
+        { kind: 'block', type: 'text' },
+        { kind: 'block', type: 'text_join' },
+        { kind: 'block', type: 'text_append' },
+        { kind: 'block', type: 'text_length' },
+        { kind: 'block', type: 'text_isEmpty' },
+      ],
+    },
+
     // ── Variables ────────────────────────────────────────────────────────────
     {
       kind: 'category',

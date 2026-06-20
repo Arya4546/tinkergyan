@@ -19,19 +19,19 @@ import { api } from '../services/api';
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 export interface CompileError {
-  line:     number;
-  column:   number;
-  message:  string;
+  line: number;
+  column: number;
+  message: string;
   severity: 'error' | 'warning';
 }
 
 export interface CompileResult {
-  success:    boolean;
-  stdout:     string;
-  stderr:     string;
-  errors:     CompileError[];
+  success: boolean;
+  stdout: string;
+  stderr: string;
+  errors: CompileError[];
   durationMs: number;
-  engine:     'wandbox' | 'arduino' | 'mock';
+  engine: 'wandbox' | 'arduino' | 'mock';
   hexBase64?: string;
 }
 
@@ -40,12 +40,12 @@ export type EditorMode = 'block' | 'code';
 // ─── Starter Templates ───────────────────────────────────────────────────────
 
 export interface StarterTemplate {
-  id:    string;
+  id: string;
   title: string;
-  desc:  string;
+  desc: string;
   board: string;
-  mode:  EditorMode;
-  code:  string;
+  mode: EditorMode;
+  code: string;
 }
 
 export const STARTER_TEMPLATES: StarterTemplate[] = [
@@ -176,73 +176,73 @@ int main() {
 
 export interface EditorState {
   // ── Mode ──────────────────────────────────────────────────────────────────
-  mode:            EditorMode;
-  setMode:         (mode: EditorMode) => void;
+  mode: EditorMode;
+  setMode: (mode: EditorMode) => void;
 
   // ── Code ──────────────────────────────────────────────────────────────────
-  generatedCode:   string;
-  manualCode:      string;
+  generatedCode: string;
+  manualCode: string;
   setGeneratedCode: (code: string) => void;
-  setManualCode:    (code: string) => void;
+  setManualCode: (code: string) => void;
 
   // ── Board ─────────────────────────────────────────────────────────────────
-  board:     string;
-  setBoard:  (board: string) => void;
+  board: string;
+  setBoard: (board: string) => void;
 
   // ── Font Size ─────────────────────────────────────────────────────────────
-  fontSize:     number;
+  fontSize: number;
   increaseFontSize: () => void;
   decreaseFontSize: () => void;
 
   // ── Compile ───────────────────────────────────────────────────────────────
-  isCompiling:   boolean;
+  isCompiling: boolean;
   compileResult: CompileResult | null;
-  stdinInput:    string;
+  stdinInput: string;
   setStdinInput: (val: string) => void;
-  compile:       (code: string, target?: 'simulate' | 'firmware') => Promise<void>;
-  clearResult:   () => void;
+  compile: (code: string, target?: 'simulate' | 'firmware') => Promise<void>;
+  clearResult: () => void;
 
   // ── Project ───────────────────────────────────────────────────────────────
-  projectId:    string | null;
+  projectId: string | null;
   projectTitle: string;
-  blockXml:     string;
-  isSaving:     boolean;
-  isLoading:    boolean;
-  isDirty:      boolean;
-  isPublic:     boolean;
+  blockXml: string;
+  isSaving: boolean;
+  isLoading: boolean;
+  isDirty: boolean;
+  isPublic: boolean;
   setProjectTitle: (title: string) => void;
-  setBlockXml:     (xml: string) => void;
-  saveProject:     (blockXml: string) => Promise<void>;
-  loadProject:     (id: string) => Promise<void>;
-  resetEditor:     () => void;
-  loadTemplate:    (template: StarterTemplate) => void;
-  markDirty:       () => void;
+  setBlockXml: (xml: string) => void;
+  saveProject: (blockXml: string) => Promise<void>;
+  loadProject: (id: string) => Promise<void>;
+  resetEditor: () => void;
+  loadTemplate: (template: StarterTemplate) => void;
+  markDirty: () => void;
   duplicateProject: () => Promise<string>;
-  togglePublic:    () => Promise<boolean>;
+  togglePublic: () => Promise<boolean>;
 
   // ── Auto-save ─────────────────────────────────────────────────────────────
-  _autoSaveTimer:  ReturnType<typeof setTimeout> | null;
+  _autoSaveTimer: ReturnType<typeof setTimeout> | null;
   scheduleAutoSave: (getBlockXml: () => string) => void;
 }
 
 // ─── Initial State ────────────────────────────────────────────────────────────
 
 const INITIAL_STATE = {
-  mode:           'block' as EditorMode,
-  generatedCode:  '',
-  manualCode:     '',
-  board:          'arduino:avr:uno',
-  fontSize:       14,
-  isCompiling:    false,
-  compileResult:  null as CompileResult | null,
-  stdinInput:     '',
-  projectId:      null as string | null,
-  projectTitle:   'New_Project',
-  blockXml:       '',
-  isSaving:       false,
-  isLoading:      false,
-  isDirty:        false,
-  isPublic:       false,
+  mode: 'block' as EditorMode,
+  generatedCode: '',
+  manualCode: '',
+  board: 'arduino:avr:uno',
+  fontSize: 14,
+  isCompiling: false,
+  compileResult: null as CompileResult | null,
+  stdinInput: '',
+  projectId: null as string | null,
+  projectTitle: 'New_Project',
+  blockXml: '',
+  isSaving: false,
+  isLoading: false,
+  isDirty: false,
+  isPublic: false,
   _autoSaveTimer: null as ReturnType<typeof setTimeout> | null,
 };
 
@@ -256,7 +256,7 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
 
   // ── Code ──────────────────────────────────────────────────────────────────
   setGeneratedCode: (generatedCode) => set({ generatedCode, isDirty: true }),
-  setManualCode:    (manualCode)    => set({ manualCode, isDirty: true }),
+  setManualCode: (manualCode) => set({ manualCode, isDirty: true }),
 
   // ── Board ─────────────────────────────────────────────────────────────────
   setBoard: (board) => set({ board, isDirty: true }),
@@ -282,9 +282,12 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
       const message = err?.response?.data?.error?.message ?? 'Compilation failed unexpectedly';
       set({
         compileResult: {
-          success: false, stdout: '', stderr: message,
+          success: false,
+          stdout: '',
+          stderr: message,
           errors: [{ line: 0, column: 0, severity: 'error', message }],
-          durationMs: 0, engine: 'wandbox',
+          durationMs: 0,
+          engine: 'wandbox',
         },
       });
     } finally {
@@ -296,7 +299,7 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
 
   // ── Project ───────────────────────────────────────────────────────────────
   setProjectTitle: (projectTitle) => set({ projectTitle, isDirty: true }),
-  setBlockXml:     (blockXml)     => set({ blockXml }),
+  setBlockXml: (blockXml) => set({ blockXml }),
 
   loadProject: async (id: string) => {
     set({ isLoading: true });
@@ -304,15 +307,15 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
       const { data } = await api.get(`/projects/${id}`);
       const project = data.data.project;
       set({
-        projectId:     project.id,
-        projectTitle:  project.title,
-        mode:          project.type === 'CODE' ? 'code' : 'block',
-        board:         project.boardTarget || 'arduino:avr:uno',
-        manualCode:    project.code || '',
+        projectId: project.id,
+        projectTitle: project.title,
+        mode: project.type === 'CODE' ? 'code' : 'block',
+        board: project.boardTarget || 'arduino:avr:uno',
+        manualCode: project.code || '',
         generatedCode: project.code || '',
-        blockXml:      typeof project.blockState === 'string' ? project.blockState : '',
-        isPublic:      !!project.isPublic,
-        isDirty:       false,
+        blockXml: typeof project.blockState === 'string' ? project.blockState : '',
+        isPublic: !!project.isPublic,
+        isDirty: false,
         compileResult: null,
       });
     } catch {
@@ -334,11 +337,11 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
     set({
       ...INITIAL_STATE,
       projectTitle: template.title,
-      mode:         template.mode,
-      board:        template.board,
-      manualCode:   template.code,
+      mode: template.mode,
+      board: template.board,
+      manualCode: template.code,
       generatedCode: '',
-      isDirty:      true,
+      isDirty: true,
     });
   },
 
@@ -351,16 +354,22 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
       const code = mode === 'code' ? manualCode : generatedCode;
       if (projectId) {
         await api.patch(`/projects/${projectId}`, {
-          title: projectTitle, code, blockState: blockXml, boardTarget: board,
+          title: projectTitle,
+          code,
+          blockState: blockXml,
+          boardTarget: board,
         });
       } else {
         const { data } = await api.post('/projects', {
-          title: projectTitle, type: mode === 'block' ? 'BLOCK' : 'CODE',
-          code, blockState: blockXml, boardTarget: board,
+          title: projectTitle,
+          type: mode === 'block' ? 'BLOCK' : 'CODE',
+          code,
+          blockState: blockXml,
+          boardTarget: board,
         });
         set({ projectId: data.data.project.id });
       }
-      set({ isDirty: false });
+      set({ isDirty: false, blockXml });
     } finally {
       set({ isSaving: false });
     }
