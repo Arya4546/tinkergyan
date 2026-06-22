@@ -443,7 +443,8 @@ export type CompilerMode = 'wandbox' | 'arduino' | 'mock';
 
 export function getCompilerMode(): CompilerMode {
   if (env.COMPILER_MODE === 'mock') return 'mock';
-  if (env.ARDUINO_CLI_PATH) return 'arduino';
+  if (env.COMPILER_MODE === 'arduino') return 'arduino';
+  if (env.ARDUINO_CLI_PATH && existsSync(env.ARDUINO_CLI_PATH)) return 'arduino';
   return 'wandbox';
 }
 
@@ -476,7 +477,7 @@ export async function compile(
  * Checks env.ARDUINO_CLI_PATH first, then common install locations.
  */
 function resolveArduinoCliPath(): string {
-  if (env.ARDUINO_CLI_PATH) return env.ARDUINO_CLI_PATH;
+  if (env.ARDUINO_CLI_PATH && existsSync(env.ARDUINO_CLI_PATH)) return env.ARDUINO_CLI_PATH;
 
   // Common locations on Linux (Render, Docker)
   const candidates = [

@@ -6,6 +6,7 @@
  * Code generation lives in arduino-generator.ts.
  */
 import * as Blockly from 'blockly/core';
+import { useEditorStore } from '../../stores/editor.store';
 
 // ─── Color palette (consistent with toolbox categories) ──────────────────────
 const COLOR_STRUCTURE = '#1565C0'; // Dark blue  — program structure
@@ -15,9 +16,7 @@ const COLOR_CONTROL = '#6A1B9A'; // Purple — timing & control
 const COLOR_SERIAL = '#B71C1C'; // Dark red — serial comms
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
-const PIN_DROPDOWN = (pins: string[]): [string, string][] => pins.map((p) => [p, p]);
-
-const DIGITAL_PINS = PIN_DROPDOWN([
+const UNO_DIGITAL = [
   '0',
   '1',
   '2',
@@ -33,9 +32,64 @@ const DIGITAL_PINS = PIN_DROPDOWN([
   '12',
   '13',
   'LED_BUILTIN',
-]);
-const PWM_PINS = PIN_DROPDOWN(['3', '5', '6', '9', '10', '11']); // Uno PWM pins
-const ANALOG_PINS = PIN_DROPDOWN(['A0', 'A1', 'A2', 'A3', 'A4', 'A5']);
+];
+const UNO_PWM = ['3', '5', '6', '9', '10', '11'];
+const UNO_ANALOG = ['A0', 'A1', 'A2', 'A3', 'A4', 'A5'];
+
+const MEGA_DIGITAL = Array.from({ length: 54 }, (_, i) => String(i)).concat(['LED_BUILTIN']);
+const MEGA_PWM = ['2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12', '13', '44', '45', '46'];
+const MEGA_ANALOG = Array.from({ length: 16 }, (_, i) => `A${i}`);
+
+const ESP8266_DIGITAL = [
+  'D0',
+  'D1',
+  'D2',
+  'D3',
+  'D4',
+  'D5',
+  'D6',
+  'D7',
+  'D8',
+  'RX',
+  'TX',
+  'LED_BUILTIN',
+];
+const ESP8266_PWM = ['D1', 'D2', 'D5', 'D6', 'D7', 'D8'];
+const ESP8266_ANALOG = ['A0'];
+
+const getDigitalPins = function (this: Blockly.FieldDropdown): [string, string][] {
+  const board = useEditorStore.getState().board;
+  if (board === 'arduino:avr:mega') {
+    return MEGA_DIGITAL.map((p) => [p, p]);
+  }
+  if (board === 'esp8266:esp8266:nodemcuv2') {
+    return ESP8266_DIGITAL.map((p) => [p, p]);
+  }
+  return UNO_DIGITAL.map((p) => [p, p]);
+};
+
+const getPwmPins = function (this: Blockly.FieldDropdown): [string, string][] {
+  const board = useEditorStore.getState().board;
+  if (board === 'arduino:avr:mega') {
+    return MEGA_PWM.map((p) => [p, p]);
+  }
+  if (board === 'esp8266:esp8266:nodemcuv2') {
+    return ESP8266_PWM.map((p) => [p, p]);
+  }
+  return UNO_PWM.map((p) => [p, p]);
+};
+
+const getAnalogPins = function (this: Blockly.FieldDropdown): [string, string][] {
+  const board = useEditorStore.getState().board;
+  if (board === 'arduino:avr:mega') {
+    return MEGA_ANALOG.map((p) => [p, p]);
+  }
+  if (board === 'esp8266:esp8266:nodemcuv2') {
+    return ESP8266_ANALOG.map((p) => [p, p]);
+  }
+  return UNO_ANALOG.map((p) => [p, p]);
+};
+
 const BAUD_RATES = [
   ['9600', '9600'],
   ['19200', '19200'],
@@ -51,9 +105,10 @@ const BAUD_RATES = [
 /** The root block of every sketch — provides setup() and loop() statements. */
 Blockly.Blocks['arduino_program'] = {
   init(this: Blockly.Block): void {
-    this.appendDummyInput().appendField('Arduino Program');
+    this.appendDummyInput().appendField(new Blockly.FieldLabel('Arduino Program'), 'TITLE');
     this.appendStatementInput('SETUP').appendField('setup ()  — runs once');
     this.appendStatementInput('LOOP').appendField('loop ()  — runs forever');
+    this.setInputsInline(false);
     this.setColour(COLOR_STRUCTURE);
     this.setTooltip('Root block. setup() runs once on boot, loop() runs repeatedly.');
   },
@@ -68,7 +123,7 @@ Blockly.Blocks['arduino_pin_mode'] = {
   init(this: Blockly.Block): void {
     this.appendDummyInput()
       .appendField('pinMode(')
-      .appendField(new Blockly.FieldDropdown(DIGITAL_PINS), 'PIN')
+      .appendField(new Blockly.FieldDropdown(getDigitalPins), 'PIN')
       .appendField(',')
       .appendField(
         new Blockly.FieldDropdown([
@@ -91,7 +146,7 @@ Blockly.Blocks['arduino_digital_write'] = {
   init(this: Blockly.Block): void {
     this.appendDummyInput()
       .appendField('digitalWrite(')
-      .appendField(new Blockly.FieldDropdown(DIGITAL_PINS), 'PIN')
+      .appendField(new Blockly.FieldDropdown(getDigitalPins), 'PIN')
       .appendField(',')
       .appendField(
         new Blockly.FieldDropdown([
@@ -113,7 +168,7 @@ Blockly.Blocks['arduino_digital_read'] = {
   init(this: Blockly.Block): void {
     this.appendDummyInput()
       .appendField('digitalRead(')
-      .appendField(new Blockly.FieldDropdown(DIGITAL_PINS), 'PIN')
+      .appendField(new Blockly.FieldDropdown(getDigitalPins), 'PIN')
       .appendField(')');
     this.setOutput(true, 'Number');
     this.setColour(COLOR_DIGITAL);
@@ -130,7 +185,7 @@ Blockly.Blocks['arduino_analog_read'] = {
   init(this: Blockly.Block): void {
     this.appendDummyInput()
       .appendField('analogRead(')
-      .appendField(new Blockly.FieldDropdown(ANALOG_PINS), 'PIN')
+      .appendField(new Blockly.FieldDropdown(getAnalogPins), 'PIN')
       .appendField(')');
     this.setOutput(true, 'Number');
     this.setColour(COLOR_ANALOG);
@@ -144,7 +199,7 @@ Blockly.Blocks['arduino_analog_write'] = {
     this.appendValueInput('VALUE')
       .setCheck('Number')
       .appendField('analogWrite(')
-      .appendField(new Blockly.FieldDropdown(PWM_PINS), 'PIN')
+      .appendField(new Blockly.FieldDropdown(getPwmPins), 'PIN')
       .appendField(', value:');
     this.appendDummyInput().appendField(')');
     this.setInputsInline(true);
@@ -162,9 +217,8 @@ Blockly.Blocks['arduino_analog_write'] = {
 /** delay */
 Blockly.Blocks['arduino_delay'] = {
   init(this: Blockly.Block): void {
+    this.appendValueInput('DELAY_TIME').setCheck('Number').appendField('delay(');
     this.appendDummyInput()
-      .appendField('delay(')
-      .appendField(new Blockly.FieldNumber(1000, 0), 'DELAY_TIME')
       .appendField(
         new Blockly.FieldDropdown([
           ['ms', 'milli'],

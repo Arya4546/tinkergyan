@@ -219,6 +219,14 @@ export default function Editor() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [routeProjectId]);
 
+  // ── Reset editor store when leaving the Editor page ───────────────────
+  useEffect(() => {
+    return () => {
+      resetEditor();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // ── Load blockXml into Blockly after project loads ─────────────────────
   const hasLoadedProjectXml = useRef<string | null>(null);
 

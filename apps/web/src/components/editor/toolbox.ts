@@ -48,7 +48,18 @@ export const INITIAL_TOOLBOX = {
       name: 'CONTROL',
       colour: '#6A1B9A',
       contents: [
-        { kind: 'block', type: 'arduino_delay' },
+        {
+          kind: 'block',
+          type: 'arduino_delay',
+          inputs: {
+            DELAY_TIME: {
+              shadow: {
+                type: 'math_number',
+                fields: { NUM: 1000 },
+              },
+            },
+          },
+        },
         { kind: 'block', type: 'arduino_millis' },
       ],
     },
@@ -64,9 +75,6 @@ export const INITIAL_TOOLBOX = {
         { kind: 'block', type: 'arduino_serial_println' },
       ],
     },
-
-    // ── Separator ────────────────────────────────────────────────────────────
-    { kind: 'sep' },
 
     // ── Logic ────────────────────────────────────────────────────────────────
     {

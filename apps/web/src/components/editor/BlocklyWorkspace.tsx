@@ -16,8 +16,15 @@ import './arduino-blocks';
 import { arduinoGenerator } from './arduino-generator';
 import { INITIAL_TOOLBOX } from './toolbox';
 import { useUIStore } from '../../stores/ui.store';
+import { useEditorStore } from '../../stores/editor.store';
 
 Blockly.setLocale(En as unknown as Record<string, string>);
+
+const BOARDS = [
+  { fqbn: 'arduino:avr:uno', label: 'Arduino Uno' },
+  { fqbn: 'arduino:avr:mega', label: 'Arduino Mega' },
+  { fqbn: 'esp8266:esp8266:nodemcuv2', label: 'NodeMCU (ESP8266)' },
+] as const;
 
 // ─── Public ref handle ────────────────────────────────────────────────────────
 export interface BlocklyWorkspaceHandle {
@@ -45,6 +52,7 @@ export const BlocklyWorkspace = forwardRef<BlocklyWorkspaceHandle, BlocklyWorksp
     const blocklyDiv = useRef<HTMLDivElement>(null);
     const workspaceRef = useRef<Blockly.WorkspaceSvg | null>(null);
     const theme = useUIStore((s) => s.theme);
+    const board = useEditorStore((s) => s.board);
 
     // Expose imperative methods for save/load/getCode
     useImperativeHandle(ref, () => ({
@@ -57,8 +65,11 @@ export const BlocklyWorkspace = forwardRef<BlocklyWorkspaceHandle, BlocklyWorksp
         if (!workspaceRef.current || !xml) return;
         try {
           workspaceRef.current.clear();
-          // Remove movable="false" and deletable="false" from legacy block saves
-          const cleanXml = xml.replace(/movable="false"/g, '').replace(/deletable="false"/g, '');
+          // Remove movable="false", deletable="false", and inline="true" from legacy block saves
+          const cleanXml = xml
+            .replace(/movable="false"/g, '')
+            .replace(/deletable="false"/g, '')
+            .replace(/inline="true"/g, '');
 
           // Blockly 11 removed Xml.textToDom — use the native DOMParser instead.
           const parser = new DOMParser();
@@ -146,6 +157,11 @@ export const BlocklyWorkspace = forwardRef<BlocklyWorkspaceHandle, BlocklyWorksp
       rootBlock.render();
       rootBlock.moveBy(20, 20);
 
+      // Set initial board title on the root block
+      const initialBoard = useEditorStore.getState().board;
+      const boardLabel = BOARDS.find((b) => b.fqbn === initialBoard)?.label || 'Arduino';
+      rootBlock.setFieldValue(`${boardLabel} Program`, 'TITLE');
+
       // Emit initial code from the root block
       try {
         const code = arduinoGenerator.workspaceToCode(workspaceRef.current);
@@ -157,6 +173,16 @@ export const BlocklyWorkspace = forwardRef<BlocklyWorkspaceHandle, BlocklyWorksp
       // DO NOT put dispose() here to prevent strict mode from breaking global drag event listeners
       // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []); // Intentionally runs once — workspace lifecycle is managed internally
+
+    // Sync board changes to update the root block's title dynamically
+    useEffect(() => {
+      if (!workspaceRef.current) return;
+      const blocks = workspaceRef.current.getBlocksByType('arduino_program');
+      const boardLabel = BOARDS.find((b) => b.fqbn === board)?.label || 'Arduino';
+      for (const block of blocks) {
+        block.setFieldValue(`${boardLabel} Program`, 'TITLE');
+      }
+    }, [board]);
 
     // Sync theme changes without re-mounting the workspace
     useEffect(() => {

@@ -9,7 +9,7 @@
  *   import { arduinoGenerator } from './arduino-generator';
  *   const code = arduinoGenerator.workspaceToCode(workspace);
  */
-import { CodeGenerator } from 'blockly/core';
+import { CodeGenerator, Names } from 'blockly/core';
 import type { Block, Workspace } from 'blockly/core';
 
 // ─── Operator precedence for C++ ─────────────────────────────────────────────
@@ -31,6 +31,27 @@ export enum Order {
 // ─────────────────────────────────────────────────────────────────────────────
 export const arduinoGenerator = new CodeGenerator('Arduino');
 arduinoGenerator.INDENT = '  ';
+
+const RESERVED_WORDS =
+  'alignas,alignof,and,and_eq,asm,auto,bitand,bitor,bool,break,case,catch,char,char8_t,char16_t,char32_t,class,compl,concept,const,consteval,constexpr,constinit,const_cast,continue,co_await,co_return,co_yield,decltype,default,delete,do,double,dynamic_cast,else,enum,explicit,export,extern,false,float,for,friend,goto,if,inline,int,long,mutable,namespace,new,noexcept,not,not_eq,nullptr,operator,or,or_eq,private,protected,public,register,reinterpret_cast,requires,return,short,signed,sizeof,static,static_assert,static_cast,struct,switch,template,this,thread_local,throw,true,try,typedef,typeid,typename,union,unsigned,using,virtual,void,volatile,wchar_t,while,xor,xor_eq,' +
+  'setup,loop,pinMode,digitalWrite,digitalRead,analogRead,analogWrite,delay,delayMicroseconds,millis,micros,Serial,HIGH,LOW,INPUT,OUTPUT,INPUT_PULLUP,LED_BUILTIN';
+
+arduinoGenerator.addReservedWords(RESERVED_WORDS);
+
+(arduinoGenerator as any).init = function (workspace: Workspace) {
+  this.definitions_ = Object.create(null);
+  this.functionNames_ = Object.create(null);
+
+  if (!this.nameDB_) {
+    this.nameDB_ = new Names(this.RESERVED_WORDS_ || '');
+  } else {
+    this.nameDB_.reset();
+  }
+
+  this.nameDB_.setVariableMap(workspace.getVariableMap());
+  this.nameDB_.populateVariables(workspace);
+  this.nameDB_.populateProcedures(workspace);
+};
 
 /**
  * Called after all blocks are processed. Prepends global variable declarations
@@ -118,8 +139,8 @@ arduinoGenerator.forBlock['arduino_analog_write'] = function (block, generator) 
 // CONTROL / TIMING
 // ─────────────────────────────────────────────────────────────────────────────
 
-arduinoGenerator.forBlock['arduino_delay'] = function (block) {
-  const time = block.getFieldValue('DELAY_TIME') || '0';
+arduinoGenerator.forBlock['arduino_delay'] = function (block, generator) {
+  const time = generator.valueToCode(block, 'DELAY_TIME', Order.ATOMIC) || '0';
   const unit = block.getFieldValue('TIME_UNIT');
   if (unit === 'sec') {
     return `delay(${time} * 1000UL);\n`;
@@ -357,17 +378,44 @@ arduinoGenerator.forBlock['variables_get'] = function (block, generator) {
   const name = generator.getVariableName(block.getFieldValue('VAR'));
 
   // Ensure variable is declared globally even if only 'get' is used
-  (generator as any).definitions_[`var_${name}`] = `int ${name} = 0;`;
+  const currentDef = (generator as any).definitions_[`var_${name}`];
+  if (!currentDef) {
+    (generator as any).definitions_[`var_${name}`] = `int ${name} = 0;`;
+  }
 
   return [name, Order.ATOMIC] as [string, Order];
 };
 
 arduinoGenerator.forBlock['variables_set'] = function (block, generator) {
   const name = generator.getVariableName(block.getFieldValue('VAR'));
+  const valueBlock = block.getInputTargetBlock('VALUE');
   const value = generator.valueToCode(block, 'VALUE', Order.ASSIGNMENT) || '0';
 
-  // Register a global declaration (idempotent — same key overwrites)
-  (generator as any).definitions_[`var_${name}`] = `int ${name} = 0;`;
+  // Smart type detection for variables
+  let type = 'int';
+  if (valueBlock) {
+    if (['text', 'text_join', 'text_append'].includes(valueBlock.type)) {
+      type = 'String';
+    } else if (valueBlock.type === 'math_number') {
+      const numVal = String(valueBlock.getFieldValue('NUM') || '0');
+      if (numVal.includes('.')) {
+        type = 'float';
+      }
+    }
+  }
+
+  // If already declared, keep/upgrade it
+  const currentDef = (generator as any).definitions_[`var_${name}`];
+  if (currentDef) {
+    if (currentDef.startsWith('String') || type === 'String') {
+      type = 'String';
+    } else if (currentDef.startsWith('float') || type === 'float') {
+      type = 'float';
+    }
+  }
+
+  const defaultValue = type === 'String' ? '""' : type === 'float' ? '0.0' : '0';
+  (generator as any).definitions_[`var_${name}`] = `${type} ${name} = ${defaultValue};`;
 
   return `${name} = ${value};\n`;
 };
@@ -377,7 +425,10 @@ arduinoGenerator.forBlock['math_change'] = function (block, generator) {
   const delta = generator.valueToCode(block, 'DELTA', Order.ADD) || '1';
 
   // Ensure variable is declared globally even if 'set' was never used
-  (generator as any).definitions_[`var_${name}`] = `int ${name} = 0;`;
+  const currentDef = (generator as any).definitions_[`var_${name}`];
+  if (!currentDef) {
+    (generator as any).definitions_[`var_${name}`] = `int ${name} = 0;`;
+  }
 
   return `${name} += ${delta};\n`;
 };
