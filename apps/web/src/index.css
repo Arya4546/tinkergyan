@@ -141,6 +141,7 @@ html.dark .blocklyTreeRow:hover .blocklyTreeLabel {
 .blocklyTreeSelected .blocklyTreeRow {
   background-color: #10b981 !important; /* emerald-500 */
   border-bottom: 1px solid #047857 !important; /* emerald-700 */
+  border-left: none !important;
 }
 
 .blocklyTreeSelected .blocklyTreeLabel {

@@ -38,7 +38,18 @@ export const INITIAL_TOOLBOX = {
       colour: '#E65100',
       contents: [
         { kind: 'block', type: 'arduino_analog_read' },
-        { kind: 'block', type: 'arduino_analog_write' },
+        {
+          kind: 'block',
+          type: 'arduino_analog_write',
+          inputs: {
+            VALUE: {
+              shadow: {
+                type: 'math_number',
+                fields: { NUM: 255 },
+              },
+            },
+          },
+        },
       ],
     },
 
@@ -71,8 +82,30 @@ export const INITIAL_TOOLBOX = {
       colour: '#B71C1C',
       contents: [
         { kind: 'block', type: 'arduino_serial_begin' },
-        { kind: 'block', type: 'arduino_serial_print' },
-        { kind: 'block', type: 'arduino_serial_println' },
+        {
+          kind: 'block',
+          type: 'arduino_serial_print',
+          inputs: {
+            VALUE: {
+              shadow: {
+                type: 'text',
+                fields: { TEXT: 'Hello' },
+              },
+            },
+          },
+        },
+        {
+          kind: 'block',
+          type: 'arduino_serial_println',
+          inputs: {
+            VALUE: {
+              shadow: {
+                type: 'text',
+                fields: { TEXT: 'Led ON' },
+              },
+            },
+          },
+        },
       ],
     },
 

@@ -198,11 +198,10 @@ Blockly.Blocks['arduino_analog_write'] = {
   init(this: Blockly.Block): void {
     this.appendValueInput('VALUE')
       .setCheck('Number')
-      .appendField('analogWrite(')
+      .appendField('analogWrite pin')
       .appendField(new Blockly.FieldDropdown(getPwmPins), 'PIN')
-      .appendField(', value:');
-    this.appendDummyInput().appendField(')');
-    this.setInputsInline(true);
+      .appendField('value:');
+    this.setInputsInline(false);
     this.setPreviousStatement(true, null);
     this.setNextStatement(true, null);
     this.setColour(COLOR_ANALOG);
@@ -217,8 +216,9 @@ Blockly.Blocks['arduino_analog_write'] = {
 /** delay */
 Blockly.Blocks['arduino_delay'] = {
   init(this: Blockly.Block): void {
-    this.appendValueInput('DELAY_TIME').setCheck('Number').appendField('delay(');
-    this.appendDummyInput()
+    this.appendValueInput('DELAY_TIME')
+      .setCheck('Number')
+      .appendField('delay')
       .appendField(
         new Blockly.FieldDropdown([
           ['ms', 'milli'],
@@ -226,9 +226,8 @@ Blockly.Blocks['arduino_delay'] = {
           ['s', 'sec'],
         ]),
         'TIME_UNIT',
-      )
-      .appendField(')');
-    this.setInputsInline(true);
+      );
+    this.setInputsInline(false);
     this.setPreviousStatement(true, null);
     this.setNextStatement(true, null);
     this.setColour(COLOR_CONTROL);
@@ -267,25 +266,23 @@ Blockly.Blocks['arduino_serial_begin'] = {
 /** Serial.print(value) */
 Blockly.Blocks['arduino_serial_print'] = {
   init(this: Blockly.Block): void {
-    this.appendValueInput('VALUE').setCheck(null).appendField('Serial.print(');
-    this.appendDummyInput().appendField(')');
-    this.setInputsInline(true);
+    this.appendValueInput('VALUE').setCheck(null).appendField('Serial.print:');
+    this.setInputsInline(false);
     this.setPreviousStatement(true, null);
     this.setNextStatement(true, null);
     this.setColour(COLOR_SERIAL);
-    this.setTooltip('Print a value to the Serial Monitor (no newline).');
+    this.setTooltip('Print data to the serial port (no newline).');
   },
 };
 
 /** Serial.println(value) */
 Blockly.Blocks['arduino_serial_println'] = {
   init(this: Blockly.Block): void {
-    this.appendValueInput('VALUE').setCheck(null).appendField('Serial.println(');
-    this.appendDummyInput().appendField(')');
-    this.setInputsInline(true);
+    this.appendValueInput('VALUE').setCheck(null).appendField('Serial.println:');
+    this.setInputsInline(false);
     this.setPreviousStatement(true, null);
     this.setNextStatement(true, null);
     this.setColour(COLOR_SERIAL);
-    this.setTooltip('Print a value to the Serial Monitor followed by a newline.');
+    this.setTooltip('Print data to the serial port, followed by a newline.');
   },
 };
