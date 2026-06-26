@@ -46,6 +46,21 @@ export const ARDUINO_SHIM = `
 #define A4 18
 #define A5 19
 
+// ── ESP8266 NodeMCU pin aliases ─────────────────────────────────────────
+#ifndef D0
+#define D0 16
+#define D1 5
+#define D2 4
+#define D3 0
+#define D4 2
+#define D5 14
+#define D6 12
+#define D7 13
+#define D8 15
+#define RX 3
+#define TX 1
+#endif
+
 // ── Types ────────────────────────────────────────────────────────────────
 typedef unsigned char byte;
 typedef bool boolean;
@@ -201,11 +216,12 @@ int main() {
 export function isArduinoSketch(code: string): boolean {
   const stripped = code.replace(/\/\/.*$/gm, '').replace(/\/\*[\s\S]*?\*\//g, '');
   const hasSetup = /void\s+setup\s*\(\s*\)/.test(stripped);
-  const hasLoop  = /void\s+loop\s*\(\s*\)/.test(stripped);
-  const hasMain  = /int\s+main\s*\(/.test(stripped);
+  const hasLoop = /void\s+loop\s*\(\s*\)/.test(stripped);
+  const hasMain = /int\s+main\s*\(/.test(stripped);
   const hasArduinoH = /#include\s*<Arduino\.h>/.test(stripped);
+  const hasEsp8266H = /#include\s*<ESP8266WiFi\.h>/.test(stripped);
 
-  if (hasArduinoH) return true;
+  if (hasArduinoH || hasEsp8266H) return true;
   if (hasMain && !hasSetup) return false;
   if (hasSetup || hasLoop) return true;
   return false;
@@ -223,8 +239,9 @@ export function prepareForWandbox(code: string): { code: string; isArduino: bool
     return { code, isArduino: false };
   }
 
-  // Strip #include <Arduino.h> since the shim provides everything
+  // Strip #include <Arduino.h> and #include <ESP8266WiFi.h> since the shim provides everything
   let cleaned = code.replace(/^\s*#include\s*<Arduino\.h>\s*$/gm, '');
+  cleaned = cleaned.replace(/^\s*#include\s*<ESP8266WiFi\.h>\s*$/gm, '');
   // Strip any duplicate main() that might conflict
   // (the shim already provides main)
 
@@ -241,7 +258,12 @@ export function adjustLineNumbers(
   isArduino: boolean,
 ): Array<{ line: number; column: number; message: string; severity: 'error' | 'warning' }> {
   if (!isArduino) {
-    return errors as Array<{ line: number; column: number; message: string; severity: 'error' | 'warning' }>;
+    return errors as Array<{
+      line: number;
+      column: number;
+      message: string;
+      severity: 'error' | 'warning';
+    }>;
   }
 
   const shimLines = ARDUINO_SHIM.split('\n').length;

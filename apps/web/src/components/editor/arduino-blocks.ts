@@ -286,3 +286,19 @@ Blockly.Blocks['arduino_serial_println'] = {
     this.setTooltip('Print data to the serial port, followed by a newline.');
   },
 };
+
+// ─────────────────────────────────────────────────────────────────────────────
+// RENDERER MONKEYPATCHES
+// ─────────────────────────────────────────────────────────────────────────────
+
+// Geras renderer: expand arduino_program block's width to wrap nested statements
+const GerasRenderInfo = (Blockly as any).geras?.RenderInfo;
+if (GerasRenderInfo) {
+  const originalComputeBounds = GerasRenderInfo.prototype.computeBounds_;
+  GerasRenderInfo.prototype.computeBounds_ = function (this: any) {
+    originalComputeBounds.call(this);
+    if (this.block_.type === 'arduino_program') {
+      this.width = Math.max(this.width, this.widthWithChildren);
+    }
+  };
+}

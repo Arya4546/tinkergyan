@@ -174,7 +174,7 @@ export const BlocklyWorkspace = forwardRef<BlocklyWorkspaceHandle, BlocklyWorksp
       // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []); // Intentionally runs once — workspace lifecycle is managed internally
 
-    // Sync board changes to update the root block's title dynamically
+    // Sync board changes to update the root block's title and re-generate code
     useEffect(() => {
       if (!workspaceRef.current) return;
       const blocks = workspaceRef.current.getBlocksByType('arduino_program');
@@ -182,7 +182,14 @@ export const BlocklyWorkspace = forwardRef<BlocklyWorkspaceHandle, BlocklyWorksp
       for (const block of blocks) {
         block.setFieldValue(`${boardLabel} Program`, 'TITLE');
       }
-    }, [board]);
+      // Re-generate code so the C++ preview reflects the correct board-specific header
+      try {
+        const code = arduinoGenerator.workspaceToCode(workspaceRef.current);
+        onCodeChange(code);
+      } catch {
+        // Generator errors should not crash the editor
+      }
+    }, [board, onCodeChange]);
 
     // Sync theme changes without re-mounting the workspace
     useEffect(() => {
