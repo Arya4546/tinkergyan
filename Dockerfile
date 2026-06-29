@@ -40,10 +40,12 @@ COPY apps/api/package.json ./apps/api/package.json
 
 RUN pnpm install --filter @tinkergyan/api... --frozen-lockfile --prod --ignore-scripts
 
-# Backend build output + prisma
+# Backend build output + prisma schema
 COPY --from=backend-builder /app/apps/api/dist ./apps/api/dist
 COPY --from=backend-builder /app/apps/api/prisma ./apps/api/prisma
-COPY --from=backend-builder /app/apps/api/node_modules/.prisma ./apps/api/node_modules/.prisma
+
+# Generate Prisma client directly in production stage (avoids monorepo node_modules path issues)
+RUN cd apps/api && npx prisma generate
 
 # Frontend build output (served by Express as static files)
 COPY --from=frontend-builder /app/apps/web/dist ./apps/web/dist
