@@ -3,18 +3,22 @@ import cors from 'cors';
 import cookieParser from 'cookie-parser';
 import pinoHttp from 'pino-http';
 import path from 'path';
+import { fileURLToPath } from 'url';
 
 import { env } from './env';
 import { apiRouter } from './routes';
 import { errorHandler } from './middleware/error.middleware';
 import { logger } from './lib/logger';
 
+// ESM-compatible __dirname equivalent
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
 export const createApp = () => {
   const app = express();
 
   app.disable('x-powered-by');
 
-  // Serve frontend static files BEFORE cors (no CORS needed for same-origin static files)
   const clientDistPath = path.join(__dirname, '../../web/dist');
   app.use(express.static(clientDistPath));
 
@@ -34,7 +38,6 @@ export const createApp = () => {
   });
   app.use(errorHandler);
 
-  // SPA catch-all for frontend routing (must be after /api routes)
   app.get(/(.*)/, (_req, res) => {
     res.sendFile(path.join(clientDistPath, 'index.html'));
   });
