@@ -8,7 +8,7 @@ COPY packages/shared-types ./packages/shared-types
 COPY packages/eslint-config ./packages/eslint-config
 COPY apps/web/package.json ./apps/web/package.json
 
-RUN pnpm install --filter @tinkergyan/web... --frozen-lockfile
+RUN pnpm install --filter @tinkergyan/web... --frozen-lockfile --ignore-scripts
 
 COPY apps/web ./apps/web
 RUN pnpm --filter @tinkergyan/web build
@@ -23,7 +23,7 @@ COPY packages/shared-types ./packages/shared-types
 COPY packages/eslint-config ./packages/eslint-config
 COPY apps/api/package.json ./apps/api/package.json
 
-RUN pnpm install --filter @tinkergyan/api... --frozen-lockfile
+RUN pnpm install --filter @tinkergyan/api... --frozen-lockfile --ignore-scripts
 
 COPY apps/api ./apps/api
 RUN pnpm --filter @tinkergyan/api build
@@ -38,7 +38,7 @@ COPY pnpm-workspace.yaml package.json pnpm-lock.yaml* ./
 COPY packages/shared-types ./packages/shared-types
 COPY apps/api/package.json ./apps/api/package.json
 
-RUN pnpm install --filter @tinkergyan/api... --frozen-lockfile --prod
+RUN pnpm install --filter @tinkergyan/api... --frozen-lockfile --prod --ignore-scripts
 
 # Backend build output + prisma
 COPY --from=backend-builder /app/apps/api/dist ./apps/api/dist
