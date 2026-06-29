@@ -1,0 +1,29 @@
+services:
+  api:
+    build: .
+    container_name: tinkergyan_api
+    restart: always
+    logging:
+      driver: 'json-file'
+      options:
+        max-size: '10m'
+        max-file: '3'
+    ports:
+      - '3001:3001'
+    environment:
+      - NODE_ENV=production
+      - PORT=3001
+      - DATABASE_URL=${DATABASE_URL}
+      - JWT_SECRET=${JWT_SECRET}
+      - JWT_EXPIRES_IN=${JWT_EXPIRES_IN}
+      - FRONTEND_URL=${FRONTEND_URL}
+      - MAX_COMPILE_TIMEOUT=${MAX_COMPILE_TIMEOUT}
+      - COMPILE_CONCURRENCY=${COMPILE_CONCURRENCY}
+      - COMPILER_MODE=wandbox
+    networks:
+      - default
+
+networks:
+  default:
+    external: true
+    name: stemmantra-lms_default
