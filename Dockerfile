@@ -3,7 +3,8 @@ FROM node:20-alpine AS frontend-builder
 RUN corepack enable && corepack prepare pnpm@10.6.3 --activate
 WORKDIR /app
 
-COPY pnpm-workspace.yaml package.json pnpm-lock.yaml* ./
+# Root config files needed by TypeScript
+COPY pnpm-workspace.yaml package.json pnpm-lock.yaml* tsconfig.base.json tsconfig.json ./
 COPY packages/shared-types ./packages/shared-types
 COPY packages/eslint-config ./packages/eslint-config
 COPY apps/web/package.json ./apps/web/package.json
@@ -18,7 +19,7 @@ FROM node:20-alpine AS backend-builder
 RUN corepack enable && corepack prepare pnpm@10.6.3 --activate
 WORKDIR /app
 
-COPY pnpm-workspace.yaml package.json pnpm-lock.yaml* ./
+COPY pnpm-workspace.yaml package.json pnpm-lock.yaml* tsconfig.base.json tsconfig.json ./
 COPY packages/shared-types ./packages/shared-types
 COPY packages/eslint-config ./packages/eslint-config
 COPY apps/api/package.json ./apps/api/package.json
@@ -34,7 +35,7 @@ RUN corepack enable && corepack prepare pnpm@10.6.3 --activate
 RUN apk add --no-cache openssl
 WORKDIR /app
 
-COPY pnpm-workspace.yaml package.json pnpm-lock.yaml* ./
+COPY pnpm-workspace.yaml package.json pnpm-lock.yaml* tsconfig.base.json tsconfig.json ./
 COPY packages/shared-types ./packages/shared-types
 COPY apps/api/package.json ./apps/api/package.json
 
@@ -44,7 +45,6 @@ RUN pnpm install --filter @tinkergyan/api... --frozen-lockfile --prod --ignore-s
 COPY --from=backend-builder /app/apps/api/dist ./apps/api/dist
 COPY --from=backend-builder /app/apps/api/prisma ./apps/api/prisma
 
-# Generate Prisma client directly in production stage (avoids monorepo node_modules path issues)
 RUN cd apps/api && npx prisma generate
 
 # Frontend build output (served by Express as static files)
