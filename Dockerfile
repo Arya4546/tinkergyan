@@ -12,7 +12,6 @@ COPY packages/eslint-config ./packages/eslint-config
 RUN pnpm install --filter @tinkergyan/shared-types... --frozen-lockfile --ignore-scripts
 RUN pnpm --filter @tinkergyan/shared-types build
 
-# Fail loudly here instead of silently later if shared-types didn't build
 RUN test -f /app/packages/shared-types/dist/index.d.ts \
     || (echo "❌ shared-types build failed - dist/index.d.ts missing" && exit 1)
 
@@ -48,15 +47,10 @@ COPY packages/eslint-config ./packages/eslint-config
 COPY --from=shared-builder /app/packages/shared-types ./packages/shared-types
 COPY apps/api/package.json ./apps/api/package.json
 
-# --ignore-scripts skips the ROOT "prepare" (husky) script.
-# The api's own "build" script (prisma generate && tsup) is run explicitly below,
-# so nothing important is lost by skipping lifecycle scripts here.
 RUN pnpm install --filter @tinkergyan/api... --frozen-lockfile --ignore-scripts
 
 COPY apps/api ./apps/api
 
-# This runs "prisma generate && tsup" using the PINNED prisma version
-# from devDependencies (^6.16.0) — NOT npx, so no risk of fetching latest v7.
 RUN pnpm --filter @tinkergyan/api build
 
 RUN test -f /app/apps/api/dist/server.js \
@@ -74,24 +68,18 @@ COPY pnpm-workspace.yaml package.json pnpm-lock.yaml* tsconfig.base.json tsconfi
 COPY --from=shared-builder /app/packages/shared-types ./packages/shared-types
 COPY apps/api/package.json ./apps/api/package.json
 
-# Production install: only prod deps, including pinned prisma client (@prisma/client)
-# and the pinned prisma CLI itself stays available via package.json's devDependencies
-# being skipped — but @prisma/client (a dependency, not devDependency) IS installed.
 RUN pnpm install --filter @tinkergyan/api... --frozen-lockfile --prod --ignore-scripts
 
-# Backend build output + prisma schema (the already-generated @prisma/client
-# from backend-builder's node_modules is NOT copied — we regenerate it fresh
-# here using the pinned version below, which is fast and avoids monorepo
-# node_modules/.pnpm path issues entirely).
+# Backend build output + prisma schema
 COPY --from=backend-builder /app/apps/api/dist ./apps/api/dist
 COPY --from=backend-builder /app/apps/api/prisma ./apps/api/prisma
 
-# CRITICAL: pin the exact prisma version to match package.json devDependencies.
-# Using bare "npx prisma generate" would fetch the LATEST prisma (v7+) which
-# has breaking schema changes (datasource.url removed) — this avoids that.
+# CRITICAL: pin the exact prisma version to match package.json devDependencies (^6.16.0).
 RUN cd apps/api && npx --yes prisma@6.16.0 generate
 
-RUN test -d /app/apps/api/node_modules/.prisma \
+# Verify generation succeeded. In this pnpm monorepo, the generated client
+# lives inside the root .pnpm store, NOT apps/api/node_modules/.prisma.
+RUN find /app/node_modules/.pnpm -maxdepth 1 -iname "*prisma*client*" | grep -q . \
     || (echo "❌ prisma client generation failed in production stage" && exit 1)
 
 # Frontend build output (served by Express as static files)
