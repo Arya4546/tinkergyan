@@ -4,86 +4,81 @@
 
 @layer base {
   body {
-    @apply antialiased bg-white text-slate-900 border-slate-900 overflow-x-hidden;
+    @apply antialiased bg-background text-text-primary overflow-x-hidden;
     font-feature-settings:
       'rlig' 1,
       'calt' 1;
     font-family: 'Inter', system-ui, sans-serif;
   }
 
-  /* Force dark mode to strictly use grid colors */
   html.dark body {
-    @apply bg-[#000000] text-slate-100 border-slate-700;
+    @apply bg-dark-bg text-slate-100;
   }
 }
 
 @layer utilities {
-  /* The Dot Matrix Background */
-  .bg-dot-matrix {
-    background-image: radial-gradient(circle, #cbd5e1 1px, transparent 1px);
-    background-size: 24px 24px;
+  /* ── Canvas grid — softer than the old dot-matrix engineering look ── */
+  .bg-canvas-grid {
+    background-image: radial-gradient(circle, #e2e8f0 1.5px, transparent 1.5px);
+    background-size: 32px 32px;
   }
 
-  .dark .bg-dot-matrix {
-    background-image: radial-gradient(circle, #1e293b 1px, transparent 1px);
+  .dark .bg-canvas-grid {
+    background-image: radial-gradient(circle, #2e3055 1.5px, transparent 1.5px);
   }
 
-  /* Hardware specific utilities */
-  .hw-border {
-    @apply border border-slate-900 dark:border-slate-800;
+  /* ── App-wide panel / surface utilities ─────────────────────────────── */
+  .app-panel {
+    @apply bg-white dark:bg-dark-surface rounded-2xl border border-slate-100 dark:border-dark-border shadow-sm;
   }
 
-  .hw-border-b {
-    @apply border-b border-slate-900 dark:border-slate-800;
+  .app-surface {
+    @apply bg-white dark:bg-dark-surface;
   }
 
-  .hw-border-r {
-    @apply border-r border-slate-900 dark:border-slate-800;
+  /* ── Friendly button base (replaces hw-key) ─────────────────────────── */
+  .app-btn {
+    @apply font-sans font-semibold flex items-center justify-center gap-2
+           transition-all duration-150 cursor-pointer
+           focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-1
+           disabled:opacity-50 disabled:pointer-events-none;
   }
 
-  .hw-border-t {
-    @apply border-t border-slate-900 dark:border-slate-800;
+  .app-btn-primary {
+    @apply app-btn bg-primary-500 text-white rounded-xl
+           hover:bg-primary-600 active:scale-95;
   }
 
-  .hw-border-l {
-    @apply border-l border-slate-900 dark:border-slate-800;
+  .app-btn-accent {
+    @apply app-btn bg-accent-500 text-slate-900 rounded-xl
+           hover:bg-accent-400 active:scale-95;
   }
 
-  .hw-panel {
-    @apply bg-white dark:bg-[#000000] hw-border rounded-none;
+  .app-btn-secondary {
+    @apply app-btn bg-white dark:bg-dark-surface text-slate-700 dark:text-slate-200
+           rounded-xl border border-slate-200 dark:border-dark-border
+           hover:bg-slate-50 dark:hover:bg-dark-border active:scale-95;
   }
 
-  .hw-key {
-    @apply font-mono uppercase tracking-widest text-sm font-bold flex items-center justify-center transition-colors cursor-pointer hw-border;
+  .app-btn-ghost {
+    @apply app-btn text-slate-500 dark:text-slate-400 rounded-xl
+           hover:bg-slate-100 dark:hover:bg-dark-border active:scale-95;
   }
 
-  .hw-key-primary {
-    @apply bg-white dark:bg-[#000000] text-slate-900 dark:text-white hover:bg-slate-900 hover:text-white dark:hover:bg-white dark:hover:text-slate-900 active:bg-primary-500 active:text-white dark:active:border-primary-500;
-  }
-
-  .hw-key-accent {
-    @apply bg-accent-500 text-slate-900 border-accent-600 hover:bg-accent-400 hover:text-slate-900;
-  }
-
-  /* LED styling for monospace numbers */
-  .led-text {
-    @apply font-mono tracking-wider font-bold;
+  /* ── JetBrains Mono is ONLY for genuine code display contexts ───────── */
+  /* Applied via .code-mono class — do NOT spread it into UI chrome.      */
+  .code-mono {
+    font-family: 'JetBrains Mono', 'Fira Code', monospace;
   }
 }
 
 /* ========================================================
-   BLOCKLY TOOLBOX HARDWARE OS OVERRIDES 
+   BLOCKLY TOOLBOX — KID-FRIENDLY OVERRIDES
+   Only rules the Blockly Theme API cannot reach.
+   Category colors, font, flyout bg → handled by kidTheme
+   in BlocklyWorkspace.tsx. Only touch-action + scrollbar
+   suppression live here.
    ======================================================== */
-.blocklyToolboxDiv {
-  background-color: #f8fafc !important; /* slate-50 */
-  border-right: 1px solid #0f172a !important; /* slate-900 border */
-  padding: 0 !important;
-}
-
-html.dark .blocklyToolboxDiv {
-  background-color: #0a0a0a !important;
-  border-right: 1px solid #334155 !important;
-}
 
 /* Fix for dragging blocks in modern browsers / touch devices */
 .blocklySvg {
@@ -93,83 +88,21 @@ html.dark .blocklyToolboxDiv {
   touch-action: none !important;
 }
 
-/* Base Category Row styling */
-.blocklyTreeRow {
-  height: 48px !important;
-  display: flex !important;
-  align-items: center !important;
-  padding: 0 16px !important;
-  border-bottom: 1px solid #e2e8f0 !important; /* slate-200 */
-  margin-bottom: 0 !important;
-  border-radius: 0 !important;
-  transition: all 0.2s ease !important;
-}
-
-html.dark .blocklyTreeRow {
-  border-bottom: 1px solid #1e293b !important;
-}
-
-/* Category Text Label */
-.blocklyTreeLabel {
-  font-family: 'JetBrains Mono', 'Fira Code', monospace !important;
-  font-size: 11px !important;
-  font-weight: 800 !important;
-  letter-spacing: 0.1em !important;
-  color: #0f172a !important; /* slate-900 */
-}
-
-html.dark .blocklyTreeLabel {
-  color: #f1f5f9 !important; /* slate-100 */
-}
-
-/* Hover and Active Colors */
-.blocklyTreeRow:hover {
-  background-color: #0f172a !important; /* slate-900 */
-}
-.blocklyTreeRow:hover .blocklyTreeLabel {
-  color: #ffffff !important;
-}
-
-html.dark .blocklyTreeRow:hover {
-  background-color: #ffffff !important;
-}
-html.dark .blocklyTreeRow:hover .blocklyTreeLabel {
-  color: #000000 !important;
-}
-
-/* Selected Category State */
-.blocklyTreeSelected .blocklyTreeRow {
-  background-color: #10b981 !important; /* emerald-500 */
-  border-bottom: 1px solid #047857 !important; /* emerald-700 */
-  border-left: none !important;
-}
-
-.blocklyTreeSelected .blocklyTreeLabel {
-  color: #ffffff !important;
-}
-
-/* Category Icon (Hiding default round dot for custom hardware look) */
-.blocklyTreeIcon {
-  display: none !important;
-}
-
-/* Flyout Background (The pop-out where blocks reside) */
-.blocklyFlyoutBackground {
-  fill: #f1f5f9 !important; /* slate-100 */
-  fill-opacity: 0.98 !important;
-  stroke: #0f172a !important;
-  stroke-width: 1px !important;
-}
-
-html.dark .blocklyFlyoutBackground {
-  fill: #111111 !important;
-  stroke: #334155 !important;
-}
-
-/* Hide all Blockly scrollbars (workspace and flyout) */
+/* Hide scrollbar chrome (workspace and flyout) */
 .blocklyScrollbarHandle,
 .blocklyScrollbarBackground {
   display: none !important;
+}
+
+/* Show the category icon slot so emoji in names renders correctly */
+.blocklyTreeIcon {
+  display: block !important;
+}
+
+/* Keyboard focus ring on toolbox rows — keep the native Blockly indicator */
+.blocklyTreeRow:focus {
+  outline: 2px solid #6c63ff !important;
+  outline-offset: -2px !important;
 }
 
 /* ========================================================
@@ -185,11 +118,11 @@ html.dark .lesson-content {
   color: #e2e8f0;
 }
 
+/* Headings: Inter (warm, readable) — not monospace, not uppercase */
 .lesson-content .md-h1 {
-  font-family: 'JetBrains Mono', monospace;
+  font-family: 'Inter', system-ui, sans-serif;
   font-size: 1.75rem;
   font-weight: 800;
-  text-transform: uppercase;
   letter-spacing: -0.025em;
   margin-top: 0;
   margin-bottom: 1.5rem;
@@ -203,10 +136,9 @@ html.dark .lesson-content .md-h1 {
 }
 
 .lesson-content .md-h2 {
-  font-family: 'JetBrains Mono', monospace;
+  font-family: 'Inter', system-ui, sans-serif;
   font-size: 1.25rem;
-  font-weight: 800;
-  text-transform: uppercase;
+  font-weight: 700;
   margin-top: 2rem;
   margin-bottom: 1rem;
   color: #1e293b;
@@ -217,10 +149,9 @@ html.dark .lesson-content .md-h2 {
 }
 
 .lesson-content .md-h3 {
-  font-family: 'JetBrains Mono', monospace;
+  font-family: 'Inter', system-ui, sans-serif;
   font-size: 1rem;
-  font-weight: 800;
-  text-transform: uppercase;
+  font-weight: 700;
   margin-top: 1.5rem;
   margin-bottom: 0.75rem;
   color: #334155;
@@ -240,6 +171,7 @@ html.dark .lesson-content .md-p {
   color: #94a3b8;
 }
 
+/* Inline code — mono is correct here */
 .lesson-content .md-inline-code {
   font-family: 'JetBrains Mono', monospace;
   background-color: #f1f5f9;
@@ -248,6 +180,7 @@ html.dark .lesson-content .md-p {
   font-size: 0.85em;
   font-weight: 700;
   border: 1px solid #cbd5e1;
+  border-radius: 0.25rem;
 }
 
 html.dark .lesson-content .md-inline-code {
@@ -256,11 +189,13 @@ html.dark .lesson-content .md-inline-code {
   border-color: #334155;
 }
 
+/* Code blocks — mono is correct here */
 .lesson-content .md-code-block {
   background-color: #0f172a;
   color: #f8fafc;
   padding: 1rem;
   border: 1px solid #334155;
+  border-radius: 0.5rem;
   overflow-x: auto;
   margin: 1.5rem 0;
   font-family: 'JetBrains Mono', monospace;
@@ -273,7 +208,7 @@ html.dark .lesson-content .md-code-block {
 }
 
 .lesson-content .md-list {
-  list-style-type: square;
+  list-style-type: disc;
   padding-left: 1.5rem;
   margin-bottom: 1.25rem;
   font-size: 0.9rem;
@@ -288,13 +223,13 @@ html.dark .lesson-content .md-list {
   margin-bottom: 0.5rem;
 }
 
+/* Table — Inter, normal case, readable */
 .lesson-content .md-table {
   width: 100%;
   border-collapse: collapse;
   margin: 1.5rem 0;
-  font-family: 'JetBrains Mono', monospace;
-  font-size: 0.8rem;
-  text-transform: uppercase;
+  font-family: 'Inter', system-ui, sans-serif;
+  font-size: 0.85rem;
 }
 
 .lesson-content .md-table th,
@@ -316,5 +251,5 @@ html.dark .lesson-content .md-table td {
 }
 
 html.dark .lesson-content .md-table tr:nth-child(even) {
-  background-color: rgba(15, 23, 42, 0.5);
+  background-color: rgba(37, 38, 64, 0.5);
 }

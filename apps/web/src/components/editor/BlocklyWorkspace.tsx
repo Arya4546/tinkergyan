@@ -5,6 +5,9 @@
  * - Imports custom Arduino block definitions and the C++ generator.
  * - Exposes getXml() and loadXml() via ref for save/load.
  * - Reports generated C++ on every workspace change via onCodeChange.
+ * - Uses a custom Blockly Theme (kidFriendly / darkKidFriendly) so that
+ *   category colors, font, and flyout styling come from the official API
+ *   rather than fragile CSS overrides on internal Blockly class names.
  */
 import React, { useEffect, useRef, useImperativeHandle, forwardRef } from 'react';
 import * as Blockly from 'blockly/core';
@@ -25,6 +28,74 @@ const BOARDS = [
   { fqbn: 'arduino:avr:mega', label: 'Arduino Mega' },
   { fqbn: 'esp8266:esp8266:nodemcuv2', label: 'NodeMCU (ESP8266)' },
 ] as const;
+
+// ─── Blockly theme definitions ────────────────────────────────────────────────
+//
+// categoryStyles keys must match the `categorystyle` values in toolbox.ts.
+// toolbox.ts must NOT have inline `colour:` fields — if both colour and
+// categorystyle are present, Blockly silently ignores categorystyle.
+
+const KID_CATEGORY_STYLES = {
+  program_category: { colour: '#1565C0' },
+  digital_category: { colour: '#2E7D32' },
+  analog_category: { colour: '#E65100' },
+  control_category: { colour: '#6A1B9A' },
+  serial_category: { colour: '#B71C1C' },
+  logic_category: { colour: '#5C81A6' },
+  loop_category: { colour: '#5CA65C' },
+  math_category: { colour: '#5C68A6' },
+  text_category: { colour: '#5BA58C' },
+  variable_category: { colour: '#A65C5C' },
+  function_category: { colour: '#9A5CA6' },
+};
+
+const KID_FONT: Blockly.Theme.FontStyle = {
+  family: 'Inter, system-ui, sans-serif',
+  weight: '600',
+  size: 13,
+};
+
+const kidTheme = Blockly.Theme.defineTheme('kidFriendly', {
+  name: 'kidFriendly',
+  base: Blockly.Themes.Classic,
+  categoryStyles: KID_CATEGORY_STYLES,
+  componentStyles: {
+    workspaceBackgroundColour: '#F7F8FC',
+    toolboxBackgroundColour: '#FFFFFF',
+    toolboxForegroundColour: '#1A1B2E',
+    flyoutBackgroundColour: '#F1F5F9',
+    flyoutForegroundColour: '#1A1B2E',
+    flyoutOpacity: 0.98,
+    scrollbarColour: '#CBD5E1',
+    scrollbarOpacity: 0.4,
+    insertionMarkerColour: '#6C63FF',
+    insertionMarkerOpacity: 0.5,
+    markerColour: '#6C63FF',
+    cursorColour: '#6C63FF',
+  },
+  fontStyle: KID_FONT,
+});
+
+const darkKidTheme = Blockly.Theme.defineTheme('darkKidFriendly', {
+  name: 'darkKidFriendly',
+  base: Blockly.Themes.Classic,
+  categoryStyles: KID_CATEGORY_STYLES,
+  componentStyles: {
+    workspaceBackgroundColour: '#1A1B2E',
+    toolboxBackgroundColour: '#252640',
+    toolboxForegroundColour: '#E2E8F0',
+    flyoutBackgroundColour: '#252640',
+    flyoutForegroundColour: '#E2E8F0',
+    flyoutOpacity: 0.98,
+    scrollbarColour: '#2E3055',
+    scrollbarOpacity: 0.4,
+    insertionMarkerColour: '#7B72FF',
+    insertionMarkerOpacity: 0.5,
+    markerColour: '#7B72FF',
+    cursorColour: '#7B72FF',
+  },
+  fontStyle: KID_FONT,
+});
 
 // ─── Public ref handle ────────────────────────────────────────────────────────
 export interface BlocklyWorkspaceHandle {
@@ -96,6 +167,15 @@ export const BlocklyWorkspace = forwardRef<BlocklyWorkspaceHandle, BlocklyWorksp
 
     const isInit = useRef(false);
 
+    // Resolve which Blockly theme to use based on current UI theme setting
+    const resolveBlocklyTheme = (currentTheme: string) => {
+      if (currentTheme === 'dark') return darkKidTheme;
+      if (currentTheme === 'system') {
+        return window.matchMedia('(prefers-color-scheme: dark)').matches ? darkKidTheme : kidTheme;
+      }
+      return kidTheme;
+    };
+
     // Initialize Blockly once the container div is mounted
     useEffect(() => {
       if (isInit.current || workspaceRef.current || !blocklyDiv.current) return;
@@ -106,16 +186,16 @@ export const BlocklyWorkspace = forwardRef<BlocklyWorkspaceHandle, BlocklyWorksp
 
       workspaceRef.current = Blockly.inject(blocklyDiv.current, {
         toolbox: INITIAL_TOOLBOX,
-        theme: Blockly.Themes.Classic,
+        theme: resolveBlocklyTheme(useUIStore.getState().theme),
         move: {
           scrollbars: true,
           drag: true,
           wheel: true,
         },
         grid: {
-          spacing: 20,
+          spacing: 24,
           length: 3,
-          colour: theme === 'dark' ? '#333' : '#ccc',
+          colour: theme === 'dark' ? '#2E3055' : '#e2e8f0',
           snap: true,
         },
         zoom: {
@@ -191,10 +271,10 @@ export const BlocklyWorkspace = forwardRef<BlocklyWorkspaceHandle, BlocklyWorksp
       }
     }, [board, onCodeChange]);
 
-    // Sync theme changes without re-mounting the workspace
+    // Sync theme changes — swap between kidTheme and darkKidTheme
     useEffect(() => {
       if (!workspaceRef.current) return;
-      workspaceRef.current.setTheme(Blockly.Themes.Classic);
+      workspaceRef.current.setTheme(resolveBlocklyTheme(theme));
     }, [theme]);
 
     // Resize Blockly SVG when the window changes size

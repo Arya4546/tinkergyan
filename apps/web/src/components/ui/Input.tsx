@@ -1,4 +1,5 @@
-import { InputHTMLAttributes, forwardRef } from 'react';
+import type { InputHTMLAttributes } from 'react';
+import { forwardRef } from 'react';
 import { CheckCircle2 } from 'lucide-react';
 
 export interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
@@ -12,15 +13,19 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
     return (
       <div className="w-full relative">
         {label && (
-          <label className="block font-mono text-[10px] font-bold text-slate-500 dark:text-slate-400 mb-2 uppercase tracking-widest">
+          <label className="block font-sans text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
             {label}
           </label>
         )}
         <div className="relative">
           <input
             ref={ref}
-            className={`flex h-12 w-full hw-border bg-slate-50 dark:bg-[#111111] px-4 py-2 font-mono text-sm font-bold text-slate-900 dark:text-white placeholder:text-slate-500 outline-none transition-colors focus:border-primary-500 focus:bg-white dark:focus:bg-[#000000] disabled:cursor-not-allowed disabled:opacity-50 pr-10 ${
-              error ? 'border-red-500 focus:border-red-500 bg-red-500/5' : isValid ? 'border-emerald-500 focus:border-emerald-500 bg-emerald-500/5' : ''
+            className={`flex h-12 w-full rounded-xl border border-slate-200 dark:border-dark-border bg-white dark:bg-dark-surface px-4 py-2 font-sans text-base text-slate-900 dark:text-white placeholder:text-slate-400 outline-none transition-all focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 disabled:cursor-not-allowed disabled:opacity-50 pr-10 ${
+              error
+                ? 'border-red-500 focus:border-red-500 focus:ring-red-500/20 bg-red-50/50 dark:bg-red-900/10'
+                : isValid
+                  ? 'border-emerald-500 focus:border-emerald-500 focus:ring-emerald-500/20 bg-emerald-50/50 dark:bg-emerald-900/10'
+                  : ''
             } ${className}`}
             {...props}
           />
@@ -30,13 +35,9 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
             </div>
           )}
         </div>
-        {error && (
-          <p className="mt-2 text-[10px] font-bold font-mono uppercase tracking-widest text-red-500 bg-red-500/10 border border-red-500/20 px-2 py-1 inline-block">
-            {error}
-          </p>
-        )}
+        {error && <p className="mt-1.5 text-xs font-sans font-medium text-red-500 px-1">{error}</p>}
       </div>
     );
-  }
+  },
 );
 Input.displayName = 'Input';

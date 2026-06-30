@@ -1,4 +1,5 @@
-import { ButtonHTMLAttributes, forwardRef } from 'react';
+import type { ButtonHTMLAttributes } from 'react';
+import { forwardRef } from 'react';
 import { Loader2 } from 'lucide-react';
 
 export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
@@ -8,20 +9,34 @@ export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 }
 
 export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
-  ({ className = '', variant = 'primary', size = 'md', isLoading, children, disabled, ...props }, ref) => {
-    const baseStyles = 'hw-key focus:outline-none disabled:opacity-50 disabled:pointer-events-none disabled:cursor-not-allowed';
-    
+  (
+    { className = '', variant = 'primary', size = 'md', isLoading, children, disabled, ...props },
+    ref,
+  ) => {
+    const baseStyles =
+      'font-sans font-semibold flex items-center justify-center gap-2 ' +
+      'transition-all duration-150 cursor-pointer ' +
+      'focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-1 ' +
+      'disabled:opacity-50 disabled:pointer-events-none active:scale-[0.97]';
+
     const variants = {
-      primary: 'hw-key-primary',
-      secondary: 'bg-emerald-500 text-slate-900 border-slate-900 hover:bg-slate-900 hover:text-white',
-      outline: 'bg-white dark:bg-[#000000] text-slate-900 dark:text-white border-slate-900 dark:border-slate-800 hover:bg-slate-900 hover:text-white dark:hover:bg-white dark:hover:text-slate-900',
-      ghost: 'border-transparent bg-transparent hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-400',
+      primary:
+        'bg-primary-500 text-white rounded-xl hover:bg-primary-600 border border-primary-600',
+      secondary:
+        'bg-accent-500 text-slate-900 rounded-xl hover:bg-accent-400 border border-accent-600',
+      outline:
+        'bg-white dark:bg-dark-surface text-slate-700 dark:text-slate-200 ' +
+        'rounded-xl border border-slate-200 dark:border-dark-border ' +
+        'hover:bg-slate-50 dark:hover:bg-dark-border',
+      ghost:
+        'border-transparent bg-transparent rounded-xl text-slate-600 dark:text-slate-400 ' +
+        'hover:bg-slate-100 dark:hover:bg-dark-border',
     };
-    
+
     const sizes = {
-      sm: 'h-8 px-4 text-xs',
-      md: 'h-12 px-6 title-[10px]',
-      lg: 'h-16 px-8 text-sm',
+      sm: 'h-9 px-4 text-sm',
+      md: 'h-11 px-5 text-sm',
+      lg: 'h-12 px-6 text-base',
     };
 
     return (
@@ -31,10 +46,10 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
         className={`${baseStyles} ${variants[variant]} ${sizes[size]} ${className}`}
         {...props}
       >
-        {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+        {isLoading && <Loader2 className="h-4 w-4 animate-spin" />}
         {children}
       </button>
     );
-  }
+  },
 );
 Button.displayName = 'Button';

@@ -1,7 +1,14 @@
 /**
  * toolbox.ts
  * Arduino-specific Blockly toolbox configuration.
- * Custom Arduino blocks appear first; standard Blockly utilities follow.
+ *
+ * Category naming rules:
+ *   - Sentence case, plain English — these are user-facing labels, not internal identifiers.
+ *   - Emoji prefix gives each category a quick visual cue that Blockly's SVG can render natively.
+ *   - `colour` fields are intentionally ABSENT. Color comes exclusively from the
+ *     `categorystyle` key mapping to the kidTheme defined in BlocklyWorkspace.tsx.
+ *     If both `colour` and `categorystyle` are present, Blockly silently ignores
+ *     `categorystyle` — so only `categorystyle` must appear here.
  */
 export const INITIAL_TOOLBOX = {
   kind: 'categoryToolbox',
@@ -9,8 +16,8 @@ export const INITIAL_TOOLBOX = {
     // ── Arduino Structure ────────────────────────────────────────────────────
     {
       kind: 'category',
-      name: 'PROGRAM',
-      colour: '#1565C0',
+      name: '🧩 Program',
+      categorystyle: 'program_category',
       contents: [
         {
           kind: 'block',
@@ -22,8 +29,8 @@ export const INITIAL_TOOLBOX = {
     // ── Digital I/O ──────────────────────────────────────────────────────────
     {
       kind: 'category',
-      name: 'DIGITAL_IO',
-      colour: '#2E7D32',
+      name: '⚡ Digital Pins',
+      categorystyle: 'digital_category',
       contents: [
         { kind: 'block', type: 'arduino_pin_mode' },
         { kind: 'block', type: 'arduino_digital_write' },
@@ -34,8 +41,8 @@ export const INITIAL_TOOLBOX = {
     // ── Analog I/O ───────────────────────────────────────────────────────────
     {
       kind: 'category',
-      name: 'ANALOG_IO',
-      colour: '#E65100',
+      name: '🌊 Analog & PWM',
+      categorystyle: 'analog_category',
       contents: [
         { kind: 'block', type: 'arduino_analog_read' },
         {
@@ -56,8 +63,8 @@ export const INITIAL_TOOLBOX = {
     // ── Timing / Control ─────────────────────────────────────────────────────
     {
       kind: 'category',
-      name: 'CONTROL',
-      colour: '#6A1B9A',
+      name: '⏱ Timing',
+      categorystyle: 'control_category',
       contents: [
         {
           kind: 'block',
@@ -78,8 +85,8 @@ export const INITIAL_TOOLBOX = {
     // ── Serial Monitor ───────────────────────────────────────────────────────
     {
       kind: 'category',
-      name: 'SERIAL',
-      colour: '#B71C1C',
+      name: '📡 Serial Monitor',
+      categorystyle: 'serial_category',
       contents: [
         { kind: 'block', type: 'arduino_serial_begin' },
         {
@@ -112,8 +119,8 @@ export const INITIAL_TOOLBOX = {
     // ── Logic ────────────────────────────────────────────────────────────────
     {
       kind: 'category',
-      name: 'LOGIC',
-      colour: '#5C81A6',
+      name: '🔀 Logic',
+      categorystyle: 'logic_category',
       contents: [
         { kind: 'block', type: 'controls_if' },
         { kind: 'block', type: 'logic_compare' },
@@ -126,8 +133,8 @@ export const INITIAL_TOOLBOX = {
     // ── Loops ────────────────────────────────────────────────────────────────
     {
       kind: 'category',
-      name: 'LOOPS',
-      colour: '#5CA65C',
+      name: '🔁 Repeat',
+      categorystyle: 'loop_category',
       contents: [
         { kind: 'block', type: 'controls_repeat_ext' },
         { kind: 'block', type: 'controls_whileUntil' },
@@ -139,8 +146,8 @@ export const INITIAL_TOOLBOX = {
     // ── Math ─────────────────────────────────────────────────────────────────
     {
       kind: 'category',
-      name: 'MATH',
-      colour: '#5C68A6',
+      name: '🔢 Math',
+      categorystyle: 'math_category',
       contents: [
         { kind: 'block', type: 'math_number' },
         { kind: 'block', type: 'math_arithmetic' },
@@ -153,8 +160,8 @@ export const INITIAL_TOOLBOX = {
     // ── Text ─────────────────────────────────────────────────────────────────
     {
       kind: 'category',
-      name: 'TEXT',
-      colour: '#5BA58C',
+      name: '💬 Text',
+      categorystyle: 'text_category',
       contents: [
         { kind: 'block', type: 'text' },
         { kind: 'block', type: 'text_join' },
@@ -167,16 +174,16 @@ export const INITIAL_TOOLBOX = {
     // ── Variables ────────────────────────────────────────────────────────────
     {
       kind: 'category',
-      name: 'VARIABLES',
-      colour: '#A65C5C',
+      name: '📦 Variables',
+      categorystyle: 'variable_category',
       custom: 'VARIABLE',
     },
 
     // ── Functions ────────────────────────────────────────────────────────────
     {
       kind: 'category',
-      name: 'FUNCTIONS',
-      colour: '#9A5CA6',
+      name: '🛠 My Blocks',
+      categorystyle: 'function_category',
       custom: 'PROCEDURE',
     },
   ],

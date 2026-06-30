@@ -25,7 +25,7 @@ export const createApp = () => {
   app.use(
     cors({
       credentials: true,
-      origin: env.FRONTEND_URL ? [env.FRONTEND_URL] : true,
+      origin: env.FRONTEND_URL.length > 0 ? env.FRONTEND_URL : true,
     }),
   );
   app.use(express.json({ limit: '1mb' }));

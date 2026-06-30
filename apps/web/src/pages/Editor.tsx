@@ -33,12 +33,16 @@ import {
   Globe,
   Usb,
   Upload,
+  PanelRight,
+  Zap,
+  Star,
 } from 'lucide-react';
 
 import { CompileConsole } from '../components/editor/CompileConsole';
 import { SerialMonitor } from '../components/editor/SerialMonitor';
 import { WebSerialFlasher } from '../lib/web-serial-flasher';
 import type { FlashBoard } from '../lib/web-serial-flasher';
+import confetti from 'canvas-confetti';
 
 import {
   BlocklyWorkspace,
@@ -48,6 +52,7 @@ import { MonacoEditor, type MonacoEditorHandle } from '../components/editor/Mona
 import { Button } from '../components/ui/Button';
 import { useEditorStore, STARTER_TEMPLATES, type StarterTemplate } from '../stores/editor.store';
 import { useUIStore } from '../stores/ui.store';
+import { useUser } from '../stores/auth.store';
 
 // ─── Board dropdown options ───────────────────────────────────────────────────
 const BOARDS = [
@@ -66,22 +71,22 @@ function TemplatePicker({
 }) {
   return (
     <div
-      className="absolute inset-0 z-50 bg-black/60 flex items-center justify-center p-4"
+      className="absolute inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4"
       onClick={onClose}
     >
       <div
-        className="bg-white dark:bg-[#111111] hw-border max-w-2xl w-full max-h-[80vh] overflow-y-auto"
+        className="bg-white dark:bg-dark-surface rounded-2xl border border-slate-100 dark:border-dark-border shadow-2xl max-w-2xl w-full max-h-[80vh] overflow-y-auto animate-pop"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="px-6 py-4 hw-border-b flex justify-between items-center">
-          <h2 className="font-mono text-sm font-bold uppercase tracking-widest text-slate-900 dark:text-white">
-            STARTER_TEMPLATES
+        <div className="px-6 py-4 border-b border-slate-100 dark:border-dark-border flex justify-between items-center">
+          <h2 className="font-sans font-bold text-base text-slate-800 dark:text-white">
+            Choose a starter
           </h2>
           <button
             onClick={onClose}
-            className="font-mono text-xs text-slate-400 hover:text-slate-900 dark:hover:text-white"
+            className="w-8 h-8 rounded-full flex items-center justify-center text-slate-400 hover:text-slate-700 hover:bg-slate-100 dark:hover:bg-dark-border transition-colors focus-visible:ring-2 focus-visible:ring-primary-500"
           >
-            [ESC]
+            ✕
           </button>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-4">
@@ -92,15 +97,15 @@ function TemplatePicker({
                 onSelect(t);
                 onClose();
               }}
-              className="text-left p-4 hw-border bg-slate-50 dark:bg-[#0a0a0a] hover:bg-slate-900 hover:text-white dark:hover:bg-white dark:hover:text-slate-900 transition-colors group"
+              className="text-left p-4 rounded-xl border border-slate-100 dark:border-dark-border bg-slate-50 dark:bg-dark-bg hover:border-primary-500 hover:shadow-md transition-all group focus-visible:ring-2 focus-visible:ring-primary-500"
             >
               <div className="flex items-center gap-2 mb-2">
-                <FileCode size={14} className="text-emerald-500" />
-                <span className="font-mono text-xs font-bold uppercase tracking-widest">
+                <FileCode size={14} className="text-primary-500" />
+                <span className="font-sans font-semibold text-sm text-slate-800 dark:text-white">
                   {t.title}
                 </span>
               </div>
-              <p className="font-mono text-[10px] text-slate-400 group-hover:text-slate-300 dark:group-hover:text-slate-600 uppercase">
+              <p className="font-sans text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
                 {t.desc}
               </p>
             </button>
@@ -122,6 +127,7 @@ export default function Editor() {
   const [flashProgress, setFlashProgress] = useState(0);
   const [flashMessage, setFlashMessage] = useState('');
   const [showSerialMonitor, setShowSerialMonitor] = useState(false);
+  const [showCodePanel, setShowCodePanel] = useState(false);
   const [terminalWidth, setTerminalWidth] = useState(() => (window.innerWidth < 1024 ? 340 : 420));
   const isResizing = useRef(false);
 
@@ -164,6 +170,7 @@ export default function Editor() {
   } = useEditorStore();
 
   const addToast = useUIStore((s: any) => s.addToast);
+  const user = useUser();
 
   // ── Resizer Effect ───────────────────────────────────────────────────
   useEffect(() => {
@@ -246,6 +253,20 @@ export default function Editor() {
     }
   }, [isDirty, generatedCode, manualCode, projectTitle, board, scheduleAutoSave]);
 
+  // ── Confetti Gamification ───────────────────────────────────────────────
+  useEffect(() => {
+    if (compileResult?.success) {
+      confetti({
+        particleCount: 100,
+        spread: 70,
+        origin: { y: 0.6 },
+        colors: ['#10B981', '#F59E0B', '#3B82F6'],
+      });
+      // Ensure the code panel is visible so the user can see the output
+      setShowCodePanel(true);
+    }
+  }, [compileResult]);
+
   // ── Mode switching ─────────────────────────────────────────────────────
   const switchToCode = useCallback(() => {
     if (mode === 'block') setManualCode(generatedCode);
@@ -269,9 +290,13 @@ export default function Editor() {
     const xml = blocklyRef.current?.getXml() ?? '';
     try {
       await saveProject(xml);
-      addToast({ type: 'success', title: 'SYS_SAVE', message: 'Project saved.' });
+      addToast({ type: 'success', title: 'Saved! 💾', message: 'Your project is saved.' });
     } catch {
-      addToast({ type: 'error', title: 'SAVE_FAILED', message: 'Could not save project.' });
+      addToast({
+        type: 'error',
+        title: 'Oops — save failed',
+        message: 'Could not save. Try again in a moment.',
+      });
     }
   }, [saveProject, addToast]);
 
@@ -280,9 +305,17 @@ export default function Editor() {
       if (isDirty) await handleSave();
       const newId = await duplicateProject();
       navigate(`/editor/${newId}`, { replace: true });
-      addToast({ type: 'success', title: 'DUPLICATED', message: 'Project copied successfully.' });
+      addToast({
+        type: 'success',
+        title: 'Project copied!',
+        message: 'A new copy has been created.',
+      });
     } catch {
-      addToast({ type: 'error', title: 'FAILED', message: 'Could not duplicate project.' });
+      addToast({
+        type: 'error',
+        title: 'Could not copy',
+        message: 'Something went wrong. Try again.',
+      });
     }
   }, [duplicateProject, navigate, addToast, isDirty, handleSave]);
 
@@ -291,20 +324,27 @@ export default function Editor() {
       const newState = await togglePublic();
       addToast({
         type: 'success',
-        title: newState ? 'PUBLIC' : 'PRIVATE',
-        message: newState ? 'Project is now visible in the Gallery.' : 'Project is now private.',
+        title: newState ? 'Shared to Gallery 🌍' : 'Now private',
+        message: newState
+          ? 'Your project is visible in the Gallery.'
+          : 'Your project is now private.',
       });
     } catch {
-      addToast({ type: 'error', title: 'FAILED', message: 'Could not change visibility.' });
+      addToast({
+        type: 'error',
+        title: 'Could not change visibility',
+        message: 'Try again in a moment.',
+      });
     }
   }, [togglePublic, addToast]);
 
   const handleConnectHardware = async () => {
     if (!('serial' in navigator)) {
       addToast({
-        type: 'error',
-        title: 'NOT SUPPORTED',
-        message: 'Web Serial API is not supported in this browser. Use Chrome or Edge.',
+        type: 'info',
+        title: 'Use Chrome or Edge for hardware',
+        message:
+          'Connecting to your Arduino needs Chrome or Edge. You can still build and save your project here!',
       });
       return;
     }
@@ -318,7 +358,7 @@ export default function Editor() {
         }
         setHardwarePort(null);
         setShowSerialMonitor(false);
-        addToast({ type: 'info', title: 'DISCONNECTED', message: 'Hardware disconnected.' });
+        addToast({ type: 'info', title: 'Disconnected', message: 'Arduino disconnected.' });
         return;
       }
 
@@ -329,7 +369,7 @@ export default function Editor() {
       const info = port.getInfo();
       addToast({
         type: 'success',
-        title: 'HARDWARE CONNECTED',
+        title: 'Arduino connected! 🎉',
         message: `Device ready (VID: ${info.usbVendorId || 'Unknown'})`,
       });
 
@@ -338,15 +378,19 @@ export default function Editor() {
         if (e.target === port) {
           setHardwarePort(null);
           setShowSerialMonitor(false);
-          addToast({ type: 'warning', title: 'USB LOST', message: 'Hardware was disconnected.' });
+          addToast({
+            type: 'warning',
+            title: 'Cable disconnected',
+            message: 'Check your USB cable and reconnect.',
+          });
         }
       });
     } catch (err: any) {
       if (err.name === 'NotFoundError') return; // User cancelled
       addToast({
         type: 'error',
-        title: 'CONNECTION FAILED',
-        message: err.message || 'Could not claim USB interface.',
+        title: "Couldn't connect",
+        message: err.message || 'Check the USB cable and try again.',
       });
     }
   };
@@ -354,7 +398,11 @@ export default function Editor() {
   // ── Upload to Hardware ───────────────────────────────────────────────────
   const handleUploadToHardware = useCallback(async () => {
     if (!hardwarePort) {
-      addToast({ type: 'error', title: 'UPLOAD FAILED', message: 'No hardware connected.' });
+      addToast({
+        type: 'error',
+        title: 'No board connected',
+        message: 'Connect your Arduino first.',
+      });
       return;
     }
 
@@ -364,7 +412,11 @@ export default function Editor() {
         : (monacoRef.current?.getValue() ?? manualCode);
 
     if (!code.trim()) {
-      addToast({ type: 'info', title: 'EMPTY_SKETCH', message: 'Add blocks or code first.' });
+      addToast({
+        type: 'info',
+        title: 'Nothing to upload yet',
+        message: 'Add some blocks first, then try again.',
+      });
       return;
     }
 
@@ -377,8 +429,8 @@ export default function Editor() {
       // Step 1: Compile for firmware (uses arduino-cli on server)
       addToast({
         type: 'info',
-        title: 'BUILDING FIRMWARE',
-        message: 'Compiling for hardware upload...',
+        title: 'Building your code...',
+        message: 'Compiling for your Arduino — hang tight!',
       });
       const { data } = await (
         await import('../services/api')
@@ -396,7 +448,7 @@ export default function Editor() {
           firmwareResult.errors?.[0]?.message ||
           firmwareResult.stderr ||
           'Firmware compilation failed';
-        addToast({ type: 'error', title: 'BUILD FAILED', message: errMsg });
+        addToast({ type: 'error', title: 'Build error', message: errMsg });
         setIsFlashing(false);
         setFlashProgress(0);
         setFlashMessage('');
@@ -419,13 +471,13 @@ export default function Editor() {
 
       addToast({
         type: 'success',
-        title: 'UPLOAD COMPLETE',
-        message: 'Firmware flashed successfully!',
+        title: 'Done! Uploaded to your Arduino 🚀',
+        message: 'Your code is running on the board!',
       });
       setShowSerialMonitor(true); // Auto-open serial monitor after flash
     } catch (err: any) {
       const message = err?.response?.data?.error?.message || err.message || 'Upload failed.';
-      addToast({ type: 'error', title: 'UPLOAD ERROR', message });
+      addToast({ type: 'error', title: 'Upload error', message });
     } finally {
       setIsFlashing(false);
       setFlashProgress(0);
@@ -441,7 +493,11 @@ export default function Editor() {
         : (monacoRef.current?.getValue() ?? manualCode);
 
     if (!code.trim()) {
-      addToast({ type: 'info', title: 'EMPTY_SKETCH', message: 'Add blocks or code first.' });
+      addToast({
+        type: 'info',
+        title: 'Nothing to run yet',
+        message: 'Add some blocks, then hit Run!',
+      });
       return;
     }
 
@@ -468,7 +524,11 @@ export default function Editor() {
         : (monacoRef.current?.getValue() ?? manualCode);
 
     if (!code.trim()) {
-      addToast({ type: 'info', title: 'EMPTY_SKETCH', message: 'No code to export.' });
+      addToast({
+        type: 'info',
+        title: 'Nothing to download yet',
+        message: 'Add some blocks first!',
+      });
       return;
     }
 
@@ -480,7 +540,11 @@ export default function Editor() {
     a.download = `${sanitized}.ino`;
     a.click();
     URL.revokeObjectURL(url);
-    addToast({ type: 'success', title: 'EXPORTED', message: `${sanitized}.ino downloaded.` });
+    addToast({
+      type: 'success',
+      title: 'Downloaded!',
+      message: `${sanitized}.ino saved to your downloads.`,
+    });
   }, [mode, generatedCode, manualCode, projectTitle, addToast]);
 
   // ── Keyboard shortcuts ─────────────────────────────────────────────────
@@ -510,11 +574,11 @@ export default function Editor() {
   // ── Loading state ──────────────────────────────────────────────────────
   if (isLoading) {
     return (
-      <div className="flex h-screen items-center justify-center bg-slate-50 dark:bg-[#0A0A0A]">
+      <div className="flex h-screen items-center justify-center bg-background dark:bg-dark-bg">
         <div className="text-center">
-          <Loader2 size={32} className="animate-spin text-yellow-400 mx-auto mb-4" />
-          <p className="font-mono text-xs uppercase tracking-widest text-slate-500">
-            LOADING_PROJECT...
+          <Loader2 size={32} className="animate-spin text-primary-500 mx-auto mb-4" />
+          <p className="font-sans text-sm text-slate-500 dark:text-slate-400">
+            Loading your project...
           </p>
         </div>
       </div>
@@ -523,61 +587,85 @@ export default function Editor() {
 
   // ─────────────────────────────────────────────────────────────────────────
   return (
-    <div className="flex h-screen bg-slate-50 dark:bg-[#0A0A0A] font-sans overflow-hidden bg-dot-matrix">
+    <div className="flex h-screen bg-background dark:bg-dark-bg font-sans overflow-hidden bg-canvas-grid">
       <div className="flex w-full h-full p-2 sm:p-4">
-        <div className="flex w-full h-full hw-panel shadow-[0_20px_50px_rgba(0,0,0,0.1)] overflow-hidden relative">
-          {/* ── Top Control Bar ─────────────────────────────────────────── */}
-          <div className="absolute top-0 left-0 w-full h-14 hw-border-b bg-white dark:bg-[#000000] flex justify-between items-center z-10 px-4 gap-3">
+        <div className="flex w-full h-full bg-white dark:bg-dark-surface rounded-2xl shadow-xl overflow-hidden relative border border-slate-100 dark:border-dark-border">
+          {/* ── Top Control Bar ─────────────────────────────────────── */}
+          <div className="absolute top-0 left-0 w-full h-16 border-b border-slate-100 dark:border-dark-border bg-white dark:bg-dark-surface flex justify-between items-center z-10 px-3 sm:px-4 gap-2">
             {/* Left: Back + project title + dirty indicator */}
-            <div className="flex items-center gap-3 min-w-0">
+            <div className="flex items-center gap-2 min-w-0">
               <Link
                 to="/dashboard"
-                className="w-8 h-8 shrink-0 flex items-center justify-center hw-key bg-slate-100 dark:bg-slate-800 text-slate-500 hover:text-slate-900 dark:hover:text-white border border-slate-900 dark:border-slate-800"
+                className="w-11 h-11 shrink-0 flex items-center justify-center rounded-xl bg-slate-100 dark:bg-dark-border text-slate-500 hover:text-slate-800 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:outline-none"
               >
-                <ChevronLeft size={16} strokeWidth={3} />
+                <ChevronLeft size={18} strokeWidth={2.5} />
               </Link>
 
               <input
                 value={projectTitle}
                 onChange={(e) => setProjectTitle(e.target.value)}
-                className="font-mono text-[11px] font-bold uppercase tracking-widest text-slate-900 dark:text-white bg-transparent border-none outline-none w-36 truncate"
+                className="font-sans font-semibold text-sm text-slate-800 dark:text-white bg-transparent border-none outline-none w-32 sm:w-44 truncate focus-visible:ring-2 focus-visible:ring-primary-500 rounded px-1"
                 spellCheck={false}
               />
               {isDirty && (
-                <div className="w-2 h-2 bg-yellow-400 shrink-0" title="Unsaved changes" />
+                <div
+                  className="w-2 h-2 rounded-full bg-warning-500 shrink-0"
+                  title="Unsaved changes"
+                />
+              )}
+
+              {/* Gamification surface */}
+              {user && (
+                <div className="hidden lg:flex items-center gap-3 px-3 py-1.5 bg-slate-100 dark:bg-dark-surface rounded-full border border-slate-200 dark:border-dark-border ml-2">
+                  <div
+                    className="flex items-center gap-1.5 text-warning-500"
+                    title={`${user.streak} day streak!`}
+                  >
+                    <Zap size={14} fill="currentColor" />
+                    <span className="font-sans font-bold text-xs">{user.streak}</span>
+                  </div>
+                  <div className="w-px h-3 bg-slate-300 dark:bg-slate-700" />
+                  <div
+                    className="flex items-center gap-1.5 text-celebrate"
+                    title={`Level ${user.level}`}
+                  >
+                    <Star size={14} fill="currentColor" />
+                    <span className="font-sans font-bold text-xs">Lvl {user.level}</span>
+                  </div>
+                </div>
               )}
             </div>
 
             {/* Centre: Mode toggle */}
-            <div className="flex items-center hw-border divide-x divide-slate-900 dark:divide-slate-800 shrink-0">
+            <div className="flex items-center bg-slate-100 dark:bg-dark-border rounded-xl p-1 shrink-0">
               <button
                 onClick={switchToBlock}
-                className={`flex items-center gap-2 h-8 px-4 font-mono text-[10px] font-bold uppercase tracking-widest transition-colors ${
+                className={`flex items-center gap-1.5 h-9 px-3 rounded-lg font-sans font-semibold text-sm transition-all focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:outline-none ${
                   mode === 'block'
-                    ? 'bg-slate-900 dark:bg-white text-white dark:text-slate-900'
-                    : 'bg-white dark:bg-[#000000] text-slate-500 hover:text-slate-900 dark:hover:text-white'
+                    ? 'bg-white dark:bg-dark-surface text-slate-800 dark:text-white shadow-sm'
+                    : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-200'
                 }`}
               >
-                <LayoutGrid size={12} /> BLOCKS
+                <LayoutGrid size={14} /> <span className="hidden sm:inline">Blocks</span>
               </button>
               <button
                 onClick={switchToCode}
-                className={`flex items-center gap-2 h-8 px-4 font-mono text-[10px] font-bold uppercase tracking-widest transition-colors ${
+                className={`flex items-center gap-1.5 h-9 px-3 rounded-lg font-sans font-semibold text-sm transition-all focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:outline-none ${
                   mode === 'code'
-                    ? 'bg-slate-900 dark:bg-white text-white dark:text-slate-900'
-                    : 'bg-white dark:bg-[#000000] text-slate-500 hover:text-slate-900 dark:hover:text-white'
+                    ? 'bg-white dark:bg-dark-surface text-slate-800 dark:text-white shadow-sm'
+                    : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-200'
                 }`}
               >
-                <Code2 size={12} /> C++
+                <Code2 size={14} /> <span className="hidden sm:inline">C++</span>
               </button>
             </div>
 
-            {/* Right: Board + Font size + Templates + Save + Execute */}
-            <div className="flex items-center gap-2 shrink-0">
+            {/* Right: Board + controls + primary actions */}
+            <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
               <select
                 value={board}
                 onChange={(e) => setBoard(e.target.value)}
-                className="h-8 px-2 font-mono text-[10px] font-bold uppercase tracking-widest bg-white dark:bg-[#111111] text-slate-900 dark:text-white hw-border outline-none cursor-pointer"
+                className="h-11 px-2 sm:px-3 font-sans text-sm font-medium bg-white dark:bg-dark-surface text-slate-700 dark:text-slate-200 rounded-lg border border-slate-200 dark:border-dark-border outline-none cursor-pointer focus-visible:ring-2 focus-visible:ring-primary-500 hidden sm:block"
               >
                 {BOARDS.map((b) => (
                   <option key={b.fqbn} value={b.fqbn}>
@@ -588,200 +676,193 @@ export default function Editor() {
 
               {/* Font size controls (code mode only) */}
               {mode === 'code' && (
-                <div className="flex items-center hw-border divide-x divide-slate-900 dark:divide-slate-800">
+                <div className="flex items-center bg-slate-100 dark:bg-dark-border rounded-lg overflow-hidden">
                   <button
                     onClick={decreaseFontSize}
-                    className="w-8 h-8 flex items-center justify-center text-slate-500 hover:text-slate-900 dark:hover:text-white"
+                    className="w-11 h-11 flex items-center justify-center text-slate-500 hover:text-slate-800 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:outline-none"
                     title="Decrease font"
                   >
-                    <Minus size={12} />
+                    <Minus size={14} />
                   </button>
-                  <span className="w-8 h-8 flex items-center justify-center font-mono text-[10px] font-bold text-slate-500">
+                  <span className="w-8 h-11 flex items-center justify-center font-sans text-xs font-semibold text-slate-500">
                     {fontSize}
                   </span>
                   <button
                     onClick={increaseFontSize}
-                    className="w-8 h-8 flex items-center justify-center text-slate-500 hover:text-slate-900 dark:hover:text-white"
+                    className="w-11 h-11 flex items-center justify-center text-slate-500 hover:text-slate-800 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:outline-none"
                     title="Increase font"
                   >
-                    <Plus size={12} />
+                    <Plus size={14} />
                   </button>
                 </div>
               )}
 
-              {/* Blockly Undo/Redo controls (block mode only) */}
+              {/* Undo/Redo (block mode only) */}
               {mode === 'block' && (
-                <div className="flex items-center hw-border divide-x divide-slate-900 dark:divide-slate-800">
+                <div className="flex items-center gap-1">
                   <button
                     onClick={() => blocklyRef.current?.undo()}
-                    className="w-8 h-8 flex items-center justify-center text-slate-500 hover:text-slate-900 dark:hover:text-white"
+                    className="w-11 h-11 flex items-center justify-center rounded-lg text-slate-500 hover:text-slate-800 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-dark-border transition-colors focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:outline-none"
                     title="Undo (Ctrl+Z)"
                   >
-                    <Undo size={14} />
+                    <Undo size={16} />
                   </button>
                   <button
                     onClick={() => blocklyRef.current?.redo()}
-                    className="w-8 h-8 flex items-center justify-center text-slate-500 hover:text-slate-900 dark:hover:text-white"
+                    className="w-11 h-11 flex items-center justify-center rounded-lg text-slate-500 hover:text-slate-800 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-dark-border transition-colors focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:outline-none"
                     title="Redo (Ctrl+Y)"
                   >
-                    <Redo size={14} />
+                    <Redo size={16} />
                   </button>
                 </div>
               )}
 
-              {/* Templates button */}
+              {/* Secondary actions group */}
+              <div className="hidden sm:flex items-center gap-1">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowTemplates(true)}
+                  title="Choose a starter template"
+                >
+                  <FileCode size={14} />
+                  <span className="hidden md:inline">Templates</span>
+                </Button>
+
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleDownload}
+                  title="Download as .ino (Ctrl+Shift+D)"
+                >
+                  <Download size={14} />
+                  <span className="hidden md:inline">Download .ino</span>
+                </Button>
+
+                {projectId && (
+                  <>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleDuplicate}
+                      title="Duplicate this project"
+                    >
+                      <Copy size={14} />
+                      <span className="hidden md:inline">Copy</span>
+                    </Button>
+
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className={
+                        isPublic
+                          ? 'text-accent-600 border-accent-300 bg-accent-50 dark:bg-accent-900/20'
+                          : ''
+                      }
+                      onClick={handleTogglePublic}
+                      title={isPublic ? 'Make Private' : 'Share to Gallery'}
+                    >
+                      <Globe size={14} />
+                      <span className="hidden md:inline">{isPublic ? 'Public' : 'Share'}</span>
+                    </Button>
+                  </>
+                )}
+              </div>
+
+              {/* Save button — medium prominence */}
               <Button
                 variant="outline"
-                className="h-8 px-3 rounded-none border border-slate-900 dark:border-slate-800"
-                onClick={() => setShowTemplates(true)}
-              >
-                <FileCode size={12} className="mr-1" />
-                <span className="font-mono text-[10px] font-bold uppercase hidden sm:inline">
-                  Templates
-                </span>
-              </Button>
-
-              {/* Download .ino */}
-              <Button
-                variant="outline"
-                className="h-8 px-3 rounded-none border border-slate-900 dark:border-slate-800"
-                onClick={handleDownload}
-                title="Download as .ino (Ctrl+Shift+D)"
-              >
-                <Download size={12} className="mr-1" />
-                <span className="font-mono text-[10px] font-bold uppercase hidden sm:inline">
-                  .ino
-                </span>
-              </Button>
-
-              {/* Duplicate Project */}
-              {projectId && (
-                <div className="flex items-center hw-border divide-x divide-slate-900 dark:divide-slate-800">
-                  <Button
-                    variant="outline"
-                    className="h-8 px-3 rounded-none border-none hover:bg-slate-100 dark:hover:bg-slate-800"
-                    onClick={handleDuplicate}
-                    title="Duplicate this project"
-                  >
-                    <Copy size={12} className="mr-1" />
-                    <span className="font-mono text-[10px] font-bold uppercase hidden sm:inline">
-                      Fork
-                    </span>
-                  </Button>
-
-                  <Button
-                    variant="outline"
-                    className={`h-8 px-3 rounded-none border-none transition-colors ${
-                      isPublic
-                        ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-400 dark:hover:bg-emerald-900/50'
-                        : 'hover:bg-slate-100 dark:hover:bg-slate-800'
-                    }`}
-                    onClick={handleTogglePublic}
-                    title={isPublic ? 'Make Private' : 'Make Public'}
-                  >
-                    <Globe size={12} className="mr-1" />
-                    <span className="font-mono text-[10px] font-bold uppercase hidden sm:inline">
-                      {isPublic ? 'Public' : 'Private'}
-                    </span>
-                  </Button>
-                </div>
-              )}
-
-              <Button
-                variant="outline"
-                className="h-8 px-4 rounded-none border border-slate-900 dark:border-slate-800"
+                size="sm"
                 onClick={handleSave}
                 disabled={isSaving}
                 title="Save project (Ctrl+S)"
               >
-                {isSaving ? (
-                  <Loader2 size={12} className="animate-spin mr-2" />
-                ) : (
-                  <Save size={12} className="mr-2" />
-                )}
-                <span className="font-mono text-[10px] font-bold uppercase">
-                  {isSaving ? 'Saving...' : 'Save'}
-                </span>
+                {isSaving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
+                <span className="hidden sm:inline">{isSaving ? 'Saving...' : 'Save'}</span>
               </Button>
 
-              <Button
-                variant={hardwarePort ? 'primary' : 'outline'}
-                className={`h-8 px-3 rounded-none ${
-                  hardwarePort
-                    ? 'bg-amber-500 border-amber-600 hover:bg-amber-600 text-white'
-                    : 'border border-slate-900 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800'
-                }`}
+              {/* Connect Board — second-highest prominence */}
+              <button
                 onClick={handleConnectHardware}
-                title={hardwarePort ? 'Disconnect Hardware' : 'Connect Hardware (Web Serial)'}
+                title={hardwarePort ? 'Disconnect hardware' : 'Connect your Arduino (Web Serial)'}
+                className={`h-11 px-3 sm:px-4 rounded-xl font-sans font-semibold text-sm flex items-center gap-2 transition-all focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:outline-none active:scale-[0.97] ${
+                  hardwarePort
+                    ? 'bg-warning-500 hover:bg-warning-600 text-slate-900'
+                    : 'bg-accent-500 hover:bg-accent-400 text-slate-900'
+                }`}
               >
-                <Usb size={12} className="mr-1" />
-                <span className="font-mono text-[10px] font-bold uppercase hidden sm:inline">
-                  {hardwarePort ? 'USB' : 'Connect'}
-                </span>
-              </Button>
+                <Usb size={16} />
+                <span className="hidden sm:inline">{hardwarePort ? 'Connected' : 'Connect'}</span>
+              </button>
 
-              {/* Upload to hardware — always visible when board connected */}
+              {/* Upload firmware — visible only when board connected */}
               {hardwarePort && (
-                <Button
-                  variant="primary"
-                  className="h-8 px-4 rounded-none bg-blue-500 border-blue-600 hover:bg-blue-600"
+                <button
                   onClick={handleUploadToHardware}
                   disabled={isFlashing || isCompiling}
-                  title="Compile firmware & upload to hardware"
+                  title="Compile & upload to your Arduino"
+                  className="h-11 px-3 sm:px-4 rounded-xl font-sans font-semibold text-sm flex items-center gap-2 bg-blue-500 hover:bg-blue-600 text-white transition-all focus-visible:ring-2 focus-visible:ring-blue-400 focus-visible:outline-none active:scale-[0.97] disabled:opacity-50"
                 >
                   {isFlashing ? (
-                    <Loader2 size={12} className="animate-spin mr-1" />
+                    <Loader2 size={16} className="animate-spin" />
                   ) : (
-                    <Upload size={12} className="mr-1" />
+                    <Upload size={16} />
                   )}
-                  <span className="font-mono text-[10px] font-bold uppercase hidden sm:inline">
+                  <span className="hidden sm:inline">
                     {isFlashing ? `${flashProgress}%` : 'Upload'}
                   </span>
-                </Button>
+                </button>
               )}
 
-              {/* Serial Monitor toggle */}
+              {/* Serial Monitor toggle — visible when board connected */}
               {hardwarePort && (
-                <Button
-                  variant={showSerialMonitor ? 'primary' : 'outline'}
-                  className={`h-8 px-3 rounded-none ${
-                    showSerialMonitor
-                      ? 'bg-violet-500 border-violet-600 hover:bg-violet-600 text-white'
-                      : 'border border-slate-900 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800'
-                  }`}
+                <button
                   onClick={() => setShowSerialMonitor(!showSerialMonitor)}
                   title="Toggle Serial Monitor"
+                  className={`w-11 h-11 rounded-xl flex items-center justify-center transition-all focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:outline-none active:scale-[0.97] ${
+                    showSerialMonitor
+                      ? 'bg-primary-500 text-white'
+                      : 'bg-slate-100 dark:bg-dark-border text-slate-500 hover:text-slate-800 dark:hover:text-white'
+                  }`}
                 >
-                  <Terminal size={12} className="mr-1" />
-                  <span className="font-mono text-[10px] font-bold uppercase hidden sm:inline">
-                    Serial
-                  </span>
-                </Button>
+                  <Terminal size={16} />
+                </button>
               )}
 
-              <Button
-                variant="primary"
-                className="h-8 px-5 rounded-none bg-emerald-500 border-emerald-600 hover:bg-emerald-600"
+              {/* Code Panel Toggle */}
+              <button
+                onClick={() => setShowCodePanel(!showCodePanel)}
+                title={showCodePanel ? 'Hide Code Panel' : 'Show Code Panel'}
+                className={`w-11 h-11 rounded-xl flex items-center justify-center transition-all focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:outline-none active:scale-[0.97] hidden sm:flex ${
+                  showCodePanel
+                    ? 'bg-slate-200 dark:bg-slate-700 text-slate-800 dark:text-white'
+                    : 'bg-slate-100 dark:bg-dark-border text-slate-500 hover:text-slate-800 dark:hover:text-white'
+                }`}
+              >
+                <PanelRight size={16} />
+              </button>
+
+              {/* ▶ Run — highest prominence, always rightmost */}
+              <button
                 onClick={handleCompile}
                 disabled={isCompiling || isFlashing}
                 title="Compile & Run (Ctrl+Enter)"
+                className="h-11 px-4 sm:px-5 rounded-xl font-sans font-bold text-sm flex items-center gap-2 bg-primary-500 hover:bg-primary-600 text-white shadow-md hover:shadow-lg transition-all focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-1 focus-visible:outline-none active:scale-[0.97] disabled:opacity-50"
               >
                 {isCompiling ? (
-                  <Loader2 size={12} className="animate-spin mr-2" />
+                  <Loader2 size={16} className="animate-spin" />
                 ) : (
-                  <Play size={12} className="mr-2" />
+                  <Play size={16} fill="currentColor" />
                 )}
-                <span className="font-mono text-[10px] font-bold uppercase tracking-widest">
-                  {isCompiling ? 'Running' : 'Execute'}
-                </span>
-              </Button>
+                <span>{isCompiling ? 'Running...' : 'Run'}</span>
+              </button>
             </div>
 
             {/* Flash progress bar */}
             {isFlashing && (
-              <div className="absolute left-0 right-0 top-14 h-1 bg-slate-900 z-10">
+              <div className="absolute left-0 right-0 bottom-0 h-1 bg-slate-100 dark:bg-dark-border">
                 <div
-                  className="h-full bg-blue-500 transition-all duration-300 ease-out"
+                  className="h-full bg-blue-500 rounded-full transition-all duration-300 ease-out"
                   style={{ width: `${flashProgress}%` }}
                 />
               </div>
@@ -789,8 +870,9 @@ export default function Editor() {
           </div>
 
           {/* ── Main Area (below toolbar) ────────────────────────────────── */}
-          <div className="flex w-full h-full pt-14">
+          <div className="flex w-full h-full pt-16">
             {/* ── Editor Pane ─────────────────────────────────────────────── */}
+
             <div className="flex-1 relative overflow-hidden">
               {/* Blockly canvas */}
               <div
@@ -819,120 +901,120 @@ export default function Editor() {
             </div>
 
             {/* ── Resizer ─────────────────────────────────────────────────── */}
-            <div
-              className="w-1.5 bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 cursor-col-resize transition-colors shrink-0 z-10"
-              onMouseDown={() => {
-                isResizing.current = true;
-                document.body.style.cursor = 'col-resize';
-                document.body.style.userSelect = 'none';
-              }}
-            />
+            {showCodePanel && (
+              <div
+                className="w-1.5 bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 cursor-col-resize transition-colors shrink-0 z-10"
+                onMouseDown={() => {
+                  isResizing.current = true;
+                  document.body.style.cursor = 'col-resize';
+                  document.body.style.userSelect = 'none';
+                }}
+              />
+            )}
 
             {/* ── Output / Compiler Terminal Pane ─────────────────────────── */}
-            <div
-              style={{ width: terminalWidth }}
-              className="hw-border-l bg-[#050505] flex flex-col shrink-0"
-            >
-              {/* Serial Monitor (when active and hardware connected) */}
-              {showSerialMonitor && hardwarePort && !isFlashing ? (
-                <SerialMonitor
-                  port={hardwarePort}
-                  onDisconnect={() => {
-                    setHardwarePort(null);
-                    setShowSerialMonitor(false);
-                  }}
-                />
-              ) : (
-                <>
-                  {/* C++ preview header (block mode) */}
-                  {mode === 'block' && !isCompiling && !compileResult && !isFlashing && (
-                    <div className="hw-border-b bg-[#0a0a0a] px-4 py-2 flex items-center gap-2 shrink-0">
-                      <Code2 size={12} className="text-slate-500" />
-                      <span className="font-mono text-[10px] text-slate-500 uppercase tracking-widest">
-                        Generated C++ Preview
-                      </span>
-                    </div>
-                  )}
-
-                  {/* Stdin input for programs that need cin/scanf */}
-                  {mode === 'code' && !isFlashing && (
-                    <div className="hw-border-b bg-[#0a0a0a] shrink-0">
-                      <div className="px-3 py-1.5 flex items-center gap-2">
-                        <span className="font-mono text-[9px] text-slate-500 uppercase tracking-widest">
-                          📥 stdin input
+            {showCodePanel && (
+              <div
+                style={{ width: terminalWidth }}
+                className="hw-border-l bg-[#050505] flex flex-col shrink-0"
+              >
+                {/* Serial Monitor (when active and hardware connected) */}
+                {showSerialMonitor && hardwarePort && !isFlashing ? (
+                  <SerialMonitor
+                    port={hardwarePort}
+                    onDisconnect={() => {
+                      setHardwarePort(null);
+                      setShowSerialMonitor(false);
+                    }}
+                  />
+                ) : (
+                  <>
+                    {/* C++ preview header (block mode) */}
+                    {mode === 'block' && !isCompiling && !compileResult && !isFlashing && (
+                      <div className="border-b border-slate-800 bg-[#0a0a0a] px-4 py-2 flex items-center gap-2 shrink-0">
+                        <Code2 size={12} className="text-slate-500" />
+                        <span className="font-sans text-xs text-slate-500">
+                          Generated C++ Preview
                         </span>
                       </div>
-                      <textarea
-                        value={stdinInput}
-                        onChange={(e) => setStdinInput(e.target.value)}
-                        placeholder="Enter input here (for cin/scanf programs)..."
-                        spellCheck={false}
-                        className="w-full bg-[#0a0a0a] text-slate-300 font-mono text-[11px] px-3 py-2 outline-none resize-none border-none h-16 placeholder:text-slate-700"
-                      />
-                    </div>
-                  )}
+                    )}
 
-                  {/* Flash progress overlay */}
-                  {isFlashing && (
-                    <div className="flex-1 flex flex-col items-center justify-center p-6">
-                      <div className="w-16 h-16 rounded-full bg-blue-500/10 flex items-center justify-center mb-4">
-                        <Upload size={24} className="text-blue-400 animate-pulse" />
-                      </div>
-                      <p className="font-mono text-xs font-bold uppercase tracking-widest text-blue-400 mb-3">
-                        Flashing Firmware
-                      </p>
-                      <div className="w-full max-w-[200px] h-2 bg-slate-800 rounded-sm overflow-hidden mb-2">
-                        <div
-                          className="h-full bg-blue-500 transition-all duration-300 ease-out rounded-sm"
-                          style={{ width: `${flashProgress}%` }}
+                    {/* Stdin input for programs that need cin/scanf */}
+                    {mode === 'code' && !isFlashing && (
+                      <div className="border-b border-slate-800 bg-[#0a0a0a] shrink-0">
+                        <div className="px-3 py-1.5 flex items-center gap-2">
+                          <span className="font-sans text-xs text-slate-500">📥 Stdin input</span>
+                        </div>
+                        <textarea
+                          value={stdinInput}
+                          onChange={(e) => setStdinInput(e.target.value)}
+                          placeholder="Enter input here (for cin/scanf programs)..."
+                          spellCheck={false}
+                          className="w-full bg-[#0a0a0a] text-slate-300 font-mono text-[11px] px-3 py-2 outline-none resize-none border-none h-16 placeholder:text-slate-700"
                         />
                       </div>
-                      <p className="font-mono text-[10px] text-slate-500 text-center">
-                        {flashMessage || 'Preparing...'}
-                      </p>
-                    </div>
-                  )}
+                    )}
 
-                  {/* Console (has compile result or is compiling) OR code preview */}
-                  {!isFlashing &&
-                    (isCompiling || compileResult ? (
-                      <CompileConsole isCompiling={isCompiling} compileResult={compileResult} />
-                    ) : (
-                      <div className="flex-1 overflow-y-auto p-4">
-                        {mode === 'block' &&
-                          (generatedCode ? (
-                            <pre className="font-mono text-xs text-emerald-400 leading-relaxed whitespace-pre-wrap">
-                              {generatedCode}
-                            </pre>
-                          ) : (
-                            <div className="flex flex-col items-center justify-center h-full text-slate-700">
-                              <Terminal size={40} className="mb-4 opacity-20" />
-                              <p className="font-mono text-xs uppercase tracking-widest text-center leading-loose">
-                                AWAITING_LOGIC_BLOCKS
-                                <br />
-                                <span className="text-[10px] opacity-60">
+                    {/* Flash progress overlay */}
+                    {isFlashing && (
+                      <div className="flex-1 flex flex-col items-center justify-center p-6">
+                        <div className="w-16 h-16 rounded-full bg-blue-500/10 flex items-center justify-center mb-4">
+                          <Upload size={24} className="text-blue-400 animate-pulse" />
+                        </div>
+                        <p className="font-sans font-semibold text-sm text-blue-400 mb-3">
+                          Uploading to your Arduino...
+                        </p>
+                        <div className="w-full max-w-[200px] h-2 bg-slate-800 rounded-full overflow-hidden mb-2">
+                          <div
+                            className="h-full bg-blue-500 transition-all duration-300 ease-out rounded-full"
+                            style={{ width: `${flashProgress}%` }}
+                          />
+                        </div>
+                        <p className="font-sans text-xs text-slate-500 text-center">
+                          {flashMessage || 'Getting ready...'}
+                        </p>
+                      </div>
+                    )}
+
+                    {/* Console (has compile result or is compiling) OR code preview */}
+                    {!isFlashing &&
+                      (isCompiling || compileResult ? (
+                        <CompileConsole isCompiling={isCompiling} compileResult={compileResult} />
+                      ) : (
+                        <div className="flex-1 overflow-y-auto p-4">
+                          {mode === 'block' &&
+                            (generatedCode ? (
+                              <pre className="font-mono text-xs text-emerald-400 leading-relaxed whitespace-pre-wrap">
+                                {generatedCode}
+                              </pre>
+                            ) : (
+                              <div className="flex flex-col items-center justify-center h-full text-slate-700">
+                                <Code2 size={36} className="mb-4 opacity-20" />
+                                <p className="font-sans text-sm font-semibold text-slate-500 text-center">
+                                  Drag a block to get started
+                                </p>
+                                <p className="font-sans text-xs text-slate-600 text-center mt-1">
                                   Drop blocks on the canvas to preview C++ output
-                                </span>
+                                </p>
+                              </div>
+                            ))}
+                          {mode === 'code' && (
+                            <div className="flex flex-col items-center justify-center h-full text-slate-700">
+                              <Play size={36} className="mb-4 opacity-20" />
+                              <p className="font-sans text-sm font-semibold text-slate-500 text-center">
+                                Hit Run to compile!
+                              </p>
+                              <p className="font-sans text-xs text-slate-600 text-center mt-1">
+                                Press Run in the toolbar to compile and run your code
                               </p>
                             </div>
-                          ))}
-                        {mode === 'code' && (
-                          <div className="flex flex-col items-center justify-center h-full text-slate-700">
-                            <Play size={40} className="mb-4 opacity-20" />
-                            <p className="font-mono text-xs uppercase tracking-widest text-center leading-loose">
-                              READY_TO_COMPILE
-                              <br />
-                              <span className="text-[10px] opacity-60">
-                                Press Execute to compile and run your code
-                              </span>
-                            </p>
-                          </div>
-                        )}
-                      </div>
-                    ))}
-                </>
-              )}
-            </div>
+                          )}
+                        </div>
+                      ))}
+                  </>
+                )}
+              </div>
+            )}
           </div>
         </div>
       </div>

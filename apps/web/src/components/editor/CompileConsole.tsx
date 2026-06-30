@@ -5,14 +5,16 @@
  * Uses rotating child-friendly messages for success, error, warning, timeout.
  */
 import { useState, useEffect, useRef } from 'react';
-import {
-  Terminal, CheckCircle2, AlertTriangle, Clock, Loader2,
-  BookOpen, History, Lightbulb,
-} from 'lucide-react';
+import { Terminal, CheckCircle2, Clock, Loader2, BookOpen, History, Lightbulb } from 'lucide-react';
 import type { CompileError } from '../../stores/editor.store';
 import {
-  getSuccessMessage, getErrorMessage, getWarningMessage, getTimeoutMessage,
-  getFriendlyHint, QUICK_HINTS, COMPILE_STEPS,
+  getSuccessMessage,
+  getErrorMessage,
+  getWarningMessage,
+  getTimeoutMessage,
+  getFriendlyHint,
+  QUICK_HINTS,
+  COMPILE_STEPS,
 } from '../../utils/console-messages';
 
 interface CompileResult {
@@ -47,13 +49,19 @@ export function CompileConsole({ isCompiling, compileResult }: CompileConsolePro
 
   // Animate compile steps
   useEffect(() => {
-    if (!isCompiling) { setCompileStep(0); return; }
+    if (!isCompiling) {
+      setCompileStep(0);
+      return;
+    }
     setTab('output');
     let step = 0;
     setCompileStep(0);
     const interval = setInterval(() => {
       step++;
-      if (step >= COMPILE_STEPS.length) { clearInterval(interval); return; }
+      if (step >= COMPILE_STEPS.length) {
+        clearInterval(interval);
+        return;
+      }
       setCompileStep(step);
     }, 550);
     return () => clearInterval(interval);
@@ -65,13 +73,16 @@ export function CompileConsole({ isCompiling, compileResult }: CompileConsolePro
     runCount.current++;
     const isTimeout = compileResult.durationMs >= 29000;
     const hasWarnings = compileResult.errors.some((e: CompileError) => e.severity === 'warning');
-    setHistory((h) => [{
-      run: runCount.current,
-      success: compileResult.success,
-      hasWarnings,
-      isTimeout,
-      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-    }, ...h.slice(0, 49)]);
+    setHistory((h) => [
+      {
+        run: runCount.current,
+        success: compileResult.success,
+        hasWarnings,
+        isTimeout,
+        time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      },
+      ...h.slice(0, 49),
+    ]);
   }, [compileResult]);
 
   const tabs: { key: Tab; label: string; icon: typeof Terminal }[] = [
@@ -83,7 +94,7 @@ export function CompileConsole({ isCompiling, compileResult }: CompileConsolePro
   return (
     <div className="flex flex-col h-full">
       {/* Tab bar */}
-      <div className="h-10 hw-border-b bg-[#111111] flex items-center px-2 gap-1 shrink-0">
+      <div className="h-10 border-b border-slate-800 bg-[#111111] flex items-center px-2 gap-1 shrink-0">
         {tabs.map((t) => {
           const Icon = t.icon;
           const active = tab === t.key;
@@ -91,7 +102,7 @@ export function CompileConsole({ isCompiling, compileResult }: CompileConsolePro
             <button
               key={t.key}
               onClick={() => setTab(t.key)}
-              className={`flex items-center gap-1.5 px-3 py-1.5 font-mono text-[10px] font-bold uppercase tracking-widest transition-colors ${
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-sans font-semibold text-xs transition-colors focus-visible:ring-1 focus-visible:ring-primary-500 focus-visible:outline-none ${
                 active
                   ? 'text-emerald-400 bg-emerald-500/10 border border-emerald-500/30'
                   : 'text-slate-500 hover:text-slate-300'
@@ -109,7 +120,6 @@ export function CompileConsole({ isCompiling, compileResult }: CompileConsolePro
 
       {/* Tab content */}
       <div className="flex-1 overflow-y-auto p-4">
-
         {/* ── OUTPUT TAB ─────────────────────────────────────── */}
         {tab === 'output' && (
           <>
@@ -126,7 +136,9 @@ export function CompileConsole({ isCompiling, compileResult }: CompileConsolePro
                     }`}
                   >
                     <span className="text-lg">{step.icon}</span>
-                    <span className="flex-1 text-slate-300 uppercase tracking-widest">{step.label}</span>
+                    <span className="flex-1 text-slate-300 uppercase tracking-widest">
+                      {step.label}
+                    </span>
                     {i < compileStep ? (
                       <CheckCircle2 size={14} className="text-emerald-400" />
                     ) : i === compileStep ? (
@@ -150,8 +162,8 @@ export function CompileConsole({ isCompiling, compileResult }: CompileConsolePro
                   Ready to launch your code!
                 </p>
                 <p className="font-mono text-[10px] text-slate-600 max-w-[280px] leading-relaxed">
-                  Click the Run button above and let's see what your Arduino does.
-                  Every great inventor starts with that first click!
+                  Click the Run button above and let's see what your Arduino does. Every great
+                  inventor starts with that first click!
                 </p>
               </div>
             )}
@@ -187,17 +199,38 @@ export function CompileConsole({ isCompiling, compileResult }: CompileConsolePro
               </p>
             ) : (
               history.map((h, i) => (
-                <div key={i} className="flex items-center gap-3 px-3 py-2 font-mono text-[11px] bg-[#0a0a0a] border border-slate-800/50">
-                  <span className={h.success ? 'text-emerald-400' : h.isTimeout ? 'text-pink-400' : 'text-red-400'}>
+                <div
+                  key={i}
+                  className="flex items-center gap-3 px-3 py-2 font-mono text-[11px] bg-[#0a0a0a] border border-slate-800/50"
+                >
+                  <span
+                    className={
+                      h.success
+                        ? 'text-emerald-400'
+                        : h.isTimeout
+                          ? 'text-pink-400'
+                          : 'text-red-400'
+                    }
+                  >
                     {h.success ? '✓' : h.isTimeout ? '⏱' : '✗'}
                   </span>
-                  <span className="text-slate-400 flex-1">
-                    Run #{h.run}
-                  </span>
-                  <span className={`uppercase tracking-widest text-[10px] ${
-                    h.success ? 'text-emerald-500' : h.isTimeout ? 'text-pink-500' : 'text-red-500'
-                  }`}>
-                    {h.success ? (h.hasWarnings ? 'Warning' : 'Compiled') : h.isTimeout ? 'Timeout' : 'Error'}
+                  <span className="text-slate-400 flex-1">Run #{h.run}</span>
+                  <span
+                    className={`uppercase tracking-widest text-[10px] ${
+                      h.success
+                        ? 'text-emerald-500'
+                        : h.isTimeout
+                          ? 'text-pink-500'
+                          : 'text-red-500'
+                    }`}
+                  >
+                    {h.success
+                      ? h.hasWarnings
+                        ? 'Warning'
+                        : 'Compiled'
+                      : h.isTimeout
+                        ? 'Timeout'
+                        : 'Error'}
                   </span>
                   <span className="text-slate-600 text-[10px]">{h.time}</span>
                 </div>
@@ -213,34 +246,40 @@ export function CompileConsole({ isCompiling, compileResult }: CompileConsolePro
 // ─── Result Card ──────────────────────────────────────────────────────────────
 
 function ResultCard({ result }: { result: CompileResult }) {
-  const isTimeout   = result.durationMs >= 29000;
+  const isTimeout = result.durationMs >= 29000;
   const hasWarnings = result.errors.some((e: CompileError) => e.severity === 'warning');
-  const hasErrors   = result.errors.some((e: CompileError) => e.severity === 'error');
+  const hasErrors = result.errors.some((e: CompileError) => e.severity === 'error');
 
   // Pick the right message set
   const msg = isTimeout
-    ? { ...getTimeoutMessage(), footnote: 'Infinite loops are a rite of passage for every coder 🌀' }
+    ? {
+        ...getTimeoutMessage(),
+        footnote: 'Infinite loops are a rite of passage for every coder 🌀',
+      }
     : hasErrors
-    ? getErrorMessage()
-    : hasWarnings
-    ? { ...getWarningMessage(), footnote: 'Warnings are just the compiler being extra helpful ✨' }
-    : getSuccessMessage();
+      ? getErrorMessage()
+      : hasWarnings
+        ? {
+            ...getWarningMessage(),
+            footnote: 'Warnings are just the compiler being extra helpful ✨',
+          }
+        : getSuccessMessage();
 
   const cardBg = isTimeout
     ? 'bg-pink-500/5 border-pink-500/20'
     : hasErrors
-    ? 'bg-orange-500/5 border-orange-500/20'
-    : hasWarnings
-    ? 'bg-amber-500/5 border-amber-500/20'
-    : 'bg-emerald-500/5 border-emerald-500/20';
+      ? 'bg-orange-500/5 border-orange-500/20'
+      : hasWarnings
+        ? 'bg-amber-500/5 border-amber-500/20'
+        : 'bg-emerald-500/5 border-emerald-500/20';
 
   const titleColor = isTimeout
     ? 'text-pink-400'
     : hasErrors
-    ? 'text-orange-400'
-    : hasWarnings
-    ? 'text-amber-400'
-    : 'text-emerald-400';
+      ? 'text-orange-400'
+      : hasWarnings
+        ? 'text-amber-400'
+        : 'text-emerald-400';
 
   return (
     <div className="space-y-4">
@@ -281,12 +320,18 @@ function ResultCard({ result }: { result: CompileResult }) {
               return (
                 <div key={i}>
                   <div className="text-[11px] font-mono p-3 border-l-2 border-orange-500 bg-orange-500/5 text-orange-300">
-                    {e.line > 0 && <span className="text-slate-500 mr-2">Line {e.line}:{e.column}</span>}
+                    {e.line > 0 && (
+                      <span className="text-slate-500 mr-2">
+                        Line {e.line}:{e.column}
+                      </span>
+                    )}
                     {e.message}
                   </div>
                   {hint && (
                     <div className="text-[11px] font-mono p-3 border-l-2 border-violet-500 bg-violet-500/5 text-violet-300 mt-1">
-                      <span className="text-[9px] text-violet-500 uppercase tracking-widest block mb-1">💡 What this means:</span>
+                      <span className="text-[9px] text-violet-500 uppercase tracking-widest block mb-1">
+                        💡 What this means:
+                      </span>
                       {hint}
                     </div>
                   )}
@@ -302,7 +347,10 @@ function ResultCard({ result }: { result: CompileResult }) {
           {result.errors
             .filter((e: CompileError) => e.severity === 'warning')
             .map((e: CompileError, i: number) => (
-              <div key={i} className="text-[11px] font-mono p-3 border-l-2 border-amber-500 bg-amber-500/5 text-amber-300">
+              <div
+                key={i}
+                className="text-[11px] font-mono p-3 border-l-2 border-amber-500 bg-amber-500/5 text-amber-300"
+              >
                 {e.line > 0 && <span className="text-slate-500 mr-2">Line {e.line}</span>}
                 {e.message}
               </div>
@@ -313,8 +361,11 @@ function ResultCard({ result }: { result: CompileResult }) {
       {/* Timeout hint box */}
       {isTimeout && (
         <div className="text-[11px] font-mono p-3 border-l-2 border-pink-500 bg-pink-500/5 text-pink-300">
-          <span className="text-[9px] text-pink-500 uppercase tracking-widest block mb-1">🔧 Quick fix idea:</span>
-          Inside your loop(), add a delay(1000); — it gives the Arduino breathing room between cycles.
+          <span className="text-[9px] text-pink-500 uppercase tracking-widest block mb-1">
+            🔧 Quick fix idea:
+          </span>
+          Inside your loop(), add a delay(1000); — it gives the Arduino breathing room between
+          cycles.
         </div>
       )}
 
