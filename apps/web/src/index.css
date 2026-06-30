@@ -75,9 +75,6 @@
 /* ========================================================
    BLOCKLY TOOLBOX — KID-FRIENDLY OVERRIDES
    Only rules the Blockly Theme API cannot reach.
-   Category colors, font, flyout bg → handled by kidTheme
-   in BlocklyWorkspace.tsx. Only touch-action + scrollbar
-   suppression live here.
    ======================================================== */
 
 /* Fix for dragging blocks in modern browsers / touch devices */
@@ -94,15 +91,105 @@
   display: none !important;
 }
 
-/* Show the category icon slot so emoji in names renders correctly */
-.blocklyTreeIcon {
-  display: block !important;
+/* Custom styles for the Blockly HTML Toolbox container */
+.blocklyToolboxDiv {
+  padding: 10px 8px !important;
+  border-right: 1px solid #e2e8f0 !important;
+  background-color: #ffffff !important;
+  overflow-y: auto !important;
+  box-shadow: 2px 0 8px rgba(0, 0, 0, 0.01) !important;
+  transition:
+    background-color 0.2s ease,
+    border-color 0.2s ease !important;
 }
 
-/* Keyboard focus ring on toolbox rows — keep the native Blockly indicator */
+html.dark .blocklyToolboxDiv {
+  background-color: #252640 !important;
+  border-right: 1px solid #2e3055 !important;
+  box-shadow: 2px 0 8px rgba(0, 0, 0, 0.1) !important;
+}
+
+/* Hide scrollbars on the toolbox container while retaining vertical scrollability */
+.blocklyToolboxDiv::-webkit-scrollbar {
+  display: none !important;
+}
+.blocklyToolboxDiv {
+  -ms-overflow-style: none !important;
+  scrollbar-width: none !important;
+}
+
+/* Category row container */
+.blocklyTreeRow {
+  padding: 10px 14px 10px 8px !important;
+  margin-bottom: 6px !important;
+  border-radius: 8px !important;
+  cursor: pointer !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+  height: auto !important;
+  border-top: 1px solid transparent !important;
+  border-right: 1px solid transparent !important;
+  border-bottom: 1px solid transparent !important;
+  border-left-width: 5px !important; /* Cleaner, modern side-strip width */
+  transition:
+    background-color 0.15s ease,
+    transform 0.1s ease,
+    box-shadow 0.15s ease !important;
+  position: relative !important;
+}
+
+/* Non-selected rows should have a transparent background */
+.blocklyTreeRow:not(.blocklyTreeSelected) {
+  background-color: transparent !important;
+}
+
+/* Subtle interactive hover effect for non-selected rows */
+.blocklyTreeRow:hover:not(.blocklyTreeSelected) {
+  background-color: #f8fafc !important;
+  transform: translateX(2px) !important;
+}
+
+html.dark .blocklyTreeRow:hover:not(.blocklyTreeSelected) {
+  background-color: rgba(46, 48, 85, 0.4) !important;
+  transform: translateX(2px) !important;
+}
+
+/* Selected state shadow & visual styling */
+.blocklyTreeRow.blocklyTreeSelected {
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.04) !important;
+}
+
+html.dark .blocklyTreeRow.blocklyTreeSelected {
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.15) !important;
+}
+
+/* Ensure selected label text color is white/light and fully visible */
+.blocklyTreeRow.blocklyTreeSelected .blocklyTreeLabel {
+  color: #ffffff !important;
+}
+
+/* Ensure the category flyout panel is fully opaque for legibility */
+.blocklyFlyoutBackground {
+  fill-opacity: 1 !important;
+}
+
+/* Hide empty blockly tree icon space so emojis/labels align perfectly to the left */
+.blocklyTreeIcon {
+  display: none !important;
+}
+
+/* Clean, modern focus ring that doesn't overlap text or hide options */
 .blocklyTreeRow:focus {
-  outline: 2px solid #6c63ff !important;
-  outline-offset: -2px !important;
+  outline: none !important;
+}
+
+.blocklyTreeRow:focus-visible {
+  box-shadow: 0 0 0 2px rgba(108, 99, 255, 0.4) !important;
+}
+
+html.dark .blocklyTreeRow:focus-visible {
+  box-shadow: 0 0 0 2px rgba(123, 114, 255, 0.4) !important;
 }
 
 /* ========================================================

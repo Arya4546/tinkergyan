@@ -22,6 +22,7 @@ import { useUIStore } from '../../stores/ui.store';
 import { useEditorStore } from '../../stores/editor.store';
 
 Blockly.setLocale(En as unknown as Record<string, string>);
+(window as any).Blockly = Blockly;
 
 const BOARDS = [
   { fqbn: 'arduino:avr:uno', label: 'Arduino Uno' },
@@ -65,7 +66,7 @@ const kidTheme = Blockly.Theme.defineTheme('kidFriendly', {
     toolboxForegroundColour: '#1A1B2E',
     flyoutBackgroundColour: '#F1F5F9',
     flyoutForegroundColour: '#1A1B2E',
-    flyoutOpacity: 0.98,
+    flyoutOpacity: 1.0,
     scrollbarColour: '#CBD5E1',
     scrollbarOpacity: 0.4,
     insertionMarkerColour: '#6C63FF',
@@ -86,7 +87,7 @@ const darkKidTheme = Blockly.Theme.defineTheme('darkKidFriendly', {
     toolboxForegroundColour: '#E2E8F0',
     flyoutBackgroundColour: '#252640',
     flyoutForegroundColour: '#E2E8F0',
-    flyoutOpacity: 0.98,
+    flyoutOpacity: 1.0,
     scrollbarColour: '#2E3055',
     scrollbarOpacity: 0.4,
     insertionMarkerColour: '#7B72FF',
@@ -124,6 +125,24 @@ export const BlocklyWorkspace = forwardRef<BlocklyWorkspaceHandle, BlocklyWorksp
     const workspaceRef = useRef<Blockly.WorkspaceSvg | null>(null);
     const theme = useUIStore((s) => s.theme);
     const board = useEditorStore((s) => s.board);
+
+    const [promptData, setPromptData] = React.useState<{
+      message: string;
+      defaultValue: string;
+      callback: (result: string | null) => void;
+    } | null>(null);
+    const [promptValue, setPromptValue] = React.useState('');
+
+    // Intercept Blockly prompts to show a beautiful, premium custom React modal
+    useEffect(() => {
+      Blockly.dialog.setPrompt((message, defaultValue, callback) => {
+        setPromptData({ message, defaultValue, callback });
+        setPromptValue(defaultValue);
+      });
+      return () => {
+        Blockly.dialog.setPrompt(Blockly.dialog.prompt);
+      };
+    }, []);
 
     // Expose imperative methods for save/load/getCode
     useImperativeHandle(ref, () => ({
@@ -184,6 +203,17 @@ export const BlocklyWorkspace = forwardRef<BlocklyWorkspaceHandle, BlocklyWorksp
       blocklyDiv.current.innerHTML = '';
       isInit.current = true;
 
+      // ── Ensure html.dark class matches the resolved Blockly theme BEFORE inject ──
+      // Navbar's useEffect may not have fired yet on first render, so we sync it here.
+      const initialTheme = useUIStore.getState().theme;
+      const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+      const shouldBeDark = initialTheme === 'dark' || (initialTheme === 'system' && prefersDark);
+      if (shouldBeDark) {
+        document.documentElement.classList.add('dark');
+      } else {
+        document.documentElement.classList.remove('dark');
+      }
+
       workspaceRef.current = Blockly.inject(blocklyDiv.current, {
         toolbox: INITIAL_TOOLBOX,
         theme: resolveBlocklyTheme(useUIStore.getState().theme),
@@ -195,7 +225,7 @@ export const BlocklyWorkspace = forwardRef<BlocklyWorkspaceHandle, BlocklyWorksp
         grid: {
           spacing: 24,
           length: 3,
-          colour: theme === 'dark' ? '#2E3055' : '#e2e8f0',
+          colour: shouldBeDark ? '#2E3055' : '#e2e8f0',
           snap: true,
         },
         zoom: {
@@ -289,6 +319,53 @@ export const BlocklyWorkspace = forwardRef<BlocklyWorkspaceHandle, BlocklyWorksp
     return (
       <div className={`relative w-full h-full ${className}`}>
         <div ref={blocklyDiv} className="absolute inset-0" />
+
+        {/* Custom dialog prompt modal for variable creation */}
+        {promptData && (
+          <div className="absolute inset-0 z-[100] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
+            <div className="bg-white dark:bg-[#1e1f38] border border-slate-200 dark:border-slate-800 rounded-2xl p-6 w-full max-w-sm shadow-xl animate-in fade-in zoom-in-95 duration-150">
+              <h3 className="text-base font-semibold text-slate-900 dark:text-slate-100 font-sans mb-3">
+                {promptData.message}
+              </h3>
+              <input
+                type="text"
+                value={promptValue}
+                onChange={(e) => setPromptValue(e.target.value)}
+                autoFocus
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    promptData.callback(promptValue);
+                    setPromptData(null);
+                  } else if (e.key === 'Escape') {
+                    promptData.callback(null);
+                    setPromptData(null);
+                  }
+                }}
+                className="w-full bg-slate-50 dark:bg-[#131424] border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-2.5 text-sm text-slate-800 dark:text-slate-100 font-sans outline-none focus:ring-2 focus:ring-indigo-500/50 dark:focus:ring-indigo-500/30 transition-all mb-4"
+              />
+              <div className="flex justify-end gap-2.5">
+                <button
+                  onClick={() => {
+                    promptData.callback(null);
+                    setPromptData(null);
+                  }}
+                  className="px-4 py-2 text-xs font-semibold text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 font-sans rounded-xl transition-all"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => {
+                    promptData.callback(promptValue);
+                    setPromptData(null);
+                  }}
+                  className="px-4 py-2 text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-700 active:scale-95 font-sans rounded-xl shadow-md shadow-indigo-600/10 transition-all"
+                >
+                  Create
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     );
   },

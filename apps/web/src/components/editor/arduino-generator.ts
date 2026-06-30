@@ -348,6 +348,11 @@ arduinoGenerator.forBlock['math_arithmetic'] = function (block, generator) {
     const exp = generator.valueToCode(block, 'B', Order.NONE) || '0';
     return [`pow(${base}, ${exp})`, Order.ATOMIC] as [string, Order];
   }
+  if (op === 'DIVIDE') {
+    const lhs = generator.valueToCode(block, 'A', Order.MULTIPLY) || '0';
+    const rhs = generator.valueToCode(block, 'B', Order.MULTIPLY) || '1';
+    return [`((double)${lhs}) / (${rhs})`, Order.MULTIPLY] as [string, Order];
+  }
   const entry = OPS[op];
   // Guard: unknown op (should never happen with valid Blockly blocks)
   if (!entry) return ['0', Order.ATOMIC] as [string, Order];
@@ -367,14 +372,15 @@ arduinoGenerator.forBlock['math_constrain'] = function (block, generator) {
 arduinoGenerator.forBlock['math_random_int'] = function (block, generator) {
   const from = generator.valueToCode(block, 'FROM', Order.NONE) || '0';
   const to = generator.valueToCode(block, 'TO', Order.NONE) || '100';
-  // Arduino random(min, max) is exclusive of max, so add 1
-  return [`random(${from}, ${to} + 1)`, Order.ATOMIC] as [string, Order];
+  // Arduino random(min, max) is exclusive of max, so add 1. Cast parameters to long to avoid float comparison issues.
+  return [`random((long)(${from}), (long)(${to}) + 1)`, Order.ATOMIC] as [string, Order];
 };
 
 arduinoGenerator.forBlock['math_modulo'] = function (block, generator) {
-  const lhs = generator.valueToCode(block, 'DIVIDEND', Order.MULTIPLY) || '0';
-  const rhs = generator.valueToCode(block, 'DIVISOR', Order.MULTIPLY) || '1';
-  return [`${lhs} % ${rhs}`, Order.MULTIPLY] as [string, Order];
+  const lhs = generator.valueToCode(block, 'DIVIDEND', Order.NONE) || '0';
+  const rhs = generator.valueToCode(block, 'DIVISOR', Order.NONE) || '1';
+  // Use fmod() from <cmath> to support float inputs and avoid operator% compile errors.
+  return [`fmod(${lhs}, ${rhs})`, Order.ATOMIC] as [string, Order];
 };
 
 // ─────────────────────────────────────────────────────────────────────────────

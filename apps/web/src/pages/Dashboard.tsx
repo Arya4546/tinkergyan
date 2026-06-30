@@ -10,6 +10,7 @@ import {
   Cpu,
   Plus,
   Trash2,
+  X,
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useEffect, useState } from 'react';
@@ -103,6 +104,7 @@ export default function Dashboard() {
   const user = useAuthStore((s) => s.user);
   const { projects, isLoading, error, fetchProjects, removeProject } = useProjectStore();
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
+  const [showQuest, setShowQuest] = useState(true);
 
   useEffect(() => {
     fetchProjects();
@@ -227,39 +229,44 @@ export default function Dashboard() {
         </div>
 
         {/* Right: Active Quest Console (static for now, Phase 3 will pull real data) */}
-        <div className="w-full lg:w-[400px] xl:w-[500px] bg-slate-900 dark:bg-[#000000] text-slate-100 flex flex-col shrink-0">
-          <div className="p-4 border-b border-slate-800 flex items-center justify-between shrink-0">
-            <span className="font-mono text-xs font-bold text-slate-400 uppercase tracking-widest">
-              TRANSMISSION_TX
-            </span>
-            <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
-          </div>
+        {showQuest && (
+          <div className="w-full lg:w-[400px] xl:w-[500px] bg-slate-900 dark:bg-[#000000] text-slate-100 flex flex-col shrink-0">
+            <div className="p-4 border-b border-slate-800 flex items-center justify-between shrink-0">
+              <span className="font-sans text-xs font-bold text-slate-400 uppercase tracking-widest">
+                Active Quest
+              </span>
+              <button
+                onClick={() => setShowQuest(false)}
+                className="text-slate-400 hover:text-white transition-colors"
+                title="Close Quest"
+              >
+                <X size={16} />
+              </button>
+            </div>
 
-          <div className="flex-1 p-6 md:p-10 flex flex-col justify-center">
-            <div className="inline-block px-3 py-1 bg-emerald-500/10 text-emerald-400 border border-emerald-500/50 font-mono text-[10px] font-bold uppercase tracking-widest mb-6 self-start">
-              ACTIVE_DIRECTORY
+            <div className="flex-1 p-6 md:p-10 flex flex-col justify-center">
+              <div className="inline-block px-3 py-1 bg-emerald-500/10 text-emerald-400 border border-emerald-500/50 font-sans rounded-full text-[10px] font-bold uppercase tracking-widest mb-6 self-start">
+                In Progress
+              </div>
+              <h3 className="text-3xl font-bold tracking-tight uppercase leading-tight mb-4 text-white">
+                Arduino Basics <br />& Memory Loops
+              </h3>
+              <p className="text-sm font-sans text-slate-400 leading-relaxed mb-10 border-l-2 border-emerald-500 pl-4">
+                Objective: Initialize LED matrix array and author your first C++ control structure.
+              </p>
+              <div className="w-full bg-slate-800 h-2 mb-2 relative overflow-hidden rounded-full">
+                <div className="absolute top-0 left-0 h-full bg-emerald-500 w-[25%]" />
+              </div>
+              <div className="flex justify-between font-sans text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-10">
+                <span>Progress</span>
+                <span className="text-emerald-500">25%</span>
+              </div>
+              <Link to="/editor" className="app-btn-primary h-14">
+                Continue Quest
+              </Link>
             </div>
-            <h3 className="text-3xl font-bold tracking-tight uppercase leading-tight mb-4 text-white">
-              Arduino Basics <br />& Memory Loops
-            </h3>
-            <p className="text-sm font-mono text-slate-400 leading-relaxed mb-10 border-l-2 border-emerald-500 pl-4">
-              // Objective: Initialize LED matrix array and author your first C++ control structure.
-            </p>
-            <div className="w-full bg-slate-800 h-2 mb-2 relative overflow-hidden">
-              <div className="absolute top-0 left-0 h-full bg-emerald-500 w-[25%]" />
-            </div>
-            <div className="flex justify-between font-mono text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-10">
-              <span>MEM_LOAD</span>
-              <span className="text-emerald-500">25%</span>
-            </div>
-            <Link
-              to="/courses/arduino-basics"
-              className="hw-key bg-emerald-500 text-slate-900 border-none h-14 hover:bg-white"
-            >
-              COMPILE_AND_RESUME
-            </Link>
           </div>
-        </div>
+        )}
       </div>
 
       {/* Delete Confirmation */}
