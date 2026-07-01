@@ -88,9 +88,11 @@ RUN find /app/node_modules/.pnpm -maxdepth 1 -iname "*prisma*client*" | grep -q 
 # Frontend build output (served by Express as static files)
 COPY --from=frontend-builder /app/apps/web/dist ./apps/web/dist
 
+COPY apps/api/start.sh ./start.sh
+RUN chmod +x ./start.sh
+
 WORKDIR /app/apps/api
 EXPOSE 3001
 
-# Use the SAME pinned prisma version for migrate deploy at runtime.
-# We also initialize the arduino-cli cores here so they are stored in the mounted volume.
-CMD ["sh", "-c", "npx --yes prisma@6.16.0 migrate deploy && /app/bin/arduino-cli core update-index --additional-urls https://arduino.esp8266.com/stable/package_esp8266com_index.json && /app/bin/arduino-cli core install esp8266:esp8266 arduino:avr --additional-urls https://arduino.esp8266.com/stable/package_esp8266com_index.json && node dist/server.js"]
+# Use the startup script to handle migrations and arduino-cli initialization safely
+CMD ["/app/start.sh"]
