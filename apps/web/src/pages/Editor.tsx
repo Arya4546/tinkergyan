@@ -36,10 +36,12 @@ import {
   PanelRight,
   Zap,
   Star,
+  Gamepad2,
 } from 'lucide-react';
 
 import { CompileConsole } from '../components/editor/CompileConsole';
 import { SerialMonitor } from '../components/editor/SerialMonitor';
+import { StagePanel } from '../components/editor/simulator/StagePanel';
 import { WebSerialFlasher } from '../lib/web-serial-flasher';
 import type { FlashBoard } from '../lib/web-serial-flasher';
 import confetti from 'canvas-confetti';
@@ -128,6 +130,7 @@ export default function Editor() {
   const [flashMessage, setFlashMessage] = useState('');
   const [showSerialMonitor, setShowSerialMonitor] = useState(false);
   const [showCodePanel, setShowCodePanel] = useState(false);
+  const [showSimulator, setShowSimulator] = useState(false);
   const [terminalWidth, setTerminalWidth] = useState(() => (window.innerWidth < 1024 ? 340 : 420));
   const isResizing = useRef(false);
 
@@ -833,15 +836,35 @@ export default function Editor() {
 
               {/* Code Panel Toggle */}
               <button
-                onClick={() => setShowCodePanel(!showCodePanel)}
+                onClick={() => {
+                  setShowCodePanel(!showCodePanel);
+                  if (showSimulator && showCodePanel) setShowSimulator(false);
+                }}
                 title={showCodePanel ? 'Hide Code Panel' : 'Show Code Panel'}
                 className={`w-11 h-11 rounded-xl flex items-center justify-center transition-all focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:outline-none active:scale-[0.97] hidden sm:flex ${
-                  showCodePanel
+                  showCodePanel && !showSimulator
                     ? 'bg-slate-200 dark:bg-slate-700 text-slate-800 dark:text-white'
                     : 'bg-slate-100 dark:bg-dark-border text-slate-500 hover:text-slate-800 dark:hover:text-white'
                 }`}
               >
                 <PanelRight size={16} />
+              </button>
+
+              {/* Simulator Panel Toggle */}
+              <button
+                onClick={() => {
+                  const nextState = !showSimulator;
+                  setShowSimulator(nextState);
+                  if (nextState) setShowCodePanel(true);
+                }}
+                title={showSimulator ? 'Hide Simulator' : 'Show Simulator'}
+                className={`w-11 h-11 rounded-xl flex items-center justify-center transition-all focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:outline-none active:scale-[0.97] hidden sm:flex ${
+                  showSimulator
+                    ? 'bg-emerald-500 text-white shadow-md shadow-emerald-500/20'
+                    : 'bg-slate-100 dark:bg-dark-border text-slate-500 hover:text-slate-800 dark:hover:text-white'
+                }`}
+              >
+                <Gamepad2 size={16} />
               </button>
 
               {/* ▶ Run — highest prominence, always rightmost */}
@@ -920,99 +943,111 @@ export default function Editor() {
                 style={{ width: terminalWidth }}
                 className="hw-border-l bg-[#050505] flex flex-col shrink-0"
               >
-                {/* Serial Monitor (when active and hardware connected) */}
-                {showSerialMonitor && hardwarePort && !isFlashing ? (
-                  <SerialMonitor
-                    port={hardwarePort}
-                    onDisconnect={() => {
-                      setHardwarePort(null);
-                      setShowSerialMonitor(false);
-                    }}
-                  />
+                {/* Simulator Stage Panel */}
+                {showSimulator ? (
+                  <StagePanel />
                 ) : (
                   <>
-                    {/* C++ preview header (block mode) */}
-                    {mode === 'block' && !isCompiling && !compileResult && !isFlashing && (
-                      <div className="border-b border-slate-800 bg-[#0a0a0a] px-4 py-2 flex items-center gap-2 shrink-0">
-                        <Code2 size={12} className="text-slate-500" />
-                        <span className="font-sans text-xs text-slate-500">
-                          Generated C++ Preview
-                        </span>
-                      </div>
-                    )}
+                    {/* Serial Monitor (when active and hardware connected) */}
+                    {showSerialMonitor && hardwarePort && !isFlashing ? (
+                      <SerialMonitor
+                        port={hardwarePort}
+                        onDisconnect={() => {
+                          setHardwarePort(null);
+                          setShowSerialMonitor(false);
+                        }}
+                      />
+                    ) : (
+                      <>
+                        {/* C++ preview header (block mode) */}
+                        {mode === 'block' && !isCompiling && !compileResult && !isFlashing && (
+                          <div className="border-b border-slate-800 bg-[#0a0a0a] px-4 py-2 flex items-center gap-2 shrink-0">
+                            <Code2 size={12} className="text-slate-500" />
+                            <span className="font-sans text-xs text-slate-500">
+                              Generated C++ Preview
+                            </span>
+                          </div>
+                        )}
 
-                    {/* Stdin input for programs that need cin/scanf */}
-                    {mode === 'code' && !isFlashing && (
-                      <div className="border-b border-slate-800 bg-[#0a0a0a] shrink-0">
-                        <div className="px-3 py-1.5 flex items-center gap-2">
-                          <span className="font-sans text-xs text-slate-500">📥 Stdin input</span>
-                        </div>
-                        <textarea
-                          value={stdinInput}
-                          onChange={(e) => setStdinInput(e.target.value)}
-                          placeholder="Enter input here (for cin/scanf programs)..."
-                          spellCheck={false}
-                          className="w-full bg-[#0a0a0a] text-slate-300 font-mono text-[11px] px-3 py-2 outline-none resize-none border-none h-16 placeholder:text-slate-700"
-                        />
-                      </div>
-                    )}
-
-                    {/* Flash progress overlay */}
-                    {isFlashing && (
-                      <div className="flex-1 flex flex-col items-center justify-center p-6">
-                        <div className="w-16 h-16 rounded-full bg-blue-500/10 flex items-center justify-center mb-4">
-                          <Upload size={24} className="text-blue-400 animate-pulse" />
-                        </div>
-                        <p className="font-sans font-semibold text-sm text-blue-400 mb-3">
-                          Uploading to your {boardLabel}...
-                        </p>
-                        <div className="w-full max-w-[200px] h-2 bg-slate-800 rounded-full overflow-hidden mb-2">
-                          <div
-                            className="h-full bg-blue-500 transition-all duration-300 ease-out rounded-full"
-                            style={{ width: `${flashProgress}%` }}
-                          />
-                        </div>
-                        <p className="font-sans text-xs text-slate-500 text-center">
-                          {flashMessage || 'Getting ready...'}
-                        </p>
-                      </div>
-                    )}
-
-                    {/* Console (has compile result or is compiling) OR code preview */}
-                    {!isFlashing &&
-                      (isCompiling || compileResult ? (
-                        <CompileConsole isCompiling={isCompiling} compileResult={compileResult} />
-                      ) : (
-                        <div className="flex-1 overflow-y-auto p-4">
-                          {mode === 'block' &&
-                            (generatedCode ? (
-                              <pre className="font-mono text-xs text-emerald-400 leading-relaxed whitespace-pre-wrap">
-                                {generatedCode}
-                              </pre>
-                            ) : (
-                              <div className="flex flex-col items-center justify-center h-full text-slate-700">
-                                <Code2 size={36} className="mb-4 opacity-20" />
-                                <p className="font-sans text-sm font-semibold text-slate-500 text-center">
-                                  Drag a block to get started
-                                </p>
-                                <p className="font-sans text-xs text-slate-600 text-center mt-1">
-                                  Drop blocks on the canvas to preview C++ output
-                                </p>
-                              </div>
-                            ))}
-                          {mode === 'code' && (
-                            <div className="flex flex-col items-center justify-center h-full text-slate-700">
-                              <Play size={36} className="mb-4 opacity-20" />
-                              <p className="font-sans text-sm font-semibold text-slate-500 text-center">
-                                Hit Run to compile!
-                              </p>
-                              <p className="font-sans text-xs text-slate-600 text-center mt-1">
-                                Press Run in the toolbar to compile and run your code
-                              </p>
+                        {/* Stdin input for programs that need cin/scanf */}
+                        {mode === 'code' && !isFlashing && (
+                          <div className="border-b border-slate-800 bg-[#0a0a0a] shrink-0">
+                            <div className="px-3 py-1.5 flex items-center gap-2">
+                              <span className="font-sans text-xs text-slate-500">
+                                📥 Stdin input
+                              </span>
                             </div>
-                          )}
-                        </div>
-                      ))}
+                            <textarea
+                              value={stdinInput}
+                              onChange={(e) => setStdinInput(e.target.value)}
+                              placeholder="Enter input here (for cin/scanf programs)..."
+                              spellCheck={false}
+                              className="w-full bg-[#0a0a0a] text-slate-300 font-mono text-[11px] px-3 py-2 outline-none resize-none border-none h-16 placeholder:text-slate-700"
+                            />
+                          </div>
+                        )}
+
+                        {/* Flash progress overlay */}
+                        {isFlashing && (
+                          <div className="flex-1 flex flex-col items-center justify-center p-6">
+                            <div className="w-16 h-16 rounded-full bg-blue-500/10 flex items-center justify-center mb-4">
+                              <Upload size={24} className="text-blue-400 animate-pulse" />
+                            </div>
+                            <p className="font-sans font-semibold text-sm text-blue-400 mb-3">
+                              Uploading to your {boardLabel}...
+                            </p>
+                            <div className="w-full max-w-[200px] h-2 bg-slate-800 rounded-full overflow-hidden mb-2">
+                              <div
+                                className="h-full bg-blue-500 transition-all duration-300 ease-out rounded-full"
+                                style={{ width: `${flashProgress}%` }}
+                              />
+                            </div>
+                            <p className="font-sans text-xs text-slate-500 text-center">
+                              {flashMessage || 'Getting ready...'}
+                            </p>
+                          </div>
+                        )}
+
+                        {/* Console (has compile result or is compiling) OR code preview */}
+                        {!isFlashing &&
+                          (isCompiling || compileResult ? (
+                            <CompileConsole
+                              isCompiling={isCompiling}
+                              compileResult={compileResult}
+                            />
+                          ) : (
+                            <div className="flex-1 overflow-y-auto p-4">
+                              {mode === 'block' &&
+                                (generatedCode ? (
+                                  <pre className="font-mono text-xs text-emerald-400 leading-relaxed whitespace-pre-wrap">
+                                    {generatedCode}
+                                  </pre>
+                                ) : (
+                                  <div className="flex flex-col items-center justify-center h-full text-slate-700">
+                                    <Code2 size={36} className="mb-4 opacity-20" />
+                                    <p className="font-sans text-sm font-semibold text-slate-500 text-center">
+                                      Drag a block to get started
+                                    </p>
+                                    <p className="font-sans text-xs text-slate-600 text-center mt-1">
+                                      Drop blocks on the canvas to preview C++ output
+                                    </p>
+                                  </div>
+                                ))}
+                              {mode === 'code' && (
+                                <div className="flex flex-col items-center justify-center h-full text-slate-700">
+                                  <Play size={36} className="mb-4 opacity-20" />
+                                  <p className="font-sans text-sm font-semibold text-slate-500 text-center">
+                                    Hit Run to compile!
+                                  </p>
+                                  <p className="font-sans text-xs text-slate-600 text-center mt-1">
+                                    Press Run in the toolbar to compile and run your code
+                                  </p>
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                      </>
+                    )}
                   </>
                 )}
               </div>
