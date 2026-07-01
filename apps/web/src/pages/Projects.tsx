@@ -1,131 +1,124 @@
-/**
- * Projects.tsx
- *
- * Full project management page with search, filter, grid view,
- * and delete with confirmation dialog.
- */
 import { useEffect, useState, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import {
-  FolderCode, Search, Plus, Trash2, Play, Beaker,
-  TerminalSquare, Filter, Zap,
+  FolderCode,
+  Search,
+  Plus,
+  Trash2,
+  Play,
+  Blocks,
+  TerminalSquare,
+  Zap,
+  Loader2,
 } from 'lucide-react';
-
 import { useProjectStore } from '../stores/project.store';
 import { PageHeader } from '../components/ui/PageHeader';
-import { EmptyState } from '../components/ui/EmptyState';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
-import { Loader } from '../components/ui/Loader';
 
 type FilterType = 'ALL' | 'BLOCK' | 'CODE';
 
 export default function Projects() {
-  const { projects, isLoading, error, hasFetched, fetchProjects, removeProject } = useProjectStore();
+  const { projects, isLoading, error, hasFetched, fetchProjects, removeProject } =
+    useProjectStore();
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<FilterType>('ALL');
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!hasFetched) fetchProjects();
+    if (!hasFetched) void fetchProjects();
   }, [hasFetched, fetchProjects]);
 
   const filtered = useMemo(() => {
     let list = projects;
     if (filter !== 'ALL') list = list.filter((p) => p.type === filter);
-    if (search.trim()) {
-      const q = search.toLowerCase();
-      list = list.filter((p) => p.title.toLowerCase().includes(q));
-    }
+    if (search.trim())
+      list = list.filter((p) => p.title.toLowerCase().includes(search.toLowerCase()));
     return list;
   }, [projects, filter, search]);
 
-  const handleDelete = async () => {
+  const handleDelete = () => {
     if (!deleteTarget) return;
-    await removeProject(deleteTarget);
-    setDeleteTarget(null);
+    void (async () => {
+      await removeProject(deleteTarget);
+      setDeleteTarget(null);
+    })();
   };
 
   const deleteProjectTitle = projects.find((p) => p.id === deleteTarget)?.title ?? '';
 
   return (
     <div className="w-full h-full flex flex-col">
-      <PageHeader icon={FolderCode} title="Projects" subtitle="LOCAL_STORAGE">
+      <PageHeader icon={FolderCode} title="My Projects" subtitle={`${projects.length} projects`}>
         <Link
           to="/editor"
-          className="h-12 px-6 hw-key bg-yellow-400 text-slate-900 hover:bg-slate-900 hover:text-white dark:hover:bg-white dark:hover:text-slate-900 flex items-center gap-2"
+          className="h-9 px-4 bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-semibold rounded-xl transition-colors flex items-center gap-2"
         >
-          <Plus size={16} /> NEW_PROJECT
+          <Plus size={16} /> New Project
         </Link>
       </PageHeader>
 
       {/* Search + Filter Bar */}
-      <div className="hw-border-b bg-slate-50 dark:bg-[#0a0a0a] px-6 lg:px-10 py-4 flex flex-col sm:flex-row gap-3 shrink-0">
-        {/* Search */}
+      <div className="border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-[#0a0a0a] px-6 lg:px-10 py-4 flex flex-col sm:flex-row gap-3 shrink-0">
         <div className="flex-1 relative">
-          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+          <Search size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search projects..."
-            className="w-full h-10 pl-9 pr-4 hw-border bg-white dark:bg-[#111111] font-mono text-xs uppercase tracking-widest text-slate-900 dark:text-white placeholder:text-slate-400 outline-none"
+            className="w-full h-10 pl-10 pr-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-[#1a1a1a] text-sm font-medium text-slate-900 dark:text-white placeholder:text-slate-400 outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
           />
         </div>
-
-        {/* Filter */}
-        <div className="flex items-center hw-border divide-x divide-slate-900 dark:divide-slate-800 shrink-0">
+        <div className="flex gap-2 shrink-0">
           {(['ALL', 'BLOCK', 'CODE'] as FilterType[]).map((f) => (
             <button
               key={f}
               onClick={() => setFilter(f)}
-              className={`h-10 px-4 font-mono text-[10px] font-bold uppercase tracking-widest transition-colors flex items-center gap-2 ${
-                filter === f
-                  ? 'bg-slate-900 dark:bg-white text-white dark:text-slate-900'
-                  : 'bg-white dark:bg-[#000000] text-slate-500 hover:text-slate-900 dark:hover:text-white'
-              }`}
+              className={`h-10 px-4 rounded-xl text-sm font-semibold transition-colors flex items-center gap-1.5 border ${filter === f ? 'bg-slate-900 dark:bg-white text-white dark:text-slate-900 border-transparent' : 'bg-white dark:bg-[#1a1a1a] text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800'}`}
             >
-              {f === 'ALL' && <Filter size={10} />}
-              {f === 'BLOCK' && <Beaker size={10} />}
-              {f === 'CODE' && <TerminalSquare size={10} />}
-              {f}
+              {f === 'BLOCK' && <Blocks size={13} />}
+              {f === 'CODE' && <TerminalSquare size={13} />}
+              {f === 'ALL' ? 'All' : f === 'BLOCK' ? 'Blocks' : 'Code'}
             </button>
           ))}
-        </div>
-
-        {/* Count */}
-        <div className="h-10 px-4 hw-border bg-white dark:bg-[#111111] flex items-center gap-2 shrink-0">
-          <span className="font-mono text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-            {filtered.length} / {projects.length}
-          </span>
         </div>
       </div>
 
       {/* Content */}
-      <div className="flex-1 overflow-y-auto p-6 lg:p-10 bg-white dark:bg-[#0A0A0A]">
+      <div className="flex-1 overflow-y-auto p-6 lg:p-10 bg-white dark:bg-[#111111]">
         {isLoading && (
-          <div className="flex justify-center py-12">
-            <Loader message="LOADING_PROJECTS..." />
+          <div className="flex justify-center py-16">
+            <Loader2 className="animate-spin text-emerald-500" size={28} />
           </div>
         )}
 
         {!isLoading && error && (
-          <div className="font-mono text-xs text-red-400 uppercase tracking-widest text-center py-12">{error}</div>
+          <div className="bg-red-50 dark:bg-red-900/10 border border-red-100 dark:border-red-900/30 rounded-2xl p-5 text-sm font-medium text-red-600">
+            {error}
+          </div>
         )}
 
         {!isLoading && !error && filtered.length === 0 && (
-          <EmptyState
-            icon={FolderCode}
-            title={search || filter !== 'ALL' ? 'NO_RESULTS_FOUND' : 'NO_PROJECTS_YET'}
-            subtitle={search || filter !== 'ALL' ? 'Try adjusting your search or filter' : 'Create your first project to get started'}
-          >
+          <div className="flex flex-col items-center justify-center py-20 text-center">
+            <div className="w-14 h-14 bg-slate-100 dark:bg-slate-800 rounded-2xl flex items-center justify-center mb-4">
+              <FolderCode size={24} className="text-slate-400" />
+            </div>
+            <p className="font-semibold text-slate-700 dark:text-slate-300 mb-1">
+              {search || filter !== 'ALL' ? 'No results found' : 'No projects yet'}
+            </p>
+            <p className="text-sm text-slate-400 mb-6">
+              {search || filter !== 'ALL'
+                ? 'Try adjusting your search or filter.'
+                : 'Create your first project to get started.'}
+            </p>
             {!search && filter === 'ALL' && (
               <Link
                 to="/editor"
-                className="h-10 px-6 hw-key bg-yellow-400 text-slate-900 hover:bg-slate-900 hover:text-white flex items-center gap-2 text-xs mt-4"
+                className="inline-flex items-center gap-2 bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-semibold px-5 py-2.5 rounded-xl transition-colors"
               >
-                <Plus size={14} /> NEW_PROJECT
+                <Plus size={16} /> Create Project
               </Link>
             )}
-          </EmptyState>
+          </div>
         )}
 
         {!isLoading && !error && filtered.length > 0 && (
@@ -135,48 +128,43 @@ export default function Projects() {
               return (
                 <div
                   key={project.id}
-                  className="hw-border bg-slate-50 dark:bg-[#111111] p-5 flex flex-col group hover:bg-slate-900 dark:hover:bg-white hover:text-white dark:hover:text-slate-900 transition-colors"
+                  className="bg-white dark:bg-[#1a1a1a] border border-slate-200 dark:border-slate-800 rounded-2xl p-5 flex flex-col hover:shadow-md transition-shadow group"
                 >
-                  <div className="flex justify-between items-start mb-5">
-                    <div className={`w-10 h-10 border-2 ${isBlock ? 'border-pink-400 bg-pink-500/10' : 'border-blue-400 bg-blue-500/10'} flex items-center justify-center shrink-0`}>
-                      {isBlock
-                        ? <Beaker size={20} className="text-pink-500" />
-                        : <TerminalSquare size={20} className="text-blue-500" />
-                      }
+                  <div className="flex items-start justify-between mb-4">
+                    <div
+                      className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${isBlock ? 'bg-purple-100 dark:bg-purple-900/30 text-purple-600' : 'bg-sky-100 dark:bg-sky-900/30 text-sky-600'}`}
+                    >
+                      {isBlock ? <Blocks size={18} /> : <TerminalSquare size={18} />}
                     </div>
                     <div className="flex items-center gap-2">
-                      <span className="font-mono text-[10px] text-slate-400 uppercase">
-                        {isBlock ? 'BLOCK' : 'C++'}
-                      </span>
+                      {project.isPublic && (
+                        <span className="text-xs font-semibold px-2 py-0.5 bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 rounded-full flex items-center gap-1">
+                          <Zap size={10} /> Public
+                        </span>
+                      )}
                       <button
                         onClick={() => setDeleteTarget(project.id)}
-                        className="opacity-0 group-hover:opacity-100 transition-opacity p-1.5 text-slate-400 hover:text-red-400"
-                        title="Delete project"
+                        className="opacity-0 group-hover:opacity-100 transition-opacity w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20"
                       >
-                        <Trash2 size={12} />
+                        <Trash2 size={14} />
                       </button>
                     </div>
                   </div>
 
-                  <h3 className="font-bold text-base leading-tight uppercase truncate mb-1 group-hover:text-white dark:group-hover:text-slate-900">
+                  <h3 className="font-bold text-base text-slate-900 dark:text-white leading-tight mb-1 line-clamp-2">
                     {project.title}
                   </h3>
-                  <p className="font-mono text-[10px] text-slate-400 group-hover:text-slate-300 dark:group-hover:text-slate-600 mb-4">
-                    {project.boardTarget} · {new Date(project.updatedAt).toLocaleDateString()}
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mb-4">
+                    {project.boardTarget} &bull; {isBlock ? 'Block Logic' : 'C++ Code'} &bull;{' '}
+                    {new Date(project.updatedAt).toLocaleDateString()}
                   </p>
 
-                  {project.isPublic && (
-                    <div className="inline-flex self-start items-center gap-1 px-2 py-0.5 mb-3 font-mono text-[9px] font-bold uppercase tracking-widest bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">
-                      <Zap size={8} /> PUBLIC
-                    </div>
-                  )}
-
-                  <div className="mt-auto pt-4 hw-border-t flex justify-end group-hover:border-slate-800 dark:group-hover:border-slate-200">
+                  <div className="mt-auto pt-4 border-t border-slate-100 dark:border-slate-800 flex justify-end">
                     <Link
                       to={`/editor/${project.id}`}
-                      className={`flex items-center gap-2 font-mono text-xs font-bold uppercase hover:underline ${isBlock ? 'group-hover:text-pink-400' : 'group-hover:text-blue-400'}`}
+                      className="inline-flex items-center gap-2 text-xs font-semibold text-emerald-600 hover:text-emerald-700 transition-colors"
                     >
-                      OPEN <Play size={12} className="fill-current" />
+                      Open <Play size={12} className="fill-current" />
                     </Link>
                   </div>
                 </div>
@@ -186,12 +174,11 @@ export default function Projects() {
         )}
       </div>
 
-      {/* Delete Confirmation Dialog */}
       <ConfirmDialog
         open={!!deleteTarget}
-        title="DELETE_PROJECT"
+        title="Delete Project"
         message={`Are you sure you want to permanently delete "${deleteProjectTitle}"? This cannot be undone.`}
-        confirmLabel="DELETE"
+        confirmLabel="Delete"
         variant="danger"
         onConfirm={handleDelete}
         onCancel={() => setDeleteTarget(null)}

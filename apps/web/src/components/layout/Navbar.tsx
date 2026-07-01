@@ -1,4 +1,4 @@
-import { Moon, Sun, Menu, ChevronDown, LogOut, Settings, UserIcon } from 'lucide-react';
+import { Moon, Sun, Menu, ChevronDown, LogOut, Settings, UserIcon, Rocket } from 'lucide-react';
 import { useAuthStore } from '../../stores/auth.store';
 import { useUIStore } from '../../stores/ui.store';
 import { useEffect, useState, useRef } from 'react';
@@ -14,8 +14,6 @@ export function Navbar() {
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  // Apply/remove the `html.dark` class based on the active theme.
-  // 'system' resolves via the OS media query — must be checked at runtime.
   useEffect(() => {
     const mq = window.matchMedia('(prefers-color-scheme: dark)');
 
@@ -44,44 +42,45 @@ export function Navbar() {
   };
 
   return (
-    <header className="h-20 shrink-0 flex items-stretch border-b border-slate-900 dark:border-slate-800 bg-white dark:bg-[#000000] z-30 sticky top-0">
-      {/* Mobile Menu Button */}
-      <div className="flex items-center sm:hidden border-r border-slate-900 dark:border-slate-800">
+    <header className="h-16 shrink-0 flex items-center justify-between px-6 lg:px-8 bg-white dark:bg-[#111111] border-b border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white z-30 relative transition-colors duration-300">
+      <div className="flex items-center gap-4">
+        {/* Mobile Menu Button */}
         <button
           type="button"
           onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-          className="w-20 h-full flex items-center justify-center hover:bg-slate-900 hover:text-white dark:hover:bg-white dark:hover:text-slate-900 transition-colors"
+          className="sm:hidden w-9 h-9 flex items-center justify-center rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
         >
-          <Menu size={24} strokeWidth={2} />
+          <Menu size={20} strokeWidth={2} />
         </button>
+
+        {/* Brand Logo */}
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-8 bg-emerald-500 rounded-md flex items-center justify-center shrink-0">
+            <Rocket size={16} className="text-white" />
+          </div>
+          <span className="text-lg font-bold tracking-tight hidden sm:block">Tinkergyan</span>
+        </div>
       </div>
 
-      {/* Title / Breadcrumb Area */}
-      <div className="flex-1 flex items-center px-6">
-        <span className="font-mono text-sm tracking-widest uppercase text-slate-500 hidden sm:block">
-          PATH :: <span className="text-slate-900 dark:text-white font-bold">/HOME</span>
-        </span>
-      </div>
-
-      <div className="flex items-stretch">
+      <div className="flex items-center gap-2">
         {/* Theme Toggle Key */}
         <button
           onClick={toggleTheme}
           type="button"
-          className="w-20 h-full border-l border-slate-900 dark:border-slate-800 flex items-center justify-center hover:bg-slate-900 hover:text-white dark:hover:bg-white dark:hover:text-slate-900 transition-colors focus:outline-none"
+          className="w-9 h-9 rounded-lg flex items-center justify-center hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors text-slate-500 dark:text-slate-400"
           aria-label="Toggle dark mode"
         >
-          {theme === 'dark' ? <Sun size={20} /> : <Moon size={20} />}
+          {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
         </button>
 
         {/* User Menu Key */}
         <div className="relative flex" ref={dropdownRef}>
           <button
             type="button"
-            className="flex items-center gap-4 px-6 h-full border-l border-slate-900 dark:border-slate-800 bg-slate-50 dark:bg-[#111111] hover:bg-slate-900 hover:text-white dark:hover:bg-white dark:hover:text-slate-900 transition-colors focus:outline-none group"
+            className="flex items-center gap-2 h-9 pl-2 pr-3 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-[#1A1D24] hover:bg-slate-50 dark:hover:bg-[#252A34] transition-colors group"
             onClick={() => setDropdownOpen(!dropdownOpen)}
           >
-            <div className="h-8 w-8 bg-slate-900 dark:bg-white rounded-sm flex items-center justify-center text-white dark:text-slate-900 font-mono font-bold text-sm">
+            <div className="h-6 w-6 bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-400 rounded-full flex items-center justify-center font-bold text-xs overflow-hidden">
               {user?.avatar ? (
                 <img src={user.avatar} alt="avatar" className="h-full w-full object-cover" />
               ) : (
@@ -89,52 +88,53 @@ export function Navbar() {
               )}
             </div>
 
-            <div className="flex-col items-start hidden sm:flex text-left font-mono">
-              <span className="text-xs font-bold leading-tight uppercase">
-                {user?.name?.split(' ')[0] || 'Maker'}
-              </span>
-            </div>
+            <span className="text-sm font-semibold leading-tight hidden sm:block">
+              {user?.name?.split(' ')[0] || 'Maker'}
+            </span>
 
             <ChevronDown
-              size={16}
-              className={`transition-transform duration-100 ${dropdownOpen ? 'rotate-180' : ''}`}
+              size={14}
+              strokeWidth={2.5}
+              className={`transition-transform duration-100 text-slate-400 ${dropdownOpen ? 'rotate-180' : ''}`}
             />
           </button>
 
-          {/* User Dropdown Grid */}
+          {/* User Dropdown */}
           {dropdownOpen && (
-            <div className="absolute right-0 top-20 w-64 bg-white dark:bg-[#000000] border-l border-b border-slate-900 dark:border-slate-800 flex flex-col z-50">
-              <div className="p-4 border-b border-slate-900 dark:border-slate-800 bg-slate-50 dark:bg-[#111111]">
-                <p className="font-mono text-sm font-bold uppercase truncate">{user?.name}</p>
-                <p className="font-mono text-[10px] text-slate-500 truncate mt-1">{user?.email}</p>
+            <div className="absolute right-0 top-12 w-60 bg-white dark:bg-[#1A1D24] border border-slate-200 dark:border-slate-700 rounded-xl shadow-lg p-1.5 flex flex-col z-50">
+              <div className="px-3 py-2.5 border-b border-slate-100 dark:border-slate-800 mb-1">
+                <p className="text-sm font-semibold truncate">{user?.name}</p>
+                <p className="text-xs text-slate-500 truncate mt-0.5">{user?.email}</p>
               </div>
 
               <Link
                 to="/profile"
-                className="px-4 py-4 font-mono text-xs font-bold uppercase hover:bg-slate-900 hover:text-white dark:hover:bg-white dark:hover:text-slate-900 border-b border-slate-900 dark:border-slate-800 flex items-center gap-3 transition-colors"
+                className="px-3 py-2 text-sm font-medium rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center gap-2.5 transition-colors"
                 onClick={() => setDropdownOpen(false)}
               >
-                <UserIcon size={16} /> USER_DATA
+                <UserIcon size={16} /> My Profile
               </Link>
 
               <Link
                 to="/settings"
-                className="px-4 py-4 font-mono text-xs font-bold uppercase hover:bg-slate-900 hover:text-white dark:hover:bg-white dark:hover:text-slate-900 border-b border-slate-900 dark:border-slate-800 flex items-center gap-3 transition-colors"
+                className="px-3 py-2 text-sm font-medium rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center gap-2.5 transition-colors"
                 onClick={() => setDropdownOpen(false)}
               >
-                <Settings size={16} /> CONFIG
+                <Settings size={16} /> Settings
               </Link>
 
-              <button
-                type="button"
-                onClick={() => {
-                  setDropdownOpen(false);
-                  logout();
-                }}
-                className="w-full text-left px-4 py-4 font-mono text-xs font-bold uppercase text-red-500 hover:bg-red-500 hover:text-white flex items-center gap-3 transition-colors"
-              >
-                <LogOut size={16} /> TERMINATE_SESSION
-              </button>
+              <div className="border-t border-slate-100 dark:border-slate-800 mt-1 pt-1">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setDropdownOpen(false);
+                    void logout();
+                  }}
+                  className="w-full text-left px-3 py-2 text-sm font-medium rounded-lg text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 flex items-center gap-2.5 transition-colors"
+                >
+                  <LogOut size={16} /> Log Out
+                </button>
+              </div>
             </div>
           )}
         </div>

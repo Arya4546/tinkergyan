@@ -1,284 +1,255 @@
 import { useAuthStore } from '../stores/auth.store';
 import { useProjectStore } from '../stores/project.store';
 import {
-  TerminalSquare,
   Play,
   FolderCode,
-  Beaker,
-  Zap,
-  Activity,
-  Cpu,
   Plus,
   Trash2,
-  X,
+  Beaker,
+  TerminalSquare,
+  TrendingUp,
+  Zap,
+  Award,
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { Loader } from '../components/ui/Loader';
-import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 
-// ─── Sub-components ───────────────────────────────────────────────────────────
+function ProjectCard({
+  project,
+  onDelete,
+  index,
+}: {
+  project: ReturnType<typeof useProjectStore.getState>['projects'][number];
+  onDelete: (id: string) => void | Promise<void>;
+  index: number;
+}) {
+  const isBlock = project.type === 'BLOCK';
+  const pastelBgs = [
+    'bg-emerald-50 dark:bg-emerald-900/10 border-emerald-100 dark:border-emerald-900/30',
+    'bg-purple-50 dark:bg-purple-900/10 border-purple-100 dark:border-purple-900/30',
+    'bg-amber-50 dark:bg-amber-900/10 border-amber-100 dark:border-amber-900/30',
+    'bg-sky-50 dark:bg-sky-900/10 border-sky-100 dark:border-sky-900/30',
+  ];
+  const iconBgs = [
+    'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400',
+    'bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400',
+    'bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400',
+    'bg-sky-100 dark:bg-sky-900/30 text-sky-600 dark:text-sky-400',
+  ];
+  const bg = pastelBgs[index % pastelBgs.length];
+  const iconBg = iconBgs[index % iconBgs.length];
 
-function EmptyProjects() {
   return (
-    <div className="flex flex-col items-center justify-center py-16 text-center">
-      <div className="w-16 h-16 hw-border bg-slate-50 dark:bg-[#111111] flex items-center justify-center mb-4 opacity-40">
-        <FolderCode size={28} />
+    <div
+      className={`rounded-2xl border p-5 flex flex-col gap-4 hover:shadow-md transition-shadow ${bg}`}
+    >
+      <div className="flex items-start justify-between">
+        <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${iconBg}`}>
+          {isBlock ? <Beaker size={18} /> : <TerminalSquare size={18} />}
+        </div>
+        <button
+          onClick={(e) => {
+            e.preventDefault();
+            void onDelete(project.id);
+          }}
+          className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+          title="Delete project"
+        >
+          <Trash2 size={14} />
+        </button>
       </div>
-      <p className="font-mono text-xs uppercase tracking-widest text-slate-400 mb-6">
-        NO_LOCAL_DISKS_FOUND
-        <br />
-        <span className="text-[10px] opacity-60">Create your first project to get started</span>
-      </p>
+
+      <div className="flex-1">
+        <h3 className="font-semibold text-base text-slate-900 dark:text-white leading-tight mb-1 line-clamp-2">
+          {project.title}
+        </h3>
+        <p className="text-xs text-slate-500 dark:text-slate-400">
+          {project.boardTarget} &bull; {isBlock ? 'Block Logic' : 'C++ Code'} &bull; Updated{' '}
+          {new Date(project.updatedAt).toLocaleDateString()}
+        </p>
+      </div>
+
       <Link
-        to="/editor"
-        className="h-10 px-6 hw-key bg-yellow-400 text-slate-900 hover:bg-slate-900 hover:text-white dark:hover:bg-white dark:hover:text-slate-900 flex items-center gap-2 text-xs"
+        to={`/editor/${project.id}`}
+        className="inline-flex items-center gap-2 text-xs font-semibold text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white transition-colors"
       >
-        <Plus size={14} /> NEW_PROJECT
+        <Play size={12} className="fill-current" /> Open in Editor
       </Link>
     </div>
   );
 }
 
-function ProjectCard({
-  project,
-  onDelete,
-}: {
-  project: ReturnType<typeof useProjectStore.getState>['projects'][number];
-  onDelete: (id: string) => void;
-}) {
-  const isBlock = project.type === 'BLOCK';
-  const accentColor = isBlock ? 'pink' : 'blue';
-
-  return (
-    <div className="hw-border bg-slate-50 dark:bg-[#111111] p-4 flex flex-col group hover:bg-slate-900 dark:hover:bg-white hover:text-white dark:hover:text-slate-900 transition-colors">
-      <div className="flex justify-between items-start mb-6">
-        <div
-          className={`w-10 h-10 border-2 border-${accentColor}-400 bg-${accentColor}-500/10 flex items-center justify-center shrink-0`}
-        >
-          {isBlock ? (
-            <Beaker size={20} className={`text-${accentColor}-500`} />
-          ) : (
-            <TerminalSquare size={20} className={`text-${accentColor}-500`} />
-          )}
-        </div>
-        <div className="flex items-center gap-2">
-          <span className="font-mono text-[10px] text-slate-400 uppercase">
-            {isBlock ? 'BLOCK_MODE' : 'C_CPP_MODE'}
-          </span>
-          <button
-            onClick={(e) => {
-              e.preventDefault();
-              onDelete(project.id);
-            }}
-            className="opacity-0 group-hover:opacity-100 transition-opacity p-1 text-slate-400 hover:text-red-400"
-            title="Delete project"
-          >
-            <Trash2 size={12} />
-          </button>
-        </div>
-      </div>
-
-      <h3 className="font-bold text-base leading-tight uppercase truncate group-hover:text-white dark:group-hover:text-slate-900 mb-1">
-        {project.title}
-      </h3>
-      <p className="font-mono text-[10px] text-slate-400 group-hover:text-slate-300 dark:group-hover:text-slate-600 mb-4">
-        {project.boardTarget} · {new Date(project.updatedAt).toLocaleDateString()}
-      </p>
-
-      <div className="mt-auto pt-4 hw-border-t flex justify-end group-hover:border-slate-800 dark:group-hover:border-slate-200">
-        <Link
-          to={`/editor/${project.id}`}
-          className={`flex items-center gap-2 font-mono text-xs font-bold group-hover:text-${accentColor}-400 uppercase hover:underline`}
-        >
-          OPEN <Play size={12} className="fill-current" />
-        </Link>
-      </div>
-    </div>
-  );
-}
-
-// ─── Main component ───────────────────────────────────────────────────────────
-
 export default function Dashboard() {
   const user = useAuthStore((s) => s.user);
   const { projects, isLoading, error, fetchProjects, removeProject } = useProjectStore();
-  const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
-  const [showQuest, setShowQuest] = useState(true);
 
   useEffect(() => {
-    fetchProjects();
+    void fetchProjects();
   }, [fetchProjects]);
 
-  const handleDelete = async () => {
-    if (!deleteTarget) return;
-    await removeProject(deleteTarget);
-    setDeleteTarget(null);
-  };
-
-  const deleteProjectTitle = projects.find((p) => p.id === deleteTarget)?.title ?? '';
-
   return (
-    <div className="w-full h-full flex flex-col font-sans">
-      {/* Top Banner */}
-      <div className="w-full hw-border-b bg-white dark:bg-[#000000] p-6 lg:p-10 flex flex-col md:flex-row md:items-end justify-between shrink-0">
+    <div className="w-full h-full flex flex-col font-sans overflow-y-auto">
+      {/* Page Header */}
+      <div className="px-6 md:px-10 pt-8 pb-6 border-b border-slate-200 dark:border-slate-800 flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white dark:bg-[#111111] shrink-0">
         <div>
-          <div className="font-mono text-xs text-slate-500 mb-2 uppercase tracking-widest flex items-center gap-2">
-            <div className="w-2 h-2 bg-emerald-500 mr-1" />
-            User Identified
-          </div>
-          <h1 className="text-4xl md:text-5xl font-bold tracking-tighter uppercase leading-none text-slate-900 dark:text-white">
-            Welcome,
-            <br className="md:hidden" /> {user?.name?.split(' ')[0] || 'Maker'}
+          <h1 className="text-2xl font-bold text-slate-900 dark:text-white">
+            Welcome back, {user?.name?.split(' ')[0] || 'Maker'}
           </h1>
+          <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">
+            Here's what's happening with your workspace.
+          </p>
         </div>
-        <div className="mt-6 md:mt-0 flex gap-4">
-          <Link
-            to="/editor"
-            className="h-12 px-6 hw-key bg-yellow-400 text-slate-900 hover:bg-slate-900 hover:text-white dark:hover:bg-white dark:hover:text-slate-900 flex items-center gap-2"
-          >
-            <Zap size={16} /> NEW_PROJECT
-          </Link>
-          <Link
-            to="/courses"
-            className="h-12 px-6 hw-key bg-white dark:bg-[#000000] text-slate-900 dark:text-white hover:bg-slate-900 hover:text-white dark:hover:bg-white dark:hover:text-slate-900 hidden sm:flex items-center gap-2"
-          >
-            <TerminalSquare size={16} /> QUEST_LOG
-          </Link>
-        </div>
+        <Link
+          to="/editor"
+          className="inline-flex items-center gap-2 bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-semibold px-4 py-2.5 rounded-xl transition-colors shrink-0"
+        >
+          <Plus size={16} /> New Project
+        </Link>
       </div>
 
-      {/* Main Grid */}
-      <div className="flex-1 flex flex-col lg:flex-row overflow-hidden">
-        {/* Left: Stats + Projects */}
-        <div className="flex-1 hw-border-r flex flex-col overflow-y-auto">
-          {/* Stats LED Strip */}
-          <div className="grid grid-cols-3 hw-border-b bg-slate-50 dark:bg-[#0a0a0a] shrink-0">
-            <div className="hw-border-r p-6 flex flex-col justify-center relative overflow-hidden group">
-              <div className="absolute right-0 bottom-0 opacity-5 group-hover:opacity-10 transition-opacity">
-                <Activity size={100} />
+      <div className="flex-1 flex flex-col lg:flex-row min-h-0">
+        {/* Main: Projects */}
+        <div className="flex-1 px-6 md:px-10 py-8 overflow-y-auto border-r border-slate-200 dark:border-slate-800">
+          {/* Stats Row */}
+          <div className="grid grid-cols-3 gap-4 mb-8">
+            <div className="bg-white dark:bg-[#1A1D24] border border-slate-200 dark:border-slate-800 rounded-2xl p-4">
+              <div className="w-8 h-8 bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 rounded-lg flex items-center justify-center mb-3">
+                <FolderCode size={16} />
               </div>
-              <span className="font-mono text-[10px] text-slate-500 tracking-widest uppercase mb-1">
-                XP_LEVEL
-              </span>
-              <span className="font-mono text-4xl font-bold text-slate-900 dark:text-white tracking-tighter">
-                {user?.xp ?? '0000'}
-              </span>
+              <p className="text-2xl font-bold text-slate-900 dark:text-white">{projects.length}</p>
+              <p className="text-xs text-slate-500 mt-0.5">Projects</p>
             </div>
-            <div className="hw-border-r p-6 flex flex-col justify-center relative overflow-hidden group">
-              <div className="absolute right-0 bottom-0 opacity-5 group-hover:opacity-10 transition-opacity">
-                <Zap size={100} />
+            <div className="bg-white dark:bg-[#1A1D24] border border-slate-200 dark:border-slate-800 rounded-2xl p-4">
+              <div className="w-8 h-8 bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400 rounded-lg flex items-center justify-center mb-3">
+                <TrendingUp size={16} />
               </div>
-              <span className="font-mono text-[10px] text-slate-500 tracking-widest uppercase mb-1">
-                STREAK
-              </span>
-              <span className="font-mono text-4xl font-bold text-slate-900 dark:text-white tracking-tighter">
-                {user?.streak ?? '00'}
-              </span>
+              <p className="text-2xl font-bold text-slate-900 dark:text-white">{user?.xp ?? 0}</p>
+              <p className="text-xs text-slate-500 mt-0.5">XP Earned</p>
             </div>
-            <div className="p-6 flex flex-col justify-center relative overflow-hidden group">
-              <div className="absolute right-0 bottom-0 opacity-5 group-hover:opacity-10 transition-opacity">
-                <Cpu size={100} />
+            <div className="bg-white dark:bg-[#1A1D24] border border-slate-200 dark:border-slate-800 rounded-2xl p-4">
+              <div className="w-8 h-8 bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 rounded-lg flex items-center justify-center mb-3">
+                <Zap size={16} />
               </div>
-              <span className="font-mono text-[10px] text-slate-500 tracking-widest uppercase mb-1">
-                RANK
-              </span>
-              <span className="font-mono text-4xl font-bold text-emerald-500 tracking-tighter">
-                {user?.level ?? '01'}
-              </span>
+              <p className="text-2xl font-bold text-slate-900 dark:text-white">
+                {user?.streak ?? 0}
+              </p>
+              <p className="text-xs text-slate-500 mt-0.5">Day Streak</p>
             </div>
           </div>
 
-          {/* Projects */}
-          <div className="flex-1 p-6 lg:p-10 bg-white dark:bg-[#0A0A0A]">
-            <div className="flex justify-between items-center mb-8">
-              <h2 className="font-bold text-xl uppercase tracking-tight flex items-center gap-3">
-                <div className="w-6 h-6 bg-slate-900 dark:bg-white text-white dark:text-slate-900 flex items-center justify-center">
-                  <FolderCode size={12} />
-                </div>
-                Local Disks
-              </h2>
-              <button
-                onClick={() => fetchProjects()}
-                className="font-mono text-xs font-bold hover:underline underline-offset-4 uppercase tracking-widest text-slate-500"
+          {/* Projects Section */}
+          <div className="flex items-center justify-between mb-5">
+            <h2 className="text-base font-bold text-slate-900 dark:text-white">My Projects</h2>
+            <span className="text-xs text-slate-400">{projects.length} total</span>
+          </div>
+
+          {isLoading && (
+            <div className="flex justify-center py-16">
+              <Loader message="Loading projects..." />
+            </div>
+          )}
+
+          {!isLoading && error && (
+            <div className="bg-red-50 dark:bg-red-900/10 border border-red-100 dark:border-red-900/30 rounded-2xl p-5 text-sm font-medium text-red-600 dark:text-red-400">
+              {error}
+            </div>
+          )}
+
+          {!isLoading && !error && projects.length === 0 && (
+            <div className="flex flex-col items-center justify-center py-20 text-center">
+              <div className="w-14 h-14 bg-slate-100 dark:bg-slate-800 rounded-2xl flex items-center justify-center mb-4">
+                <FolderCode size={24} className="text-slate-400" />
+              </div>
+              <p className="font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                No projects yet
+              </p>
+              <p className="text-sm text-slate-400 mb-6">
+                Create your first project to get started.
+              </p>
+              <Link
+                to="/editor"
+                className="inline-flex items-center gap-2 bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-semibold px-5 py-2.5 rounded-xl transition-colors"
               >
-                REFRESH()
-              </button>
+                <Plus size={16} /> Create Project
+              </Link>
             </div>
+          )}
 
-            {isLoading && (
-              <div className="flex justify-center py-12">
-                <Loader message="LOADING_PROJECTS..." />
-              </div>
-            )}
-
-            {!isLoading && error && (
-              <p className="font-mono text-xs text-red-400 uppercase tracking-widest">{error}</p>
-            )}
-
-            {!isLoading && !error && projects.length === 0 && <EmptyProjects />}
-
-            {!isLoading && !error && projects.length > 0 && (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {projects.map((p) => (
-                  <ProjectCard key={p.id} project={p} onDelete={setDeleteTarget} />
-                ))}
-              </div>
-            )}
-          </div>
+          {!isLoading && !error && projects.length > 0 && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
+              {projects.map((p, i) => (
+                <ProjectCard key={p.id} project={p} onDelete={removeProject} index={i} />
+              ))}
+            </div>
+          )}
         </div>
 
-        {/* Right: Active Quest Console (static for now, Phase 3 will pull real data) */}
-        {showQuest && (
-          <div className="w-full lg:w-[400px] xl:w-[500px] bg-slate-900 dark:bg-[#000000] text-slate-100 flex flex-col shrink-0">
-            <div className="p-4 border-b border-slate-800 flex items-center justify-between shrink-0">
-              <span className="font-sans text-xs font-bold text-slate-400 uppercase tracking-widest">
-                Active Quest
-              </span>
-              <button
-                onClick={() => setShowQuest(false)}
-                className="text-slate-400 hover:text-white transition-colors"
-                title="Close Quest"
+        {/* Right: Quick Actions / Info Panel */}
+        <div className="w-full lg:w-72 xl:w-80 px-6 py-8 bg-slate-50 dark:bg-[#0A0A0A] shrink-0 flex flex-col gap-6">
+          <div>
+            <h2 className="text-sm font-bold text-slate-900 dark:text-white mb-4 uppercase tracking-wider">
+              Quick Actions
+            </h2>
+            <div className="flex flex-col gap-2">
+              <Link
+                to="/editor"
+                className="flex items-center gap-3 px-4 py-3 bg-white dark:bg-[#111111] border border-slate-200 dark:border-slate-800 rounded-xl text-sm font-medium text-slate-700 dark:text-slate-300 hover:border-emerald-300 dark:hover:border-emerald-800 hover:text-slate-900 dark:hover:text-white transition-all"
               >
-                <X size={16} />
-              </button>
-            </div>
-
-            <div className="flex-1 p-6 md:p-10 flex flex-col justify-center">
-              <div className="inline-block px-3 py-1 bg-emerald-500/10 text-emerald-400 border border-emerald-500/50 font-sans rounded-full text-[10px] font-bold uppercase tracking-widest mb-6 self-start">
-                In Progress
-              </div>
-              <h3 className="text-3xl font-bold tracking-tight uppercase leading-tight mb-4 text-white">
-                Arduino Basics <br />& Memory Loops
-              </h3>
-              <p className="text-sm font-sans text-slate-400 leading-relaxed mb-10 border-l-2 border-emerald-500 pl-4">
-                Objective: Initialize LED matrix array and author your first C++ control structure.
-              </p>
-              <div className="w-full bg-slate-800 h-2 mb-2 relative overflow-hidden rounded-full">
-                <div className="absolute top-0 left-0 h-full bg-emerald-500 w-[25%]" />
-              </div>
-              <div className="flex justify-between font-sans text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-10">
-                <span>Progress</span>
-                <span className="text-emerald-500">25%</span>
-              </div>
-              <Link to="/editor" className="app-btn-primary h-14">
-                Continue Quest
+                <div className="w-7 h-7 bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 rounded-lg flex items-center justify-center shrink-0">
+                  <Plus size={14} />
+                </div>
+                New Project
+              </Link>
+              <Link
+                to="/courses"
+                className="flex items-center gap-3 px-4 py-3 bg-white dark:bg-[#111111] border border-slate-200 dark:border-slate-800 rounded-xl text-sm font-medium text-slate-700 dark:text-slate-300 hover:border-purple-300 dark:hover:border-purple-800 hover:text-slate-900 dark:hover:text-white transition-all"
+              >
+                <div className="w-7 h-7 bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400 rounded-lg flex items-center justify-center shrink-0">
+                  <Award size={14} />
+                </div>
+                Browse Courses
+              </Link>
+              <Link
+                to="/leaderboard"
+                className="flex items-center gap-3 px-4 py-3 bg-white dark:bg-[#111111] border border-slate-200 dark:border-slate-800 rounded-xl text-sm font-medium text-slate-700 dark:text-slate-300 hover:border-amber-300 dark:hover:border-amber-800 hover:text-slate-900 dark:hover:text-white transition-all"
+              >
+                <div className="w-7 h-7 bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 rounded-lg flex items-center justify-center shrink-0">
+                  <TrendingUp size={14} />
+                </div>
+                Leaderboard
               </Link>
             </div>
           </div>
-        )}
-      </div>
 
-      {/* Delete Confirmation */}
-      <ConfirmDialog
-        open={!!deleteTarget}
-        title="DELETE_PROJECT"
-        message={`Permanently delete "${deleteProjectTitle}"? This cannot be undone.`}
-        confirmLabel="DELETE"
-        variant="danger"
-        onConfirm={handleDelete}
-        onCancel={() => setDeleteTarget(null)}
-      />
+          {user?.level !== undefined && (
+            <div>
+              <h2 className="text-sm font-bold text-slate-900 dark:text-white mb-4 uppercase tracking-wider">
+                Your Progress
+              </h2>
+              <div className="bg-white dark:bg-[#111111] border border-slate-200 dark:border-slate-800 rounded-xl p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <span className="text-xs font-semibold text-slate-600 dark:text-slate-400">
+                    Level {user.level}
+                  </span>
+                  <span className="text-xs font-semibold text-emerald-600 dark:text-emerald-400">
+                    {user.xp ?? 0} XP
+                  </span>
+                </div>
+                <div className="w-full h-2 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-emerald-500 rounded-full transition-all duration-500"
+                    style={{ width: `${Math.min((user.xp ?? 0) % 100, 100)}%` }}
+                  />
+                </div>
+                <p className="text-xs text-slate-400 mt-2">
+                  {100 - ((user.xp ?? 0) % 100)} XP to next level
+                </p>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   );
 }

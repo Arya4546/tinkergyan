@@ -1,59 +1,55 @@
 import { Link, useRouteError, isRouteErrorResponse } from 'react-router-dom';
-import { AlertTriangle, RotateCcw, Home } from 'lucide-react';
+import { RotateCcw, Home, AlertCircle } from 'lucide-react';
 
 export default function ErrorPage() {
   const error = useRouteError();
   console.error(error);
 
-  let errorMessage = "SYS_PANIC";
+  let errorMessage = 'An unexpected error occurred.';
   if (isRouteErrorResponse(error)) {
-    errorMessage = error.statusText || error.data;
+    errorMessage = error.statusText || String(error.data);
   } else if (error instanceof Error) {
     errorMessage = error.message;
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-[#0A0A0A] p-6 text-center font-sans">
-      
-      <div className="max-w-xl w-full bg-white dark:bg-[#111111] hw-border p-0 flex flex-col relative">
-        <div className="h-2 w-full bg-red-500 block absolute top-0 left-0"></div>
-        
-        <div className="p-8 pb-0 flex flex-col items-center">
-            <div className="w-16 h-16 bg-red-50 dark:bg-red-900/10 border border-red-200 dark:border-red-900/30 flex items-center justify-center mb-6">
-            <AlertTriangle size={32} className="text-red-500" strokeWidth={2} />
-            </div>
-            
-            <h1 className="text-3xl font-bold text-slate-900 dark:text-white mb-2 uppercase tracking-tighter">
-            CRITICAL_FAILURE
-            </h1>
-            <p className="font-mono text-[10px] text-slate-500 tracking-widest uppercase mb-8">
-            RUNTIME_ERR: PROCESS_HALTED
-            </p>
-        </div>
-        
-        <div className="mx-8 mb-8 bg-red-50 dark:bg-[#1a0505] border border-red-200 dark:border-red-900 p-4">
-           <p className="font-mono text-xs font-bold text-red-600 dark:text-red-400 break-words uppercase">
-             {errorMessage}
-           </p>
-        </div>
+    <div className="min-h-screen bg-slate-50 dark:bg-[#0A0A0A] font-sans flex items-center justify-center p-6 transition-colors duration-300">
+      <div className="w-full max-w-md">
+        <div className="bg-white dark:bg-[#111111] border border-slate-200 dark:border-slate-800 rounded-2xl p-8 shadow-sm flex flex-col items-center text-center">
+          <div className="w-14 h-14 bg-red-50 dark:bg-red-900/20 rounded-2xl flex items-center justify-center mb-6">
+            <AlertCircle size={28} className="text-red-500" />
+          </div>
 
-        <div className="flex border-t border-slate-900 dark:border-slate-800 mt-auto">
-          <button 
-            type="button"
-            onClick={() => window.location.reload()}
-            className="flex-1 h-14 font-mono font-bold text-xs uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-slate-900 hover:text-white border-r border-slate-900 dark:border-slate-800 transition-colors"
-          >
-            <RotateCcw size={16} /> REBOOT_SYS
-          </button>
-          <Link 
-            to="/" 
-            className="flex-1 h-14 font-mono font-bold text-xs uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-slate-900 hover:text-white transition-colors"
-          >
-            <Home size={16} /> RTN_TO_BASE
-          </Link>
+          <h1 className="text-xl font-bold text-slate-900 dark:text-white mb-2">
+            Something went wrong
+          </h1>
+          <p className="text-sm text-slate-500 dark:text-slate-400 mb-6">
+            An error occurred while loading this page.
+          </p>
+
+          <div className="w-full bg-slate-50 dark:bg-[#0A0A0A] border border-slate-200 dark:border-slate-700 rounded-xl p-4 mb-8">
+            <p className="text-xs font-mono text-slate-600 dark:text-slate-400 text-left break-all">
+              {errorMessage}
+            </p>
+          </div>
+
+          <div className="flex gap-3 w-full">
+            <button
+              type="button"
+              onClick={() => window.location.reload()}
+              className="flex-1 h-10 inline-flex items-center justify-center gap-2 bg-slate-900 dark:bg-white text-white dark:text-slate-900 text-sm font-semibold rounded-xl hover:bg-slate-700 dark:hover:bg-slate-100 transition-colors"
+            >
+              <RotateCcw size={15} /> Try Again
+            </button>
+            <Link
+              to="/"
+              className="flex-1 h-10 inline-flex items-center justify-center gap-2 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 text-sm font-semibold rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
+            >
+              <Home size={15} /> Go Home
+            </Link>
+          </div>
         </div>
       </div>
-
     </div>
   );
 }

@@ -2,10 +2,8 @@ import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../stores/auth.store';
 import { useUIStore } from '../stores/ui.store';
-import { Button } from '../components/ui/Button';
-import { Input } from '../components/ui/Input';
+import { Eye, EyeOff, Rocket } from 'lucide-react';
 import { z } from 'zod';
-import { Terminal } from 'lucide-react';
 
 const loginSchema = z.object({
   email: z.string().email('Please enter a valid email'),
@@ -19,165 +17,164 @@ export default function Login() {
 
   const [formData, setFormData] = useState({ email: '', password: '' });
   const [errors, setErrors] = useState<Record<string, string>>({});
-  const [validFields, setValidFields] = useState<Record<string, boolean>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [shake, setShake] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
-  const validateField = (name: string, value: string) => {
+  const validateField = (name: 'email' | 'password', value: string) => {
     try {
-      const field = (loginSchema.shape as any)[name];
-      if (field) field.parse(value);
-
+      loginSchema.shape[name]?.parse(value);
       setErrors((prev) => ({ ...prev, [name]: '' }));
-      setValidFields((prev) => ({ ...prev, [name]: true }));
     } catch (err) {
       if (err instanceof z.ZodError) {
-        setErrors((prev) => ({ ...prev, [name]: err.errors?.[0]?.message || 'Invalid' }));
-        setValidFields((prev) => ({ ...prev, [name]: false }));
+        setErrors((prev) => ({ ...prev, [name]: err.errors[0]?.message || 'Invalid' }));
       }
     }
   };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
-    if (errors[e.target.name]) {
-      setErrors({ ...errors, [e.target.name]: '' });
-    }
+    if (errors[e.target.name]) setErrors({ ...errors, [e.target.name]: '' });
   };
 
   const handleBlur = (e: React.FocusEvent<HTMLInputElement>) => {
-    validateField(e.target.name, e.target.value);
+    validateField(e.target.name as 'email' | 'password', e.target.value);
   };
 
   const isFormValid = formData.email && formData.password && !errors.email && !errors.password;
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!isFormValid) return;
-
-    try {
-      setIsSubmitting(true);
-      await login(formData);
-      addToast({ type: 'success', title: 'Welcome back!', message: 'Connection established.' });
-      navigate('/dashboard');
-    } catch (err) {
-      const error = err as any;
-      const message =
-        error.response?.data?.error?.message || 'Login failed. Check your credentials.';
-      setShake(true);
-      setTimeout(() => setShake(false), 500);
-      setErrors({ email: message, password: message });
-      setValidFields({ email: false, password: false });
-    } finally {
-      setIsSubmitting(false);
-    }
+    setIsSubmitting(true);
+    void (async () => {
+      try {
+        await login({ email: formData.email, password: formData.password });
+        addToast({ type: 'success', title: 'Welcome back!', message: 'Logged in successfully.' });
+        navigate('/dashboard');
+      } catch (err: unknown) {
+        const error = err as { response?: { data?: { error?: { message?: string } } } };
+        const message = error.response?.data?.error?.message || 'Invalid email or password.';
+        addToast({ type: 'error', title: 'Login failed', message });
+      } finally {
+        setIsSubmitting(false);
+      }
+    })();
   };
 
   return (
-    <div className="flex min-h-screen bg-slate-50 dark:bg-[#0A0A0A] font-sans overflow-hidden">
-      <div className="flex w-full max-w-[1400px] mx-auto hw-border-x hw-panel border-t-0 border-b-0 min-h-screen">
-        {/* Left Auth Module */}
-        <div className="flex w-full flex-col justify-center px-6 lg:w-[600px] border-r border-slate-900 dark:border-slate-800 shrink-0 bg-white dark:bg-[#111111]">
-          <div className="w-full max-w-sm mx-auto">
-            <div className="flex items-center gap-3 mb-12">
-              <div className="w-12 h-12 bg-slate-900 dark:bg-white text-white dark:text-slate-900 flex items-center justify-center">
-                <Terminal size={24} strokeWidth={2} />
-              </div>
-              <h1 className="font-sans text-xl font-bold tracking-tight text-slate-900 dark:text-white">
-                Tinkergyan
-              </h1>
+    <div className="min-h-screen bg-slate-50 dark:bg-[#0A0A0A] font-sans flex">
+      {/* Left: Form Panel */}
+      <div className="flex-1 flex flex-col justify-center px-6 sm:px-12 lg:px-20 py-12">
+        <div className="w-full max-w-sm mx-auto">
+          {/* Logo */}
+          <Link to="/" className="flex items-center gap-2.5 mb-10">
+            <div className="w-8 h-8 bg-emerald-500 rounded-lg flex items-center justify-center">
+              <Rocket size={16} className="text-white" />
+            </div>
+            <span className="font-bold text-lg tracking-tight text-slate-900 dark:text-white">
+              Tinkergyan
+            </span>
+          </Link>
+
+          <h1 className="text-2xl font-bold text-slate-900 dark:text-white mb-1">Welcome back</h1>
+          <p className="text-sm text-slate-500 dark:text-slate-400 mb-8">
+            Don't have an account?{' '}
+            <Link
+              to="/register"
+              className="font-semibold text-emerald-600 hover:text-emerald-700 transition-colors"
+            >
+              Sign up
+            </Link>
+          </p>
+
+          <form onSubmit={handleSubmit} className="space-y-5">
+            {/* Email */}
+            <div>
+              <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
+                Email address
+              </label>
+              <input
+                name="email"
+                type="email"
+                required
+                value={formData.email}
+                onChange={handleChange}
+                onBlur={handleBlur}
+                placeholder="you@example.com"
+                className={`w-full h-11 px-4 rounded-xl border text-sm font-medium bg-white dark:bg-[#111111] text-slate-900 dark:text-white placeholder:text-slate-400 outline-none transition-all focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 ${
+                  errors.email
+                    ? 'border-red-400 focus:border-red-400 focus:ring-red-400/20'
+                    : 'border-slate-200 dark:border-slate-700'
+                }`}
+              />
+              {errors.email && (
+                <p className="mt-1.5 text-xs text-red-500 font-medium">{errors.email}</p>
+              )}
             </div>
 
-            <div className="mb-10">
-              <span className="inline-block px-2 py-1 bg-blue-500/10 text-blue-500 border border-blue-500/30 font-sans text-[10px] font-bold uppercase tracking-widest mb-4">
-                Login
-              </span>
-              <h2 className="text-4xl font-bold uppercase tracking-tighter text-slate-900 dark:text-white mb-2">
-                Welcome back
-              </h2>
-              <p className="font-sans text-xs text-slate-500 tracking-wide">
-                No account yet?{' '}
-                <Link
-                  to="/register"
-                  className="text-primary-500 hover:text-primary-600 underline underline-offset-4 font-bold"
-                >
-                  Create one
-                </Link>
-              </p>
-            </div>
-
-            <form onSubmit={handleSubmit} className={`space-y-6 ${shake ? 'animate-shake' : ''}`}>
-              <div className="space-y-4">
-                <Input
-                  label="Email"
-                  name="email"
-                  type="email"
-                  required
-                  value={formData.email}
-                  onChange={handleChange}
-                  onBlur={handleBlur}
-                  error={errors.email}
-                  isValid={validFields.email}
-                  placeholder="you@example.com"
-                />
-                <Input
-                  label="Password"
+            {/* Password */}
+            <div>
+              <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
+                Password
+              </label>
+              <div className="relative">
+                <input
                   name="password"
-                  type="password"
+                  type={showPassword ? 'text' : 'password'}
                   required
                   value={formData.password}
                   onChange={handleChange}
                   onBlur={handleBlur}
-                  error={errors.password}
-                  isValid={validFields.password}
-                  placeholder="••••••••"
+                  placeholder="Enter your password"
+                  className={`w-full h-11 px-4 pr-11 rounded-xl border text-sm font-medium bg-white dark:bg-[#111111] text-slate-900 dark:text-white placeholder:text-slate-400 outline-none transition-all focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 ${
+                    errors.password
+                      ? 'border-red-400 focus:border-red-400 focus:ring-red-400/20'
+                      : 'border-slate-200 dark:border-slate-700'
+                  }`}
                 />
-              </div>
-
-              <div className="flex justify-end pt-2">
-                <a
-                  href="#"
-                  className="font-sans text-[11px] text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors"
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute inset-y-0 right-0 w-11 flex items-center justify-center text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors"
+                  tabIndex={-1}
                 >
-                  Forgot password?
-                </a>
+                  {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                </button>
               </div>
+              {errors.password && (
+                <p className="mt-1.5 text-xs text-red-500 font-medium">{errors.password}</p>
+              )}
+            </div>
 
-              <Button
-                type="submit"
-                variant="primary"
-                className="w-full mt-4"
-                isLoading={isSubmitting}
-                disabled={isSubmitting || !isFormValid}
-              >
-                Log In
-              </Button>
-            </form>
-          </div>
+            <button
+              type="submit"
+              disabled={isSubmitting || !isFormValid}
+              className="w-full h-11 bg-slate-900 dark:bg-white text-white dark:text-slate-900 font-semibold text-sm rounded-xl hover:bg-slate-700 dark:hover:bg-slate-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed mt-2"
+            >
+              {isSubmitting ? 'Signing in...' : 'Sign in'}
+            </button>
+          </form>
         </div>
+      </div>
 
-        {/* Right Schematic Visual */}
-        <div className="hidden lg:flex flex-1 flex-col bg-dot-matrix p-10 justify-between items-end relative overflow-hidden">
-          <div className="font-sans text-[10px] text-slate-400 uppercase tracking-widest text-right">
-            Tinkergyan v2.1
-            <br />
-            Secure Connection
-          </div>
+      {/* Right: Visual Panel (hidden on mobile) */}
+      <div className="hidden lg:flex flex-1 bg-slate-900 dark:bg-[#111111] items-center justify-center p-16 relative overflow-hidden">
+        {/* Background decoration */}
+        <div className="absolute inset-0 bg-[linear-gradient(to_bottom_right,#059669,#0f172a)] opacity-80"></div>
+        <div className="absolute top-0 right-0 w-64 h-64 bg-emerald-400/10 rounded-full blur-3xl"></div>
+        <div className="absolute bottom-0 left-0 w-64 h-64 bg-purple-400/10 rounded-full blur-3xl"></div>
 
-          <div className="max-w-md bg-white dark:bg-[#111111] hw-border p-8 relative">
-            <div className="absolute top-0 left-0 w-full h-1 bg-yellow-400"></div>
-            <div className="font-sans text-xs text-slate-500 uppercase tracking-widest mb-6">
-              Welcome
-            </div>
-            <h2 className="text-3xl font-bold uppercase tracking-tight text-slate-900 dark:text-white leading-tight mb-4">
-              Connection
-              <br />
-              Established.
-            </h2>
-            <div className="w-16 h-16 bg-slate-100 dark:bg-[#000000] border border-slate-300 dark:border-slate-800 flex flex-col justify-end p-2">
-              <div className="w-full h-1/2 bg-yellow-400"></div>
-            </div>
+        <div className="relative z-10 max-w-sm text-center">
+          <div className="w-16 h-16 bg-white/10 backdrop-blur-sm rounded-2xl flex items-center justify-center mx-auto mb-8">
+            <Rocket size={32} className="text-white" />
           </div>
+          <h2 className="text-3xl font-bold text-white mb-4 leading-tight">
+            Build the future with code
+          </h2>
+          <p className="text-emerald-200/80 text-base leading-relaxed">
+            From beginner to maker. Learn hardware programming through hands-on projects and guided
+            lessons.
+          </p>
         </div>
       </div>
     </div>

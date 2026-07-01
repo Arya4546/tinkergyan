@@ -1,246 +1,224 @@
-/**
- * Settings.tsx
- *
- * User preferences page: theme, editor defaults, auto-save, notifications.
- * Syncs with backend UserPreferences table.
- */
 import { useEffect, useState } from 'react';
 import { Settings2, Sun, Moon, Monitor, Save, Loader2, RotateCcw, Lock } from 'lucide-react';
-
 import { api } from '../services/api';
 import { useUIStore } from '../stores/ui.store';
 import { PageHeader } from '../components/ui/PageHeader';
-import { Button } from '../components/ui/Button';
 import { Loader } from '../components/ui/Loader';
 
 const BOARDS = [
-  { value: 'arduino:avr:uno',           label: 'Arduino Uno' },
-  { value: 'arduino:avr:mega',          label: 'Arduino Mega' },
+  { value: 'arduino:avr:uno', label: 'Arduino Uno' },
+  { value: 'arduino:avr:mega', label: 'Arduino Mega' },
   { value: 'esp8266:esp8266:nodemcuv2', label: 'NodeMCU (ESP8266)' },
 ];
-
 const FONT_SIZES = [10, 12, 14, 16, 18, 20, 22, 24];
 
 interface Preferences {
-  theme:              'LIGHT' | 'DARK' | 'SYSTEM';
-  editorFontSize:     number;
-  defaultBoard:       string;
-  autoSave:           boolean;
-  codeCompletion:     boolean;
+  theme: 'LIGHT' | 'DARK' | 'SYSTEM';
+  editorFontSize: number;
+  defaultBoard: string;
+  autoSave: boolean;
+  codeCompletion: boolean;
   emailNotifications: boolean;
 }
 
 const DEFAULTS: Preferences = {
-  theme:              'SYSTEM',
-  editorFontSize:     14,
-  defaultBoard:       'arduino:avr:uno',
-  autoSave:           true,
-  codeCompletion:     true,
+  theme: 'SYSTEM',
+  editorFontSize: 14,
+  defaultBoard: 'arduino:avr:uno',
+  autoSave: true,
+  codeCompletion: true,
   emailNotifications: true,
 };
 
-function ToggleSwitch({ checked, onChange, label }: {
+function ToggleSwitch({
+  checked,
+  onChange,
+  label,
+  description,
+}: {
   checked: boolean;
   onChange: (v: boolean) => void;
   label: string;
+  description?: string;
 }) {
   return (
     <button
       onClick={() => onChange(!checked)}
-      className="flex items-center justify-between w-full py-3 group"
+      className="flex items-center justify-between w-full py-4 text-left"
     >
-      <span className="font-mono text-xs font-bold uppercase tracking-widest text-slate-900 dark:text-white">
-        {label}
-      </span>
-      <div className={`w-11 h-6 rounded-sm border-2 transition-colors relative ${
-        checked
-          ? 'bg-emerald-500 border-emerald-600'
-          : 'bg-slate-200 dark:bg-slate-800 border-slate-300 dark:border-slate-700'
-      }`}>
-        <div className={`w-4 h-4 bg-white absolute top-0.5 transition-transform ${
-          checked ? 'translate-x-5' : 'translate-x-0.5'
-        }`} />
+      <div>
+        <p className="text-sm font-semibold text-slate-900 dark:text-white">{label}</p>
+        {description && <p className="text-xs text-slate-500 mt-0.5">{description}</p>}
+      </div>
+      <div
+        className={`w-10 h-6 rounded-full transition-colors shrink-0 ml-4 relative ${checked ? 'bg-emerald-500' : 'bg-slate-200 dark:bg-slate-700'}`}
+      >
+        <div
+          className={`w-4 h-4 bg-white rounded-full absolute top-1 transition-transform shadow-sm ${checked ? 'translate-x-5' : 'translate-x-1'}`}
+        />
       </div>
     </button>
   );
 }
 
 export default function Settings() {
-  const addToast = useUIStore((s: any) => s.addToast);
+  const addToast = useUIStore((s) => s.addToast);
   const setGlobalTheme = useUIStore((s) => s.setTheme);
-
-  const [prefs, setPrefs]       = useState<Preferences>(DEFAULTS);
+  const [prefs, setPrefs] = useState<Preferences>(DEFAULTS);
   const [isLoading, setLoading] = useState(true);
-  const [isSaving, setSaving]   = useState(false);
+  const [isSaving, setSaving] = useState(false);
   const [oldPassword, setOldPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [isChangingPwd, setChangingPwd] = useState(false);
 
-  // Load preferences
   useEffect(() => {
-    (async () => {
+    void (async () => {
       try {
-        const { data } = await api.get('/user/preferences');
-        const p = data.data.preferences;
+        const response = await api.get<{ data: { preferences: Preferences } }>('/user/preferences');
+        const p = response.data.data.preferences;
         setPrefs({
-          theme:              p.theme ?? 'SYSTEM',
-          editorFontSize:     p.editorFontSize ?? 14,
-          defaultBoard:       p.defaultBoard ?? 'arduino:avr:uno',
-          autoSave:           p.autoSave ?? true,
-          codeCompletion:     p.codeCompletion ?? true,
+          theme: p.theme ?? 'SYSTEM',
+          editorFontSize: p.editorFontSize ?? 14,
+          defaultBoard: p.defaultBoard ?? 'arduino:avr:uno',
+          autoSave: p.autoSave ?? true,
+          codeCompletion: p.codeCompletion ?? true,
           emailNotifications: p.emailNotifications ?? true,
         });
       } catch {
-        // Use defaults silently
+        /* use defaults */
       } finally {
         setLoading(false);
       }
     })();
   }, []);
 
-  const handleSave = async () => {
+  const handleSave = () => {
     setSaving(true);
-    try {
-      await api.put('/user/preferences', prefs);
-      // Sync theme globally
-      setGlobalTheme(prefs.theme.toLowerCase() as 'light' | 'dark' | 'system');
-      addToast({ type: 'success', title: 'SETTINGS_SAVED', message: 'Preferences updated.' });
-    } catch {
-      addToast({ type: 'error', title: 'SAVE_FAILED', message: 'Could not save settings.' });
-    } finally {
-      setSaving(false);
-    }
+    void (async () => {
+      try {
+        await api.put('/user/preferences', prefs);
+        setGlobalTheme(prefs.theme.toLowerCase() as 'light' | 'dark' | 'system');
+        addToast({
+          type: 'success',
+          title: 'Settings saved',
+          message: 'Your preferences have been updated.',
+        });
+      } catch {
+        addToast({ type: 'error', title: 'Error', message: 'Could not save settings.' });
+      } finally {
+        setSaving(false);
+      }
+    })();
   };
 
-  const handleReset = () => {
-    setPrefs(DEFAULTS);
-  };
-
-  const updatePref = <K extends keyof Preferences>(key: K, value: Preferences[K]) => {
+  const updatePref = <K extends keyof Preferences>(key: K, value: Preferences[K]) =>
     setPrefs((prev) => ({ ...prev, [key]: value }));
-  };
 
-  const handleChangePassword = async (e: React.FormEvent) => {
+  const handleChangePassword = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!oldPassword || !newPassword) return;
     setChangingPwd(true);
-    try {
-      await api.patch('/auth/password', { oldPassword, newPassword });
-      addToast({ type: 'success', title: 'PASSWORD_UPDATED', message: 'Please log in again.' });
-      setTimeout(() => window.location.href = '/login', 1500);
-    } catch {
-      addToast({ type: 'error', title: 'UPDATE_FAILED', message: 'Check your old password.' });
-    } finally {
-      setChangingPwd(false);
-    }
+    void (async () => {
+      try {
+        await api.patch('/auth/password', { oldPassword, newPassword });
+        addToast({ type: 'success', title: 'Password updated', message: 'Please log in again.' });
+        setTimeout(() => (window.location.href = '/login'), 1500);
+      } catch {
+        addToast({ type: 'error', title: 'Error', message: 'Check your current password.' });
+      } finally {
+        setChangingPwd(false);
+      }
+    })();
   };
 
-  if (isLoading) {
+  if (isLoading)
     return (
       <div className="flex items-center justify-center h-full">
-        <Loader message="LOADING_SETTINGS..." />
+        <Loader message="Loading settings..." />
       </div>
     );
-  }
+
+  const iClass =
+    'w-full h-10 px-3.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-[#111111] text-sm font-medium text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500';
+  const btnClass = (active: boolean) =>
+    `h-10 px-3 rounded-lg text-sm font-semibold transition-colors border ${active ? 'bg-slate-900 dark:bg-white text-white dark:text-slate-900 border-transparent' : 'bg-white dark:bg-[#111111] text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800'}`;
 
   return (
     <div className="w-full h-full flex flex-col overflow-y-auto">
-      <PageHeader icon={Settings2} title="Settings" subtitle="SYS_CONFIG">
-        <Button
-          variant="ghost"
-          size="sm"
-          className="h-12 px-4 rounded-none"
-          onClick={handleReset}
+      <PageHeader icon={Settings2} title="Settings" subtitle="Manage your preferences">
+        <button
+          onClick={() => setPrefs(DEFAULTS)}
+          className="h-9 px-4 text-sm font-semibold text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors flex items-center gap-2"
         >
-          <RotateCcw size={14} className="mr-2" />
-          <span className="font-mono text-[10px] font-bold uppercase">Reset</span>
-        </Button>
-        <Button
-          variant="primary"
-          size="sm"
-          className="h-12 px-6 rounded-none"
+          <RotateCcw size={14} /> Reset
+        </button>
+        <button
           onClick={handleSave}
           disabled={isSaving}
+          className="h-9 px-4 text-sm font-semibold bg-slate-900 dark:bg-white text-white dark:text-slate-900 rounded-xl hover:bg-emerald-500 hover:text-white transition-colors flex items-center gap-2 disabled:opacity-50"
         >
-          {isSaving
-            ? <Loader2 size={14} className="animate-spin mr-2" />
-            : <Save size={14} className="mr-2" />
-          }
-          <span className="font-mono text-[10px] font-bold uppercase">Save</span>
-        </Button>
+          {isSaving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />} Save
+        </button>
       </PageHeader>
 
-      <div className="flex-1 p-6 lg:p-10 bg-white dark:bg-[#0A0A0A]">
+      <div className="flex-1 p-6 lg:p-10 bg-white dark:bg-[#111111]">
         <div className="max-w-2xl mx-auto space-y-8">
-
-          {/* ── Appearance ──────────────────────────────────── */}
           <section>
-            <h2 className="font-mono text-xs font-bold uppercase tracking-widest text-slate-500 mb-4 flex items-center gap-2">
-              <div className="w-1 h-4 bg-yellow-400" /> APPEARANCE
+            <h2 className="text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-4">
+              Appearance
             </h2>
-            <div className="hw-border bg-slate-50 dark:bg-[#111111] p-5">
-              <span className="block font-mono text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-3">
-                THEME
-              </span>
+            <div className="bg-slate-50 dark:bg-[#1a1a1a] border border-slate-200 dark:border-slate-800 rounded-2xl p-5">
+              <p className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-3">Theme</p>
               <div className="flex gap-2">
-                {([
-                  { value: 'LIGHT',  icon: Sun,     label: 'Light' },
-                  { value: 'DARK',   icon: Moon,    label: 'Dark' },
-                  { value: 'SYSTEM', icon: Monitor, label: 'System' },
-                ] as const).map((opt) => (
+                {(
+                  [
+                    { value: 'LIGHT', icon: Sun, label: 'Light' },
+                    { value: 'DARK', icon: Moon, label: 'Dark' },
+                    { value: 'SYSTEM', icon: Monitor, label: 'System' },
+                  ] as const
+                ).map((opt) => (
                   <button
                     key={opt.value}
                     onClick={() => updatePref('theme', opt.value)}
-                    className={`flex-1 h-12 hw-border flex items-center justify-center gap-2 font-mono text-[10px] font-bold uppercase tracking-widest transition-colors ${
-                      prefs.theme === opt.value
-                        ? 'bg-slate-900 dark:bg-white text-white dark:text-slate-900'
-                        : 'bg-white dark:bg-[#000000] text-slate-500 hover:text-slate-900 dark:hover:text-white'
-                    }`}
+                    className={`flex-1 h-10 rounded-xl text-sm font-semibold flex items-center justify-center gap-2 transition-colors border ${prefs.theme === opt.value ? 'bg-slate-900 dark:bg-white text-white dark:text-slate-900 border-transparent' : 'bg-white dark:bg-[#111111] text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-50'}`}
                   >
-                    <opt.icon size={14} /> {opt.label}
+                    <opt.icon size={15} /> {opt.label}
                   </button>
                 ))}
               </div>
             </div>
           </section>
 
-          {/* ── Editor Defaults ──────────────────────────────── */}
           <section>
-            <h2 className="font-mono text-xs font-bold uppercase tracking-widest text-slate-500 mb-4 flex items-center gap-2">
-              <div className="w-1 h-4 bg-blue-400" /> EDITOR_DEFAULTS
+            <h2 className="text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-4">
+              Editor Settings
             </h2>
-            <div className="hw-border bg-slate-50 dark:bg-[#111111] p-5 space-y-5">
-              {/* Default Board */}
+            <div className="bg-slate-50 dark:bg-[#1a1a1a] border border-slate-200 dark:border-slate-800 rounded-2xl p-5 space-y-5">
               <div>
-                <span className="block font-mono text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2">
-                  DEFAULT_BOARD
-                </span>
+                <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">
+                  Default Board
+                </label>
                 <select
                   value={prefs.defaultBoard}
                   onChange={(e) => updatePref('defaultBoard', e.target.value)}
-                  className="w-full h-12 px-4 hw-border bg-white dark:bg-[#000000] font-mono text-xs font-bold uppercase tracking-widest text-slate-900 dark:text-white outline-none cursor-pointer"
+                  className={iClass}
                 >
                   {BOARDS.map((b) => (
-                    <option key={b.value} value={b.value}>{b.label}</option>
+                    <option key={b.value} value={b.value}>
+                      {b.label}
+                    </option>
                   ))}
                 </select>
               </div>
-
-              {/* Font Size */}
               <div>
-                <span className="block font-mono text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2">
-                  EDITOR_FONT_SIZE — {prefs.editorFontSize}px
-                </span>
-                <div className="flex gap-1">
+                <p className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">
+                  Font Size — <span className="text-emerald-600">{prefs.editorFontSize}px</span>
+                </p>
+                <div className="flex gap-1.5 flex-wrap">
                   {FONT_SIZES.map((size) => (
                     <button
                       key={size}
                       onClick={() => updatePref('editorFontSize', size)}
-                      className={`flex-1 h-10 hw-border font-mono text-[10px] font-bold transition-colors ${
-                        prefs.editorFontSize === size
-                          ? 'bg-slate-900 dark:bg-white text-white dark:text-slate-900'
-                          : 'bg-white dark:bg-[#000000] text-slate-500 hover:text-slate-900 dark:hover:text-white'
-                      }`}
+                      className={btnClass(prefs.editorFontSize === size)}
                     >
                       {size}
                     </button>
@@ -250,81 +228,73 @@ export default function Settings() {
             </div>
           </section>
 
-          {/* ── Behavior ──────────────────────────────── */}
           <section>
-            <h2 className="font-mono text-xs font-bold uppercase tracking-widest text-slate-500 mb-4 flex items-center gap-2">
-              <div className="w-1 h-4 bg-emerald-400" /> BEHAVIOR
+            <h2 className="text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-4">
+              Behavior
             </h2>
-            <div className="hw-border bg-slate-50 dark:bg-[#111111] px-5 divide-y divide-slate-200 dark:divide-slate-800">
+            <div className="bg-slate-50 dark:bg-[#1a1a1a] border border-slate-200 dark:border-slate-800 rounded-2xl px-5 divide-y divide-slate-200 dark:divide-slate-800">
               <ToggleSwitch
-                label="AUTO_SAVE"
+                label="Auto Save"
+                description="Save your work automatically while editing"
                 checked={prefs.autoSave}
                 onChange={(v) => updatePref('autoSave', v)}
               />
               <ToggleSwitch
-                label="CODE_COMPLETION"
+                label="Code Completion"
+                description="Show code suggestions as you type"
                 checked={prefs.codeCompletion}
                 onChange={(v) => updatePref('codeCompletion', v)}
               />
               <ToggleSwitch
-                label="EMAIL_NOTIFICATIONS"
+                label="Email Notifications"
+                description="Receive updates about courses and achievements"
                 checked={prefs.emailNotifications}
                 onChange={(v) => updatePref('emailNotifications', v)}
               />
             </div>
           </section>
 
-          {/* ── Security ──────────────────────────────────── */}
           <section>
-            <h2 className="font-mono text-xs font-bold uppercase tracking-widest text-slate-500 mb-4 flex items-center gap-2">
-              <div className="w-1 h-4 bg-red-400" /> SECURITY
+            <h2 className="text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-4">
+              Security
             </h2>
-            <div className="hw-border bg-slate-50 dark:bg-[#111111] p-5">
-              <span className="block font-mono text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-4">
-                CHANGE_PASSWORD
-              </span>
-              <form onSubmit={handleChangePassword} className="space-y-4">
-                <div>
-                  <input
-                    type="password"
-                    placeholder="CURRENT PASSWORD"
-                    value={oldPassword}
-                    onChange={(e) => setOldPassword(e.target.value)}
-                    className="w-full h-12 px-4 hw-border bg-white dark:bg-[#000000] font-mono text-xs font-bold tracking-widest text-slate-900 dark:text-white outline-none placeholder:text-slate-400 dark:placeholder:text-slate-600"
-                    required
-                  />
-                </div>
-                <div>
-                  <input
-                    type="password"
-                    placeholder="NEW PASSWORD"
-                    value={newPassword}
-                    onChange={(e) => setNewPassword(e.target.value)}
-                    className="w-full h-12 px-4 hw-border bg-white dark:bg-[#000000] font-mono text-xs font-bold tracking-widest text-slate-900 dark:text-white outline-none placeholder:text-slate-400 dark:placeholder:text-slate-600"
-                    required
-                    minLength={8}
-                    pattern="^(?=.*[A-Z])(?=.*\d).+$"
-                    title="Must contain at least one uppercase letter and one number"
-                  />
-                  <p className="text-[10px] font-mono text-slate-500 mt-2 uppercase">
-                    Must be 8+ chars with an uppercase letter and a number.
-                  </p>
-                </div>
-                <Button
+            <div className="bg-slate-50 dark:bg-[#1a1a1a] border border-slate-200 dark:border-slate-800 rounded-2xl p-5">
+              <p className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-4">
+                Change Password
+              </p>
+              <form onSubmit={handleChangePassword} className="space-y-3">
+                <input
+                  type="password"
+                  placeholder="Current password"
+                  value={oldPassword}
+                  onChange={(e) => setOldPassword(e.target.value)}
+                  className={iClass}
+                  required
+                />
+                <input
+                  type="password"
+                  placeholder="New password (8+ chars, 1 uppercase, 1 number)"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  className={iClass}
+                  required
+                  minLength={8}
+                />
+                <button
                   type="submit"
-                  variant="outline"
-                  className="h-12 w-full rounded-none border border-slate-900 dark:border-slate-800"
                   disabled={isChangingPwd || !oldPassword || !newPassword}
+                  className="h-10 px-5 bg-red-500 hover:bg-red-600 text-white text-sm font-semibold rounded-xl transition-colors disabled:opacity-50 flex items-center gap-2"
                 >
-                  {isChangingPwd ? <Loader2 size={14} className="animate-spin mr-2" /> : <Lock size={14} className="mr-2" />}
-                  <span className="font-mono text-[10px] font-bold uppercase tracking-widest">
-                    Update Password
-                  </span>
-                </Button>
+                  {isChangingPwd ? (
+                    <Loader2 size={14} className="animate-spin" />
+                  ) : (
+                    <Lock size={14} />
+                  )}{' '}
+                  Update Password
+                </button>
               </form>
             </div>
           </section>
-
         </div>
       </div>
     </div>

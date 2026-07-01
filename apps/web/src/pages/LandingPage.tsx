@@ -1,12 +1,19 @@
-import { useState, useEffect } from 'react';
+import { useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useUIStore } from '../stores/ui.store';
-import { Moon, Sun, Terminal, Cpu, Zap, Activity } from 'lucide-react';
+import {
+  Moon,
+  Sun,
+  Rocket,
+  Blocks,
+  TerminalSquare,
+  GraduationCap,
+  ChevronRight,
+} from 'lucide-react';
 
 export default function LandingPage() {
-  const theme = useUIStore((s: any) => s.theme);
-  const setTheme = useUIStore((s: any) => s.setTheme);
-  const [powerOn, setPowerOn] = useState(false);
+  const theme = useUIStore((s) => s.theme);
+  const setTheme = useUIStore((s) => s.setTheme);
 
   useEffect(() => {
     if (theme === 'dark') {
@@ -16,169 +23,112 @@ export default function LandingPage() {
     }
   }, [theme]);
 
-  const toggleTheme = () => {
-    setTheme(theme === 'dark' ? 'light' : 'dark');
-  };
-
   return (
-    <div
-      className={`min-h-screen font-sans bg-slate-50 dark:bg-[#0A0A0A] text-slate-900 dark:text-white flex flex-col items-center justify-center p-4 sm:p-8 bg-dot-matrix ${powerOn ? '' : 'grayscale-[50%]'}`}
-    >
-      {/* Main Hardware Chassis */}
-      <div
-        className="w-full max-w-[1200px] hw-panel border-b-0 flex flex-col overflow-hidden relative shadow-[0_20px_50px_rgba(0,0,0,0.1)]"
-        style={{ height: 'calc(100vh - 64px)', maxHeight: '850px' }}
-      >
-        {/* Top Control Bar */}
-        <div className="h-16 shrink-0 hw-border-b bg-white dark:bg-[#000000] flex justify-between items-stretch">
-          <div className="flex items-center px-6 gap-4 hw-border-r">
-            <Terminal size={20} className={powerOn ? 'text-primary-500' : 'text-slate-500'} />
-            <span className="font-sans text-sm font-bold tracking-tight">Tinkergyan</span>
+    <div className="min-h-screen bg-white dark:bg-[#0A0A0A] font-sans text-slate-900 dark:text-white transition-colors duration-300 flex flex-col">
+      {/* Navbar */}
+      <header className="h-16 flex items-center justify-between px-6 md:px-12 border-b border-slate-100 dark:border-slate-800 bg-white dark:bg-[#0A0A0A] sticky top-0 z-50">
+        <div className="flex items-center gap-2.5">
+          <div className="w-8 h-8 bg-emerald-500 rounded-lg flex items-center justify-center">
+            <Rocket size={16} className="text-white" />
           </div>
-
-          <div className="flex">
-            <button
-              onClick={toggleTheme}
-              className="w-16 h-full flex items-center justify-center hw-border-l hover:bg-slate-900 hover:text-white dark:hover:bg-white dark:hover:text-slate-900 transition-colors"
-              aria-label="Toggle Theme"
-            >
-              {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
-            </button>
-            <Link
-              to="/login"
-              className="h-full px-6 flex items-center justify-center font-sans font-bold text-xs uppercase tracking-widest hw-border-l hover:bg-slate-900 hover:text-white dark:hover:bg-white dark:hover:text-slate-900 transition-colors"
-            >
-              Log In
-            </Link>
-          </div>
+          <span className="font-bold text-lg tracking-tight">Tinkergyan</span>
         </div>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+            className="w-9 h-9 rounded-lg flex items-center justify-center text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+          >
+            {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
+          </button>
+          <Link
+            to="/login"
+            className="text-sm font-semibold text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white transition-colors px-3 py-2"
+          >
+            Log In
+          </Link>
+          <Link
+            to="/register"
+            className="text-sm font-semibold bg-emerald-500 hover:bg-emerald-600 text-white px-4 py-2 rounded-lg transition-colors"
+          >
+            Get Started
+          </Link>
+        </div>
+      </header>
 
-        <div className="flex-1 flex flex-col md:flex-row overflow-hidden">
-          {/* Left Hero Panel */}
-          <div className="flex-1 p-8 md:p-14 flex flex-col justify-center overflow-y-auto">
-            <div className="inline-block px-2 py-1 bg-yellow-400 text-slate-900 font-sans text-[10px] font-bold uppercase tracking-widest self-start mb-6 border border-slate-900">
-              {powerOn ? 'Online & Ready' : 'Standby'}
+      {/* Hero */}
+      <section className="flex-1 flex items-center">
+        <div className="max-w-6xl mx-auto w-full px-6 md:px-12 py-20 md:py-32 grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
+          {/* Left */}
+          <div>
+            <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400 text-sm font-semibold rounded-full border border-emerald-100 dark:border-emerald-900/40 mb-8">
+              <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse"></span>
+              Now Available
             </div>
-
-            <h1 className="text-4xl md:text-6xl lg:text-7xl font-bold uppercase tracking-tighter mb-4 leading-none">
-              The ultimate <br />
-              maker <br />
-              console.
+            <h1 className="text-5xl md:text-6xl font-bold tracking-tight leading-[1.1] mb-6">
+              Learn to code.
+              <br />
+              <span className="text-slate-400 dark:text-slate-500">Build real things.</span>
             </h1>
-
-            <div className="border-l-2 border-slate-900 dark:border-white pl-4 mb-10">
-              <p className="font-sans text-sm md:text-base text-slate-700 dark:text-slate-300 max-w-lg leading-relaxed mb-4 font-bold">
-                Tinkergyan is an interactive hardware simulator & learning platform for embedded
-                systems.
-              </p>
-              <p className="font-sans text-xs md:text-sm text-slate-500 dark:text-slate-400 max-w-md leading-relaxed">
-                Code circuits. Build robots. Master logic.
-                <br />
-                Don't just use technology — Engineer it.
-              </p>
-            </div>
-
-            <div className="flex flex-col sm:flex-row items-center gap-6 mt-auto">
-              {/* Giant Interactive Switch */}
-              <div className="flex flex-col items-center">
-                <button
-                  onClick={() => setPowerOn(!powerOn)}
-                  className={`w-20 h-40 border-2 border-slate-900 dark:border-slate-700 p-2 flex flex-col transition-colors ${powerOn ? 'bg-emerald-500 dark:bg-emerald-600' : 'bg-slate-200 dark:bg-slate-800'}`}
-                  aria-label="Power Switch"
-                >
-                  <div
-                    className={`w-full h-1/2 border-2 border-slate-900 dark:border-slate-700 bg-white dark:bg-[#222222] transition-transform duration-100 shadow-[inset_0_-2px_4px_rgba(0,0,0,0.1)] ${powerOn ? 'translate-y-full shadow-[inset_0_2px_4px_rgba(0,0,0,0.1)]' : ''}`}
-                  ></div>
-                </button>
-                <span className="font-sans text-[10px] uppercase font-bold mt-3 text-slate-600 dark:text-slate-400">
-                  {powerOn ? 'Power On' : 'Toggle Power'}
-                </span>
-              </div>
-
-              <div className="flex-1 w-full max-w-sm flex flex-col gap-3">
-                <Link
-                  to="/register"
-                  className={`h-16 px-6 sm:px-8 font-sans text-base font-bold tracking-widest uppercase flex items-center justify-center border border-slate-900 dark:border-slate-700 transition-colors ${powerOn ? 'bg-primary-500 text-white border-primary-600 hover:bg-primary-600 shadow-[4px_4px_0_theme(colors.slate.900)] dark:shadow-[4px_4px_0_theme(colors.white)] active:shadow-none active:translate-x-1 active:translate-y-1' : 'bg-slate-100 dark:bg-slate-900 text-slate-400 dark:text-slate-600 pointer-events-none'}`}
-                >
-                  Get Started
-                </Link>
-                <span className="font-sans text-[10px] font-bold text-slate-500 dark:text-slate-500 uppercase tracking-widest text-center">
-                  *Requires System Power
-                </span>
-              </div>
+            <p className="text-lg text-slate-600 dark:text-slate-400 leading-relaxed mb-10 max-w-lg">
+              Tinkergyan is an interactive platform for learning hardware programming. Write code,
+              snap blocks together, and test circuits — all in your browser.
+            </p>
+            <div className="flex flex-wrap gap-4">
+              <Link
+                to="/register"
+                className="inline-flex items-center gap-2 bg-slate-900 dark:bg-white text-white dark:text-slate-900 font-semibold px-6 py-3 rounded-xl hover:bg-slate-700 dark:hover:bg-slate-100 transition-colors"
+              >
+                Start Learning <ChevronRight size={16} />
+              </Link>
+              <Link
+                to="/editor"
+                className="inline-flex items-center gap-2 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-semibold px-6 py-3 rounded-xl hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+              >
+                Try the Editor
+              </Link>
             </div>
           </div>
 
-          {/* Right Spec Grid */}
-          <div className="w-full md:w-[350px] lg:w-[400px] hw-border-l bg-slate-50 dark:bg-[#111111] flex flex-col shrink-0 overflow-y-auto">
-            {/* Feature 1 */}
-            <div className="flex-1 p-6 lg:p-8 border-b border-slate-900 dark:border-slate-800 flex flex-col group hover:bg-slate-900 dark:hover:bg-white hover:text-white dark:hover:text-slate-900 transition-colors">
-              <div className="flex justify-between items-start mb-6">
-                <span className="font-sans font-bold text-xl sm:text-2xl text-slate-800 dark:text-slate-200 group-hover:text-white dark:group-hover:text-slate-900">
-                  01
-                </span>
-                <Cpu
-                  size={28}
-                  className={`transition-colors ${powerOn ? 'text-primary-500' : 'text-slate-400 dark:text-slate-600'}`}
-                />
+          {/* Right: Feature Cards */}
+          <div className="flex flex-col gap-4">
+            <div className="bg-slate-50 dark:bg-[#111111] border border-slate-200 dark:border-slate-800 rounded-2xl p-6 flex gap-5 items-start hover:border-emerald-300 dark:hover:border-emerald-800 transition-colors">
+              <div className="w-10 h-10 bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 rounded-xl flex items-center justify-center shrink-0">
+                <Blocks size={20} />
               </div>
               <div>
-                <h2 className="font-bold uppercase tracking-tight text-lg mb-2 text-slate-900 dark:text-white group-hover:text-white dark:group-hover:text-slate-900">
-                  Simulated Engine
-                </h2>
-                <p className="font-sans text-[10px] sm:text-xs text-slate-600 dark:text-slate-400 tracking-wide group-hover:text-slate-300 dark:group-hover:text-slate-600 leading-relaxed">
-                  Code logic blocks and C++ inside your browser. Test virtual circuits before wiring
-                  the real hardware.
+                <h3 className="font-bold text-base mb-1">Block-Based Coding</h3>
+                <p className="text-sm text-slate-500 dark:text-slate-400 leading-relaxed">
+                  Drag and snap logic blocks to build programs visually. Perfect for beginners.
                 </p>
               </div>
             </div>
 
-            {/* Feature 2 */}
-            <div className="flex-1 p-6 lg:p-8 border-b border-slate-900 dark:border-slate-800 flex flex-col group hover:bg-slate-900 dark:hover:bg-white hover:text-white dark:hover:text-slate-900 transition-colors">
-              <div className="flex justify-between items-start mb-6">
-                <span className="font-sans font-bold text-xl sm:text-2xl text-slate-800 dark:text-slate-200 group-hover:text-white dark:group-hover:text-slate-900">
-                  02
-                </span>
-                <Activity
-                  size={28}
-                  className={`transition-colors ${powerOn ? 'text-emerald-500' : 'text-slate-400 dark:text-slate-600'}`}
-                />
+            <div className="bg-slate-50 dark:bg-[#111111] border border-slate-200 dark:border-slate-800 rounded-2xl p-6 flex gap-5 items-start hover:border-purple-300 dark:hover:border-purple-800 transition-colors">
+              <div className="w-10 h-10 bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400 rounded-xl flex items-center justify-center shrink-0">
+                <TerminalSquare size={20} />
               </div>
               <div>
-                <h2 className="font-bold uppercase tracking-tight text-lg mb-2 text-slate-900 dark:text-white group-hover:text-white dark:group-hover:text-slate-900">
-                  Quest Log
-                </h2>
-                <p className="font-sans text-[10px] sm:text-xs text-slate-600 dark:text-slate-400 tracking-wide group-hover:text-slate-300 dark:group-hover:text-slate-600 leading-relaxed">
-                  Step-by-step interactive missions. Connect wires, spin motors, and earn XP for
-                  every logic loop mastered.
+                <h3 className="font-bold text-base mb-1">Virtual Simulator</h3>
+                <p className="text-sm text-slate-500 dark:text-slate-400 leading-relaxed">
+                  Test your code in a simulated environment before flashing it to real hardware.
                 </p>
               </div>
             </div>
 
-            {/* Feature 3 */}
-            <div className="flex-1 p-6 lg:p-8 border-none flex flex-col group hover:bg-slate-900 dark:hover:bg-white hover:text-white dark:hover:text-slate-900 transition-colors">
-              <div className="flex justify-between items-start mb-6">
-                <span className="font-sans font-bold text-xl sm:text-2xl text-slate-800 dark:text-slate-200 group-hover:text-white dark:group-hover:text-slate-900">
-                  03
-                </span>
-                <Zap
-                  size={28}
-                  className={`transition-colors ${powerOn ? 'text-yellow-400' : 'text-slate-400 dark:text-slate-600'}`}
-                />
+            <div className="bg-slate-50 dark:bg-[#111111] border border-slate-200 dark:border-slate-800 rounded-2xl p-6 flex gap-5 items-start hover:border-amber-300 dark:hover:border-amber-800 transition-colors">
+              <div className="w-10 h-10 bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 rounded-xl flex items-center justify-center shrink-0">
+                <GraduationCap size={20} />
               </div>
               <div>
-                <h2 className="font-bold uppercase tracking-tight text-lg mb-2 text-slate-900 dark:text-white group-hover:text-white dark:group-hover:text-slate-900">
-                  Hardware Toybox
-                </h2>
-                <p className="font-sans text-[10px] sm:text-xs text-slate-600 dark:text-slate-400 tracking-wide group-hover:text-slate-300 dark:group-hover:text-slate-600 leading-relaxed">
-                  Save custom configurations. Share your blueprints. Never lose a brilliant hardware
-                  idea again.
+                <h3 className="font-bold text-base mb-1">Guided Courses</h3>
+                <p className="text-sm text-slate-500 dark:text-slate-400 leading-relaxed">
+                  Follow step-by-step lessons from basic circuits to advanced robotics projects.
                 </p>
               </div>
             </div>
           </div>
         </div>
-      </div>
+      </section>
     </div>
   );
 }

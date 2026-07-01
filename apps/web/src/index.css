@@ -1,72 +1,65 @@
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 @layer base {
   body {
-    @apply antialiased bg-background text-text-primary overflow-x-hidden;
+    @apply antialiased bg-[#0A0A0A] text-slate-900 overflow-x-hidden;
     font-feature-settings:
       'rlig' 1,
       'calt' 1;
-    font-family: 'Inter', system-ui, sans-serif;
+    font-family: 'Outfit', system-ui, sans-serif;
   }
 
   html.dark body {
-    @apply bg-dark-bg text-slate-100;
+    @apply bg-[#000000] text-slate-100;
   }
 }
 
 @layer utilities {
-  /* ── Canvas grid — softer than the old dot-matrix engineering look ── */
-  .bg-canvas-grid {
-    background-image: radial-gradient(circle, #e2e8f0 1.5px, transparent 1.5px);
-    background-size: 32px 32px;
+  /* Premium Clean Utilities */
+  .vibe-canvas {
+    @apply bg-slate-50 dark:bg-[#0A0A0A] min-h-screen w-full transition-colors duration-300;
   }
 
-  .dark .bg-canvas-grid {
-    background-image: radial-gradient(circle, #2e3055 1.5px, transparent 1.5px);
+  .vibe-card {
+    @apply rounded-2xl p-6 transition-all duration-300;
   }
 
-  /* ── App-wide panel / surface utilities ─────────────────────────────── */
-  .app-panel {
-    @apply bg-white dark:bg-dark-surface rounded-2xl border border-slate-100 dark:border-dark-border shadow-sm;
+  .vibe-card-white {
+    @apply bg-white dark:bg-[#1A1D24] shadow-sm dark:border dark:border-slate-800;
   }
 
-  .app-surface {
-    @apply bg-white dark:bg-dark-surface;
+  .vibe-card-green {
+    @apply bg-emerald-50/50 dark:bg-emerald-900/10 text-emerald-900 dark:text-emerald-100 border border-emerald-100 dark:border-emerald-900/30;
   }
 
-  /* ── Friendly button base (replaces hw-key) ─────────────────────────── */
-  .app-btn {
-    @apply font-sans font-semibold flex items-center justify-center gap-2
-           transition-all duration-150 cursor-pointer
-           focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-1
-           disabled:opacity-50 disabled:pointer-events-none;
+  .vibe-card-purple {
+    @apply bg-purple-50/50 dark:bg-purple-900/10 text-purple-900 dark:text-purple-100 border border-purple-100 dark:border-purple-900/30;
   }
 
-  .app-btn-primary {
-    @apply app-btn bg-primary-500 text-white rounded-xl
-           hover:bg-primary-600 active:scale-95;
+  .vibe-card-yellow {
+    @apply bg-amber-50/50 dark:bg-amber-900/10 text-amber-900 dark:text-amber-100 border border-amber-100 dark:border-amber-900/30;
   }
 
-  .app-btn-accent {
-    @apply app-btn bg-accent-500 text-slate-900 rounded-xl
-           hover:bg-accent-400 active:scale-95;
+  .vibe-pill {
+    @apply px-4 py-2 rounded-full font-semibold text-sm inline-flex items-center gap-2;
   }
 
-  .app-btn-secondary {
-    @apply app-btn bg-white dark:bg-dark-surface text-slate-700 dark:text-slate-200
-           rounded-xl border border-slate-200 dark:border-dark-border
-           hover:bg-slate-50 dark:hover:bg-dark-border active:scale-95;
+  .vibe-btn {
+    @apply font-semibold flex items-center justify-center gap-2 rounded-full transition-all duration-200 cursor-pointer focus:outline-none focus-visible:ring-4 focus-visible:ring-slate-200 dark:focus-visible:ring-slate-700 disabled:opacity-50 disabled:pointer-events-none active:scale-95;
   }
 
-  .app-btn-ghost {
-    @apply app-btn text-slate-500 dark:text-slate-400 rounded-xl
-           hover:bg-slate-100 dark:hover:bg-dark-border active:scale-95;
+  .vibe-btn-primary {
+    @apply vibe-btn bg-slate-900 dark:bg-white text-white dark:text-slate-900 hover:bg-slate-800 dark:hover:bg-slate-100 shadow-[0_8px_20px_rgb(0,0,0,0.1)] dark:shadow-[0_8px_20px_rgb(255,255,255,0.1)];
   }
 
-  /* ── JetBrains Mono is ONLY for genuine code display contexts ───────── */
-  /* Applied via .code-mono class — do NOT spread it into UI chrome.      */
+  .vibe-btn-secondary {
+    @apply vibe-btn bg-white dark:bg-[#1A1D24] text-slate-900 dark:text-white border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-[#252A34] shadow-sm;
+  }
+
   .code-mono {
     font-family: 'JetBrains Mono', 'Fira Code', monospace;
   }
