@@ -169,6 +169,7 @@ export default function Editor() {
     togglePublic,
   } = useEditorStore();
 
+  const boardLabel = BOARDS.find((b) => b.fqbn === board)?.label || 'Board';
   const addToast = useUIStore((s: any) => s.addToast);
   const user = useUser();
 
@@ -343,8 +344,7 @@ export default function Editor() {
       addToast({
         type: 'info',
         title: 'Use Chrome or Edge for hardware',
-        message:
-          'Connecting to your Arduino needs Chrome or Edge. You can still build and save your project here!',
+        message: `Connecting to your ${boardLabel} needs Chrome or Edge. You can still build and save your project here!`,
       });
       return;
     }
@@ -358,7 +358,7 @@ export default function Editor() {
         }
         setHardwarePort(null);
         setShowSerialMonitor(false);
-        addToast({ type: 'info', title: 'Disconnected', message: 'Arduino disconnected.' });
+        addToast({ type: 'info', title: 'Disconnected', message: `${boardLabel} disconnected.` });
         return;
       }
 
@@ -369,7 +369,7 @@ export default function Editor() {
       const info = port.getInfo();
       addToast({
         type: 'success',
-        title: 'Arduino connected! 🎉',
+        title: `${boardLabel} connected! 🎉`,
         message: `Device ready (VID: ${info.usbVendorId || 'Unknown'})`,
       });
 
@@ -401,7 +401,7 @@ export default function Editor() {
       addToast({
         type: 'error',
         title: 'No board connected',
-        message: 'Connect your Arduino first.',
+        message: `Connect your ${boardLabel} first.`,
       });
       return;
     }
@@ -430,7 +430,7 @@ export default function Editor() {
       addToast({
         type: 'info',
         title: 'Building your code...',
-        message: 'Compiling for your Arduino — hang tight!',
+        message: `Compiling for your ${boardLabel} — hang tight!`,
       });
       const { data } = await (
         await import('../services/api')
@@ -471,7 +471,7 @@ export default function Editor() {
 
       addToast({
         type: 'success',
-        title: 'Done! Uploaded to your Arduino 🚀',
+        title: `Done! Uploaded to your ${boardLabel} 🚀`,
         message: 'Your code is running on the board!',
       });
       setShowSerialMonitor(true); // Auto-open serial monitor after flash
@@ -483,7 +483,7 @@ export default function Editor() {
       setFlashProgress(0);
       setFlashMessage('');
     }
-  }, [hardwarePort, board, mode, generatedCode, manualCode, addToast]);
+  }, [hardwarePort, board, boardLabel, mode, generatedCode, manualCode, addToast]);
 
   // ── Compile ────────────────────────────────────────────────────────────
   const handleCompile = useCallback(async () => {
@@ -784,7 +784,9 @@ export default function Editor() {
               {/* Connect Board — second-highest prominence */}
               <button
                 onClick={handleConnectHardware}
-                title={hardwarePort ? 'Disconnect hardware' : 'Connect your Arduino (Web Serial)'}
+                title={
+                  hardwarePort ? 'Disconnect hardware' : `Connect your ${boardLabel} (Web Serial)`
+                }
                 className={`h-11 px-3 sm:px-4 rounded-xl font-sans font-semibold text-sm flex items-center gap-2 transition-all focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:outline-none active:scale-[0.97] ${
                   hardwarePort
                     ? 'bg-warning-500 hover:bg-warning-600 text-slate-900'
@@ -800,7 +802,7 @@ export default function Editor() {
                 <button
                   onClick={handleUploadToHardware}
                   disabled={isFlashing || isCompiling}
-                  title="Compile & upload to your Arduino"
+                  title={`Compile & upload to your ${boardLabel}`}
                   className="h-11 px-3 sm:px-4 rounded-xl font-sans font-semibold text-sm flex items-center gap-2 bg-blue-500 hover:bg-blue-600 text-white transition-all focus-visible:ring-2 focus-visible:ring-blue-400 focus-visible:outline-none active:scale-[0.97] disabled:opacity-50"
                 >
                   {isFlashing ? (
@@ -962,7 +964,7 @@ export default function Editor() {
                           <Upload size={24} className="text-blue-400 animate-pulse" />
                         </div>
                         <p className="font-sans font-semibold text-sm text-blue-400 mb-3">
-                          Uploading to your Arduino...
+                          Uploading to your {boardLabel}...
                         </p>
                         <div className="w-full max-w-[200px] h-2 bg-slate-800 rounded-full overflow-hidden mb-2">
                           <div

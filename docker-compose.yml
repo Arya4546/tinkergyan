@@ -22,6 +22,11 @@ services:
       - COMPILER_MODE=wandbox
     networks:
       - default
+    volumes:
+      - arduino_data:/root/.arduino15
+
+volumes:
+  arduino_data:
 
 networks:
   default:

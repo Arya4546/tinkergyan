@@ -61,8 +61,11 @@ RUN test -f /app/apps/api/dist/server.js \
 # ════════════════════════════════════════════════════════════
 FROM node:20-alpine
 RUN corepack enable && corepack prepare pnpm@10.6.3 --activate
-RUN apk add --no-cache openssl
+RUN apk add --no-cache openssl curl libc6-compat python3
 WORKDIR /app
+
+# Install just the arduino-cli binary (~30MB)
+RUN curl -fsSL https://raw.githubusercontent.com/arduino/arduino-cli/master/install.sh | sh
 
 COPY pnpm-workspace.yaml package.json pnpm-lock.yaml* tsconfig.base.json tsconfig.json ./
 COPY --from=shared-builder /app/packages/shared-types ./packages/shared-types
@@ -88,5 +91,6 @@ COPY --from=frontend-builder /app/apps/web/dist ./apps/web/dist
 WORKDIR /app/apps/api
 EXPOSE 3001
 
-# Use the SAME pinned prisma version for migrate deploy at runtime
-CMD ["sh", "-c", "npx --yes prisma@6.16.0 migrate deploy && node dist/server.js"]
+# Use the SAME pinned prisma version for migrate deploy at runtime.
+# We also initialize the arduino-cli cores here so they are stored in the mounted volume.
+CMD ["sh", "-c", "npx --yes prisma@6.16.0 migrate deploy && /app/bin/arduino-cli core update-index --additional-urls https://arduino.esp8266.com/stable/package_esp8266com_index.json && /app/bin/arduino-cli core install esp8266:esp8266 arduino:avr --additional-urls https://arduino.esp8266.com/stable/package_esp8266com_index.json && node dist/server.js"]
