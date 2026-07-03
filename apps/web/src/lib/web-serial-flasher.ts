@@ -84,6 +84,7 @@ export class WebSerialFlasher {
   private isReading = false;
   private readError: Error | null = null;
   private readerPromise: Promise<void> | null = null;
+  private seqV2 = 0;
 
   constructor(port: typeof WebSerialFlasher.prototype.port) {
     this.port = port;
@@ -113,6 +114,8 @@ export class WebSerialFlasher {
 
       if (board.includes('esp8266') || board.includes('esp32')) {
         await this.flashESP(firmware, onProgress, log);
+      } else if (board.includes('mega')) {
+        await this.flashAVRMega(firmware, board, onProgress, log);
       } else {
         await this.flashAVR(firmware, board, onProgress, log);
       }
@@ -260,6 +263,270 @@ export class WebSerialFlasher {
       // Leave programming mode
       await this.sendCommand([STK_LEAVE_PROGMODE, CRC_EOP]);
       await this.expectInSync();
+      log('Programming mode exited ✓');
+      onProgress?.(95, 'Finalizing');
+    } finally {
+      this.isReading = false;
+      this.reader?.cancel().catch(() => {}); // Force read loop to exit
+
+      try {
+        await this.readerPromise;
+      } catch {
+        /* ignore */
+      }
+
+      this.reader?.releaseLock();
+      this.writer?.releaseLock();
+      this.reader = null;
+      this.writer = null;
+
+      // Close and reopen at normal baud for Serial Monitor
+      try {
+        await this.port.close();
+        await this.port.open({ baudRate: 9600 });
+      } catch {
+        // Best-effort reopen
+      }
+    }
+  }
+
+  private getNextSeqV2(): number {
+    this.seqV2 = (this.seqV2 + 1) & 0xff;
+    return this.seqV2;
+  }
+
+  private async sendCommandV2(payload: number[]): Promise<Uint8Array> {
+    const seq = this.getNextSeqV2();
+    const size = payload.length;
+    const sizeMSB = (size >> 8) & 0xff;
+    const sizeLSB = size & 0xff;
+
+    const header = [0x1b, seq, sizeMSB, sizeLSB, 0x0e];
+    const packet = [...header, ...payload];
+
+    let checksum = 0;
+    for (let i = 0; i < packet.length; i++) {
+      checksum ^= packet[i]!;
+    }
+    packet.push(checksum);
+
+    // Clear read buffer of any old data before sending command
+    this.readBuffer = [];
+
+    await this.sendCommand(packet);
+
+    // Some commands like program flash take longer
+    const timeout = payload[0] === 0x13 ? 5000 : 1000;
+    return await this.readPacketV2(seq, timeout);
+  }
+
+  private async readPacketV2(expectedSeq: number, timeoutMs = 1000): Promise<Uint8Array> {
+    const deadline = Date.now() + timeoutMs;
+
+    // Find start byte 0x1B, skipping any junk
+    let startByte = 0;
+    while (Date.now() < deadline) {
+      const b = await this.readResponse(1, deadline - Date.now()).catch(() => null);
+      if (b && b[0] === 0x1b) {
+        startByte = 0x1b;
+        break;
+      }
+    }
+    if (startByte !== 0x1b) {
+      throw new Error('Timeout waiting for STK500v2 start byte (0x1B)');
+    }
+
+    // Read seq (1), size (2), token (1)
+    const header = await this.readResponse(4, Math.max(100, deadline - Date.now()));
+    const seq = header[0]!;
+    const size = (header[1]! << 8) | header[2]!;
+    const token = header[3]!;
+
+    if (seq !== expectedSeq) {
+      throw new Error(`STK500v2 sequence mismatch: expected ${expectedSeq}, got ${seq}`);
+    }
+
+    if (token !== 0x0e) {
+      throw new Error(`Invalid STK500v2 token: expected 0x0E, got 0x${token.toString(16)}`);
+    }
+
+    // Read payload
+    const payload = await this.readResponse(size, Math.max(500, deadline - Date.now()));
+
+    // Read checksum
+    const cksumByte = (await this.readResponse(1, Math.max(100, deadline - Date.now())))[0]!;
+
+    // Verify checksum
+    let calculatedCksum = 0x1b ^ seq ^ header[1]! ^ header[2]! ^ token;
+    for (let i = 0; i < payload.length; i++) {
+      calculatedCksum ^= payload[i]!;
+    }
+
+    if (calculatedCksum !== cksumByte) {
+      throw new Error('STK500v2 checksum mismatch');
+    }
+
+    return payload;
+  }
+
+  private assertResponseOk(response: Uint8Array, commandId: number, context: string) {
+    if (response.length < 2) {
+      throw new Error(`${context}: Response too short`);
+    }
+    if (response[0] !== commandId) {
+      throw new Error(
+        `${context}: Command mismatch: expected 0x${commandId.toString(16)}, got 0x${response[0]!.toString(16)}`,
+      );
+    }
+    if (response[1] !== 0x00) {
+      throw new Error(`${context}: Command failed with status 0x${response[1]!.toString(16)}`);
+    }
+  }
+
+  private async flashAVRMega(
+    firmware: Uint8Array,
+    board: string,
+    onProgress?: (p: number, m: string) => void,
+    log: (m: string) => void = () => {},
+  ): Promise<void> {
+    // Ensure port is closed so we can reopen with correct baud
+    try {
+      await this.port.close();
+    } catch {
+      /* may already be closed */
+    }
+
+    const uploadBaud = 115200;
+    await this.port.open({ baudRate: uploadBaud });
+
+    log(`Port opened at ${uploadBaud} baud for flashing Mega (STK500v2)`);
+    onProgress?.(10, 'Port ready');
+
+    if (!this.port.readable || !this.port.writable) {
+      throw new Error('Port streams are not available');
+    }
+    this.reader = this.port.readable.getReader();
+    this.writer = this.port.writable.getWriter();
+
+    this.startBackgroundRead();
+
+    try {
+      // Reset the board by toggling DTR and RTS signals
+      log('Asserting DTR to reset board...');
+      onProgress?.(15, 'Waiting for bootloader');
+      await this.port.setSignals({ dataTerminalReady: false, requestToSend: false });
+      await this.delay(250);
+      await this.port.setSignals({ dataTerminalReady: true, requestToSend: true });
+      await this.delay(50);
+
+      // Sync with bootloader using CMD_SIGN_ON (0x01)
+      log('Syncing with STK500v2 bootloader...');
+      onProgress?.(20, 'Syncing with bootloader');
+
+      let synced = false;
+      for (let attempt = 0; attempt < 10; attempt++) {
+        try {
+          const resp = await this.sendCommandV2([0x01]); // CMD_SIGN_ON
+          if (resp[0] === 0x01 && resp[1] === 0x00) {
+            synced = true;
+            break;
+          }
+        } catch (e) {
+          log(`Sync attempt ${attempt + 1} failed: ${e instanceof Error ? e.message : String(e)}`);
+        }
+        await this.delay(50);
+      }
+
+      if (!synced) {
+        throw new Error(
+          'Could not sync with bootloader. Make sure the board is connected and has a bootloader.',
+        );
+      }
+
+      log('Bootloader synced ✓');
+      onProgress?.(25, 'Bootloader synced');
+
+      // Enter programming mode
+      log('Entering programming mode...');
+      // CMD_ENTER_PROGMODE_ISP (0x10)
+      const enterProgCmd = [
+        0x10, // CMD_ENTER_PROGMODE_ISP
+        0xc8, // timeout
+        0x64, // stabDelay
+        0x19, // cmdexeDelay
+        0x20, // synchLoops
+        0x00, // byteDelay
+        0x53, // pollValue
+        0x03, // pollIndex
+        0xac, // cmd1
+        0x53, // cmd2
+        0x00, // cmd3
+        0x00, // cmd4
+      ];
+      const enterProgResp = await this.sendCommandV2(enterProgCmd);
+      this.assertResponseOk(enterProgResp, 0x10, 'Enter programming mode');
+      log('Programming mode entered ✓');
+      onProgress?.(30, 'Programming mode active');
+
+      // Flash pages
+      const pageSize = 256;
+      const totalPages = Math.ceil(firmware.length / pageSize);
+
+      for (let page = 0; page < totalPages; page++) {
+        const address = page * pageSize;
+        const wordAddress = address >> 1; // STK500 uses word addresses
+
+        // Load address: CMD_LOAD_ADDRESS (0x06)
+        const msb = ((wordAddress >> 24) & 0xff) | 0x80;
+        const xsb = (wordAddress >> 16) & 0xff;
+        const ysb = (wordAddress >> 8) & 0xff;
+        const lsb = wordAddress & 0xff;
+
+        const loadAddrResp = await this.sendCommandV2([0x06, msb, xsb, ysb, lsb]);
+        this.assertResponseOk(loadAddrResp, 0x06, `Load address for page ${page + 1}`);
+
+        // Program page
+        let pageData = firmware.slice(address, address + pageSize);
+
+        // Pad final page with 0xFF to match pageSize exactly
+        if (pageData.length < pageSize) {
+          const padded = new Uint8Array(pageSize);
+          padded.fill(0xff);
+          padded.set(pageData);
+          pageData = padded;
+        }
+
+        // CMD_PROGRAM_FLASH_ISP (0x13)
+        const bytesMsb = pageSize >> 8;
+        const bytesLsb = pageSize & 0xff;
+        const progCmd = [
+          0x13, // CMD_PROGRAM_FLASH_ISP
+          bytesMsb,
+          bytesLsb,
+          0xc1, // mode
+          0x0a, // delay
+          0x40, // cmd1
+          0x4c, // cmd2
+          0x20, // cmd3
+          0x00, // poll1
+          0x00, // poll2
+          ...Array.from(pageData),
+        ];
+
+        const progResp = await this.sendCommandV2(progCmd);
+        this.assertResponseOk(progResp, 0x13, `Program page ${page + 1}/${totalPages}`);
+
+        // Progress: 30% to 90% during flashing
+        const flashProgress = 30 + Math.round((page / totalPages) * 60);
+        onProgress?.(flashProgress, `Flashing page ${page + 1}/${totalPages}`);
+      }
+
+      log(`Flashed ${totalPages} pages (${firmware.length} bytes) ✓`);
+      onProgress?.(92, 'Verifying...');
+
+      // Leave programming mode: CMD_LEAVE_PROGMODE_ISP (0x11)
+      const leaveProgResp = await this.sendCommandV2([0x11, 0x01, 0x01]);
+      this.assertResponseOk(leaveProgResp, 0x11, 'Leave programming mode');
       log('Programming mode exited ✓');
       onProgress?.(95, 'Finalizing');
     } finally {

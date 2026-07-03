@@ -118,6 +118,61 @@ function TemplatePicker({
   );
 }
 
+// ─── Conversion Error Modal ──────────────────────────────────────────────────
+function ConversionErrorModal({
+  error,
+  onClose,
+}: {
+  error: { message: string; line?: number; col?: number };
+  onClose: () => void;
+}) {
+  return (
+    <div
+      className="absolute inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4"
+      onClick={onClose}
+    >
+      <div
+        className="bg-white dark:bg-dark-surface rounded-2xl border border-rose-100 dark:border-rose-950/30 shadow-2xl max-w-md w-full animate-pop overflow-hidden"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="px-6 py-4 border-b border-rose-50 dark:border-rose-950/20 bg-rose-50/50 dark:bg-rose-950/10 flex justify-between items-center">
+          <div className="flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-rose-500 animate-ping" />
+            <h2 className="font-sans font-bold text-base text-rose-700 dark:text-rose-400">
+              Conversion Failed
+            </h2>
+          </div>
+          <button
+            onClick={onClose}
+            className="w-8 h-8 rounded-full flex items-center justify-center text-slate-400 hover:text-slate-700 hover:bg-slate-100 dark:hover:bg-dark-border transition-colors focus-visible:ring-2 focus-visible:ring-primary-500"
+          >
+            ✕
+          </button>
+        </div>
+        <div className="p-6">
+          <p className="font-sans text-sm text-slate-600 dark:text-slate-300 leading-relaxed mb-4">
+            We couldn't convert your C++ code back to blocks because of a syntax error or
+            unsupported structure.
+          </p>
+          <div className="bg-slate-50 dark:bg-dark-bg border border-slate-100 dark:border-dark-border rounded-xl p-4 mb-5 font-mono text-xs text-rose-600 dark:text-rose-400 break-words max-h-48 overflow-y-auto leading-normal">
+            {error.line !== undefined && (
+              <span className="font-sans font-bold text-slate-400 dark:text-slate-500 block mb-1">
+                Line {error.line}, Column {error.col}:
+              </span>
+            )}
+            {error.message}
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" size="sm" onClick={onClose}>
+              Go Back to Editor
+            </Button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 
 export default function Editor() {
@@ -132,6 +187,32 @@ export default function Editor() {
   const [showCodePanel, setShowCodePanel] = useState(false);
   const [showSimulator, setShowSimulator] = useState(false);
   const [terminalWidth, setTerminalWidth] = useState(() => (window.innerWidth < 1024 ? 340 : 420));
+  const [conversionError, setConversionError] = useState<{
+    message: string;
+    line?: number;
+    col?: number;
+  } | null>(null);
+  const [isConverting, setIsConverting] = useState(false);
+  const workerRef = useRef<Worker | null>(null);
+
+  const getWorker = useCallback(() => {
+    if (!workerRef.current) {
+      workerRef.current = new Worker(new URL('../lib/cpp-to-blocks.worker.ts', import.meta.url), {
+        type: 'module',
+      });
+    }
+    return workerRef.current;
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (workerRef.current) {
+        workerRef.current.terminate();
+        workerRef.current = null;
+      }
+    };
+  }, []);
+
   const isResizing = useRef(false);
 
   const blocklyRef = useRef<BlocklyWorkspaceHandle>(null);
@@ -288,6 +369,63 @@ export default function Editor() {
     clearResult();
     setMode('block');
   }, [mode, manualCode, generatedCode, clearResult, setMode]);
+
+  const handleConvertCodeToBlocks = useCallback(() => {
+    const code = monacoRef.current?.getValue() ?? manualCode;
+    setIsConverting(true);
+    setConversionError(null);
+    clearResult();
+
+    const worker = getWorker();
+
+    const handleWorkerMessage = (event: MessageEvent) => {
+      worker.removeEventListener('message', handleWorkerMessage);
+      worker.removeEventListener('error', handleWorkerError);
+      setIsConverting(false);
+
+      const res = event.data;
+      if (res.success) {
+        if (blocklyRef.current) {
+          blocklyRef.current.loadXml(res.xml);
+        }
+        setGeneratedCode(code);
+        setManualCode(code);
+        setMode('block');
+        confetti({
+          particleCount: 80,
+          spread: 60,
+          origin: { y: 0.8 },
+          colors: ['#8B5CF6', '#6366F1', '#10B981'],
+        });
+        addToast({
+          type: 'success',
+          title: 'Blocks Updated! 🧩',
+          message: 'Successfully converted C++ code to visual blocks.',
+        });
+      } else {
+        console.error('[C++ to Blocks Conversion Failed]', res.error);
+        setConversionError({
+          message: res.error.message || 'Unknown parser error',
+          line: res.error.line,
+          col: res.error.col,
+        });
+      }
+    };
+
+    const handleWorkerError = (err: ErrorEvent) => {
+      worker.removeEventListener('message', handleWorkerMessage);
+      worker.removeEventListener('error', handleWorkerError);
+      setIsConverting(false);
+      console.error('[Worker Error]', err);
+      setConversionError({
+        message: err.message || 'Worker runtime error during parsing',
+      });
+    };
+
+    worker.addEventListener('message', handleWorkerMessage);
+    worker.addEventListener('error', handleWorkerError);
+    worker.postMessage({ code });
+  }, [manualCode, getWorker, setGeneratedCode, setManualCode, setMode, clearResult, addToast]);
 
   // ── Save ───────────────────────────────────────────────────────────────
   const handleSave = useCallback(async () => {
@@ -640,27 +778,47 @@ export default function Editor() {
             </div>
 
             {/* Centre: Mode toggle */}
-            <div className="flex items-center bg-slate-100 dark:bg-dark-border rounded-xl p-1 shrink-0">
-              <button
-                onClick={switchToBlock}
-                className={`flex items-center gap-1.5 h-9 px-3 rounded-lg font-sans font-semibold text-sm transition-all focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:outline-none ${
-                  mode === 'block'
-                    ? 'bg-white dark:bg-dark-surface text-slate-800 dark:text-white shadow-sm'
-                    : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-200'
-                }`}
-              >
-                <LayoutGrid size={14} /> <span className="hidden sm:inline">Blocks</span>
-              </button>
-              <button
-                onClick={switchToCode}
-                className={`flex items-center gap-1.5 h-9 px-3 rounded-lg font-sans font-semibold text-sm transition-all focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:outline-none ${
-                  mode === 'code'
-                    ? 'bg-white dark:bg-dark-surface text-slate-800 dark:text-white shadow-sm'
-                    : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-200'
-                }`}
-              >
-                <Code2 size={14} /> <span className="hidden sm:inline">C++</span>
-              </button>
+            <div className="flex items-center gap-2 shrink-0">
+              <div className="flex items-center bg-slate-100 dark:bg-dark-border rounded-xl p-1">
+                <button
+                  onClick={switchToBlock}
+                  className={`flex items-center gap-1.5 h-9 px-3 rounded-lg font-sans font-semibold text-sm transition-all focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:outline-none ${
+                    mode === 'block'
+                      ? 'bg-white dark:bg-dark-surface text-slate-800 dark:text-white shadow-sm'
+                      : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-200'
+                  }`}
+                >
+                  <LayoutGrid size={14} /> <span className="hidden sm:inline">Blocks</span>
+                </button>
+                <button
+                  onClick={switchToCode}
+                  className={`flex items-center gap-1.5 h-9 px-3 rounded-lg font-sans font-semibold text-sm transition-all focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:outline-none ${
+                    mode === 'code'
+                      ? 'bg-white dark:bg-dark-surface text-slate-800 dark:text-white shadow-sm'
+                      : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-200'
+                  }`}
+                >
+                  <Code2 size={14} /> <span className="hidden sm:inline">C++</span>
+                </button>
+              </div>
+              {mode === 'code' && (
+                <button
+                  onClick={handleConvertCodeToBlocks}
+                  disabled={isConverting}
+                  className="h-11 px-3 sm:px-4 rounded-xl font-sans font-semibold text-sm flex items-center gap-2 bg-gradient-to-r from-violet-500 to-indigo-600 hover:from-violet-600 hover:to-indigo-700 text-white shadow-md shadow-indigo-500/25 hover:shadow-lg transition-all active:scale-[0.97] disabled:opacity-50 disabled:cursor-not-allowed"
+                  title="Translate C++ code back to Blockly blocks"
+                >
+                  {isConverting ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  ) : (
+                    <LayoutGrid size={14} />
+                  )}
+                  <span className="hidden md:inline">
+                    {isConverting ? 'Converting...' : 'Convert to Blocks'}
+                  </span>
+                  <span className="inline md:hidden">{isConverting ? '...' : 'Convert'}</span>
+                </button>
+              )}
             </div>
 
             {/* Right: Board + controls + primary actions */}
@@ -1059,6 +1217,11 @@ export default function Editor() {
       {/* ── Template Picker Overlay ─────────────────────────────────────── */}
       {showTemplates && (
         <TemplatePicker onSelect={loadTemplate} onClose={() => setShowTemplates(false)} />
+      )}
+
+      {/* ── Conversion Error Overlay ───────────────────────────────────── */}
+      {conversionError && (
+        <ConversionErrorModal error={conversionError} onClose={() => setConversionError(null)} />
       )}
     </div>
   );
