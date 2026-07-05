@@ -340,6 +340,7 @@ class Parser {
   private current = 0;
   public variables = new Set<string>();
   private variableTypes = new Map<string, string>();
+  private variableValues = new Map<string, string>();
   public calledProcedures = new Map<string, string[]>();
   public definedFunctions = new Set<string>();
   private usedComments = new Set<CommentInfo>();
@@ -416,6 +417,10 @@ class Parser {
       const t = this.peek();
 
       if (t.type === 'PREPROCESSOR') {
+        const match = t.value.match(/^#define\s+([a-zA-Z_][a-zA-Z0-9_]*)\s+([a-zA-Z0-9_]+)/);
+        if (match && match[1] && match[2]) {
+          this.variableValues.set(match[1], match[2]);
+        }
         this.advance();
         continue;
       }
@@ -525,7 +530,11 @@ class Parser {
 
       if (this.check('OPERATOR', '=')) {
         this.advance();
-        this.parseExpression(true);
+        const valXml = this.parseExpression(true);
+        const literalVal = this.getLiteralValue(valXml);
+        if (literalVal !== null) {
+          this.variableValues.set(nameToken.value, literalVal);
+        }
       }
 
       if (this.check('PUNCTUATION', ',')) {
@@ -912,6 +921,10 @@ class Parser {
       if (this.check('OPERATOR', '=')) {
         this.advance();
         valXml = this.parseExpression(true);
+        const literalVal = this.getLiteralValue(valXml);
+        if (literalVal !== null) {
+          this.variableValues.set(nameToken.value, literalVal);
+        }
       }
 
       decls.push({
@@ -1392,7 +1405,15 @@ class Parser {
     match = xml.match(/<field name="BOOL">([^<]+)<\/field>/);
     if (match && match[1] !== undefined) return match[1];
     match = xml.match(/<field name="VAR">([^<]+)<\/field>/);
-    if (match && match[1] !== undefined) return match[1];
+    if (match && match[1] !== undefined) {
+      let varName = match[1];
+      let depth = 0;
+      while (this.variableValues.has(varName) && depth < 5) {
+        varName = this.variableValues.get(varName)!;
+        depth++;
+      }
+      return varName;
+    }
     return null;
   }
 

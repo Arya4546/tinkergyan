@@ -162,7 +162,7 @@ export class WebSerialFlasher {
       await this.port.setSignals({ dataTerminalReady: false, requestToSend: false });
       await this.delay(250);
       await this.port.setSignals({ dataTerminalReady: true, requestToSend: true });
-      await this.delay(50);
+      await this.delay(250); // Increased post-reset delay for stability
 
       // Sync with bootloader
       log('Syncing with STK500 bootloader...');
@@ -389,6 +389,7 @@ export class WebSerialFlasher {
     onProgress?: (p: number, m: string) => void,
     log: (m: string) => void = () => {},
   ): Promise<void> {
+    this.seqV2 = 0; // Reset sequence counter before upload
     // Ensure port is closed so we can reopen with correct baud
     try {
       await this.port.close();
@@ -417,7 +418,7 @@ export class WebSerialFlasher {
       await this.port.setSignals({ dataTerminalReady: false, requestToSend: false });
       await this.delay(250);
       await this.port.setSignals({ dataTerminalReady: true, requestToSend: true });
-      await this.delay(50);
+      await this.delay(250); // Increased post-reset delay for stability
 
       // Sync with bootloader using CMD_SIGN_ON (0x01)
       log('Syncing with STK500v2 bootloader...');
@@ -590,6 +591,13 @@ export class WebSerialFlasher {
 
     try {
       onProgress?.(5, 'Connecting to ROM bootloader...');
+
+      // Ensure the port is closed so esptool-js can open it cleanly at 115200 baud
+      try {
+        await this.port.close();
+      } catch {
+        /* ignore if already closed */
+      }
 
       const transport = new Transport(this.port);
       const esploader = new ESPLoader({
