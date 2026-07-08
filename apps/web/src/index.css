@@ -78,6 +78,16 @@
   touch-action: none !important;
 }
 
+/* Fix for invisible text in math_number shadow blocks */
+.blocklyHtmlInput {
+  color: #1e293b !important;
+  background-color: #ffffff !important;
+}
+html.dark .blocklyHtmlInput {
+  color: #f8fafc !important;
+  background-color: #1e293b !important;
+}
+
 /* Hide scrollbar chrome (workspace and flyout) */
 .blocklyScrollbarHandle,
 .blocklyScrollbarBackground {

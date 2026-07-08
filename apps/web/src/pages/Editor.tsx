@@ -19,7 +19,6 @@ import {
   Terminal,
   Save,
   Play,
-  ChevronLeft,
   LayoutGrid,
   Code2,
   Loader2,
@@ -37,6 +36,7 @@ import {
   Zap,
   Star,
   Gamepad2,
+  Home,
 } from 'lucide-react';
 
 import { CompileConsole } from '../components/editor/CompileConsole';
@@ -55,6 +55,9 @@ import { Button } from '../components/ui/Button';
 import { useEditorStore, STARTER_TEMPLATES, type StarterTemplate } from '../stores/editor.store';
 import { useUIStore } from '../stores/ui.store';
 import { useUser } from '../stores/auth.store';
+import { useSimulatorStore } from '../stores/simulator.store';
+import { scratchEngine } from '../components/editor/simulator/ScratchEngine';
+import { workspaceToScratchCode } from '../components/editor/scratch-generator';
 
 // ─── Board dropdown options ───────────────────────────────────────────────────
 const BOARDS = [
@@ -253,6 +256,8 @@ export default function Editor() {
     togglePublic,
   } = useEditorStore();
 
+  const isRunning = useSimulatorStore((s) => s.isRunning);
+
   const boardLabel = BOARDS.find((b) => b.fqbn === board)?.label || 'Board';
   const addToast = useUIStore((s: any) => s.addToast);
   const user = useUser();
@@ -351,6 +356,28 @@ export default function Editor() {
       setShowCodePanel(true);
     }
   }, [compileResult]);
+
+  const greenFlagCount = useSimulatorStore((s) => s.greenFlagCount);
+
+  // ── Scratch Engine Integration ───────────────────────────────────────────
+  useEffect(() => {
+    if (isRunning && mode === 'block') {
+      try {
+        const workspace = (window as any).Blockly.getMainWorkspace();
+        if (workspace) {
+          const jsCode = workspaceToScratchCode(workspace);
+          scratchEngine.loadCode(jsCode);
+          scratchEngine.triggerGreenFlag();
+        } else {
+          console.error('No workspace found');
+        }
+      } catch (err) {
+        console.error('Failed to run Scratch script:', err);
+      }
+    } else if (!isRunning) {
+      scratchEngine.stop();
+    }
+  }, [isRunning, greenFlagCount, mode]);
 
   // ── Mode switching ─────────────────────────────────────────────────────
   const switchToCode = useCallback(() => {
@@ -738,8 +765,9 @@ export default function Editor() {
               <Link
                 to="/dashboard"
                 className="w-11 h-11 shrink-0 flex items-center justify-center rounded-xl bg-slate-100 dark:bg-dark-border text-slate-500 hover:text-slate-800 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:outline-none"
+                title="Go back to Dashboard"
               >
-                <ChevronLeft size={18} strokeWidth={2.5} />
+                <Home size={18} strokeWidth={2.5} />
               </Link>
 
               <input

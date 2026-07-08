@@ -1,5 +1,5 @@
 import React from 'react';
-import { X, Cpu, Zap, CircleDot, User, Activity, Bot } from 'lucide-react';
+import { X, User } from 'lucide-react';
 import { useSimulatorStore, type SpriteType } from '../../../stores/simulator.store';
 
 interface PresetSprite {
@@ -7,44 +7,16 @@ interface PresetSprite {
   type: SpriteType;
   icon: React.ReactNode;
   desc: string;
+  image?: string;
 }
 
 const PRESETS: PresetSprite[] = [
   {
-    name: 'Red LED',
-    type: 'led',
-    icon: <Zap size={24} className="text-red-500" />,
-    desc: 'Digital Output: Glows when HIGH',
-  },
-  {
-    name: 'Push Button',
-    type: 'button',
-    icon: <CircleDot size={24} className="text-blue-500" />,
-    desc: 'Digital Input: Press to read HIGH',
-  },
-  {
-    name: 'Servo Motor',
-    type: 'servo',
-    icon: <Activity size={24} className="text-amber-500" />,
-    desc: 'PWM Output: Rotates 0-180°',
-  },
-  {
-    name: 'Potentiometer',
-    type: 'potentiometer',
-    icon: <Cpu size={24} className="text-emerald-500" />,
-    desc: 'Analog Input: Read 0-1023',
-  },
-  {
-    name: 'Tinker Mascot',
+    name: 'Scratch Cat',
     type: 'character',
     icon: <User size={24} className="text-indigo-500" />,
-    desc: 'Virtual Character',
-  },
-  {
-    name: 'Smart Robot Car',
-    type: 'robot_car',
-    icon: <Bot size={24} className="text-violet-500" />,
-    desc: 'Virtual Hardware Toy Car',
+    desc: 'Default Character',
+    image: '/sprites/cat.png',
   },
 ];
 
@@ -55,8 +27,9 @@ export function AddSpriteModal({ onClose }: { onClose: () => void }) {
     addSprite({
       name: preset.name,
       type: preset.type,
-      x: 240, // Center of a 480x360 stage
-      y: 180,
+      ...(preset.image ? { image: preset.image } : {}),
+      x: 0, // Center of stage (Scratch coordinate system: 0,0 = center)
+      y: 0,
       size: 100,
       direction: 90,
       visible: true,
@@ -88,8 +61,16 @@ export function AddSpriteModal({ onClose }: { onClose: () => void }) {
                 onClick={() => handleSelect(preset)}
                 className="text-left p-4 rounded-xl border border-slate-100 dark:border-dark-border bg-white dark:bg-dark-bg hover:border-primary-500 hover:shadow-md transition-all group flex flex-col gap-2"
               >
-                <div className="w-12 h-12 rounded-full bg-slate-50 dark:bg-[#1a1a1a] flex items-center justify-center group-hover:scale-110 transition-transform">
-                  {preset.icon}
+                <div className="w-12 h-12 rounded-full bg-slate-50 dark:bg-[#1a1a1a] flex items-center justify-center group-hover:scale-110 transition-transform overflow-hidden">
+                  {preset.image ? (
+                    <img
+                      src={preset.image}
+                      alt={preset.name}
+                      className="w-full h-full object-contain p-2"
+                    />
+                  ) : (
+                    preset.icon
+                  )}
                 </div>
                 <div>
                   <h3 className="font-bold text-sm text-slate-800 dark:text-white">

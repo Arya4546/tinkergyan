@@ -1,56 +1,94 @@
-import React from 'react';
-import { StageCanvas } from './StageCanvas';
-import { SpriteList } from './SpriteList';
-import { SpriteProperties } from './SpriteProperties';
-import { Flag, Octagon } from 'lucide-react';
+import React, { useEffect, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { useSimulatorStore } from '../../../stores/simulator.store';
+import { ScratchControlBar } from './ScratchControlBar';
+import { StageCanvas } from './StageCanvas';
+import { SpriteProperties } from './SpriteProperties';
+import { SpriteList } from './SpriteList';
+import { ScratchBackdropPanel } from './ScratchBackdropPanel';
+import { ExitFullscreenIcon } from './ScratchIcons';
+import './scratch-stage.css';
 
+/**
+ * StagePanel — Root container for the Scratch-style Stage & Sprite Management panel.
+ */
 export function StagePanel() {
-  const { isRunning, toggleSimulation, stopSimulation } = useSimulatorStore();
+  const { stageViewMode, setStageViewMode } = useSimulatorStore();
 
+  // ESC key to exit fullscreen
+  const handleKeyDown = useCallback(
+    (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && stageViewMode === 'fullscreen') {
+        setStageViewMode('large');
+      }
+    },
+    [stageViewMode, setStageViewMode],
+  );
+
+  useEffect(() => {
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [handleKeyDown]);
+
+  // ── Fullscreen Overlay ────────────────────────────────────────────────
+  if (stageViewMode === 'fullscreen') {
+    return createPortal(
+      <div className="scratch-fullscreen-overlay">
+        <div className="scratch-fullscreen-stage">
+          <div className="scratch-fullscreen-canvas">
+            <StageCanvas />
+          </div>
+        </div>
+
+        <div style={{ padding: '16px', display: 'flex', justifyContent: 'center' }}>
+          <button
+            onClick={() => setStageViewMode('large')}
+            style={{
+              padding: '8px 16px',
+              backgroundColor: 'rgba(255,255,255,0.2)',
+              color: 'white',
+              border: '1px solid rgba(255,255,255,0.4)',
+              borderRadius: '8px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              cursor: 'pointer',
+              fontWeight: 'bold',
+            }}
+          >
+            <ExitFullscreenIcon size={16} />
+            Exit Fullscreen
+          </button>
+        </div>
+      </div>,
+      document.body,
+    );
+  }
+
+  // ── Normal Layout (small or large stage) ──────────────────────────────
   return (
-    <div className="flex flex-col h-full bg-[#050505] overflow-hidden p-2 sm:p-4 gap-3">
-      {/* Top Header: Controls */}
-      <div className="flex items-center justify-between shrink-0 bg-slate-900 rounded-xl px-4 py-2 border border-slate-800">
-        <h2 className="text-sm font-bold text-white flex items-center gap-2">
-          🎮 Hardware Simulator
-        </h2>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={toggleSimulation}
-            className={`w-9 h-9 rounded-lg flex items-center justify-center transition-all ${
-              isRunning
-                ? 'bg-green-500/20 text-green-400'
-                : 'bg-green-500 text-white hover:bg-green-600 shadow-md shadow-green-500/20'
-            }`}
-            title="Start Simulation (Green Flag)"
+    <div className="scratch-panel-root">
+      {/* Top: Stage Area */}
+      <div className="scratch-stage-area">
+        <ScratchControlBar />
+        <div className="scratch-stage-canvas-container">
+          <div
+            className="scratch-stage-canvas"
+            style={{ maxWidth: stageViewMode === 'small' ? '240px' : '480px' }}
           >
-            <Flag size={18} fill="currentColor" />
-          </button>
-          <button
-            onClick={stopSimulation}
-            className={`w-9 h-9 rounded-lg flex items-center justify-center transition-all ${
-              !isRunning
-                ? 'bg-red-500/20 text-red-400 opacity-50'
-                : 'bg-red-500 text-white hover:bg-red-600 shadow-md shadow-red-500/20'
-            }`}
-            title="Stop Simulation"
-          >
-            <Octagon size={18} fill="currentColor" />
-          </button>
+            <StageCanvas />
+          </div>
         </div>
       </div>
 
-      {/* Main Canvas Area */}
-      <div className="w-full shrink-0 flex items-center justify-center">
-        <StageCanvas />
+      {/* Bottom: Sprite Management Area */}
+      <div className="scratch-sprite-area">
+        <SpriteProperties />
+        <div className="scratch-bottom-panels">
+          <SpriteList />
+          <ScratchBackdropPanel />
+        </div>
       </div>
-
-      {/* Properties Bar */}
-      <SpriteProperties />
-
-      {/* Sprite List Manager */}
-      <SpriteList />
     </div>
   );
 }

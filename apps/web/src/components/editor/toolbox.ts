@@ -13,6 +13,56 @@
 export const INITIAL_TOOLBOX = {
   kind: 'categoryToolbox',
   contents: [
+    // ── Scratch Blocks ───────────────────────────────────────────────────────
+    {
+      kind: 'category',
+      name: '🟡 Events',
+      categorystyle: 'scratch_events_category',
+      contents: [{ kind: 'block', type: 'scratch_event_when_flag_clicked' }],
+    },
+    {
+      kind: 'category',
+      name: '🔵 Motion',
+      categorystyle: 'scratch_motion_category',
+      contents: [
+        {
+          kind: 'block',
+          type: 'scratch_motion_move_steps',
+          inputs: { STEPS: { shadow: { type: 'math_number', fields: { NUM: 10 } } } },
+        },
+        {
+          kind: 'block',
+          type: 'scratch_motion_turn_right',
+          inputs: { DEGREES: { shadow: { type: 'math_number', fields: { NUM: 15 } } } },
+        },
+        {
+          kind: 'block',
+          type: 'scratch_motion_goto',
+          inputs: {
+            X: { shadow: { type: 'math_number', fields: { NUM: 0 } } },
+            Y: { shadow: { type: 'math_number', fields: { NUM: 0 } } },
+          },
+        },
+      ],
+    },
+    {
+      kind: 'category',
+      name: '🟣 Looks',
+      categorystyle: 'scratch_looks_category',
+      contents: [
+        {
+          kind: 'block',
+          type: 'scratch_looks_say_for',
+          inputs: {
+            TEXT: { shadow: { type: 'text', fields: { TEXT: 'Hello!' } } },
+            SECS: { shadow: { type: 'math_number', fields: { NUM: 2 } } },
+          },
+        },
+        { kind: 'block', type: 'scratch_looks_show' },
+        { kind: 'block', type: 'scratch_looks_hide' },
+      ],
+    },
+
     // ── Arduino Structure ────────────────────────────────────────────────────
     {
       kind: 'category',

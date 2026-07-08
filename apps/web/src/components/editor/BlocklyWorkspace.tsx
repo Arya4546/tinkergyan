@@ -16,13 +16,20 @@ import * as En from 'blockly/msg/en';
 
 // Custom Arduino extensions — must be imported before inject()
 import './arduino-blocks';
+import './scratch-blocks';
 import { arduinoGenerator } from './arduino-generator';
 import { INITIAL_TOOLBOX } from './toolbox';
 import { useUIStore } from '../../stores/ui.store';
 import { useEditorStore } from '../../stores/editor.store';
 
+declare global {
+  interface Window {
+    Blockly: typeof Blockly;
+  }
+}
+
 Blockly.setLocale(En as unknown as Record<string, string>);
-(window as any).Blockly = Blockly;
+window.Blockly = Blockly;
 
 const BOARDS = [
   { fqbn: 'arduino:avr:uno', label: 'Arduino Uno' },
@@ -48,6 +55,9 @@ const KID_CATEGORY_STYLES = {
   text_category: { colour: '#5BA58C' },
   variable_category: { colour: '#A65C5C' },
   function_category: { colour: '#9A5CA6' },
+  scratch_events_category: { colour: '#FFBF00' },
+  scratch_motion_category: { colour: '#4C97FF' },
+  scratch_looks_category: { colour: '#9966FF' },
 };
 
 const KID_FONT: Blockly.Theme.FontStyle = {

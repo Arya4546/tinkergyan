@@ -1,0 +1,404 @@
+/* ═══════════════════════════════════════════════════════════════════
+   Scratch-Style Stage & Sprite Panel — Custom Styles
+   Pixel-accurate replica of the Scratch editor stage/sprite area.
+   ═══════════════════════════════════════════════════════════════════ */
+
+/* ── Color Tokens ─────────────────────────────────────────────────── */
+:root {
+  --scratch-purple: #855cd6;
+  --scratch-purple-light: #9b7ee0;
+  --scratch-purple-dark: #7142c6;
+  --scratch-blue: #4c97ff;
+  --scratch-blue-light: #80b4ff;
+  --scratch-green: #4cbf56;
+  --scratch-green-dark: #3aa845;
+  --scratch-red: #ec5959;
+  --scratch-red-dark: #d44040;
+  --scratch-bg: #f9f9f9;
+  --scratch-border: #d9d9d9;
+  --scratch-border-light: #e9eef2;
+  --scratch-text: #575e75;
+  --scratch-text-light: #7b8199;
+  --scratch-text-dark: #3d4059;
+  --scratch-white: #ffffff;
+  --scratch-input-border: #e9eef2;
+  --scratch-input-bg: #ffffff;
+  --scratch-stage-bg: #ffffff;
+  --scratch-panel-bg: #e8edf1;
+  --scratch-control-bg: #e8edf1;
+}
+
+/* ── Container ───────────────────────────────────────────────────── */
+.scratch-panel-root {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background-color: var(--scratch-white);
+  font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+  color: var(--scratch-text);
+  user-select: none;
+}
+
+/* ── Stage Area (Top) ────────────────────────────────────────────── */
+.scratch-stage-area {
+  display: flex;
+  flex-direction: column;
+  background-color: var(--scratch-white);
+  padding-bottom: 8px;
+}
+
+.scratch-control-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 16px 8px 16px;
+  background-color: var(--scratch-white);
+}
+
+.scratch-flag-stop {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.scratch-flag-btn {
+  color: var(--scratch-green);
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+.scratch-flag-btn:hover {
+  opacity: 0.8;
+}
+.scratch-flag-btn.running {
+  opacity: 0.5;
+}
+
+.scratch-stop-btn {
+  color: var(--scratch-red);
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+.scratch-stop-btn:hover {
+  opacity: 0.8;
+}
+.scratch-stop-btn.running {
+  opacity: 1;
+}
+.scratch-stop-btn:not(.running) {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.scratch-view-toggles {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.scratch-view-btn {
+  color: var(--scratch-text-light);
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 4px;
+}
+.scratch-view-btn:hover {
+  background-color: var(--scratch-purple-light);
+  color: var(--scratch-white);
+  opacity: 0.5;
+}
+.scratch-view-btn.active {
+  color: var(--scratch-purple);
+}
+
+.scratch-stage-canvas-container {
+  display: flex;
+  justify-content: center;
+  padding: 0 16px;
+}
+
+.scratch-stage-canvas {
+  width: 100%;
+  max-width: 480px;
+  aspect-ratio: 4/3;
+  background-color: var(--scratch-stage-bg);
+  border: 1px solid var(--scratch-border);
+  border-radius: 8px;
+  position: relative;
+  overflow: hidden;
+}
+
+/* ── Fullscreen Overlay ──────────────────────────────────────────── */
+.scratch-fullscreen-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 99999;
+  background-color: #000;
+  display: flex;
+  flex-direction: column;
+}
+
+.scratch-fullscreen-stage {
+  flex: 1;
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.scratch-fullscreen-canvas {
+  width: 100vw;
+  height: 75vw;
+  max-height: 100vh;
+  max-width: 133.33vh;
+  background-color: var(--scratch-stage-bg);
+  position: relative;
+  overflow: hidden;
+}
+
+/* ── Sprite Management Area (Bottom) ─────────────────────────────── */
+.scratch-sprite-area {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  background-color: var(--scratch-bg);
+  border-top-left-radius: 8px;
+  border-top-right-radius: 8px;
+  border: 1px solid var(--scratch-border);
+  margin: 0 16px 16px 16px;
+  overflow: hidden;
+}
+
+.scratch-info-bar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 12px;
+  background-color: var(--scratch-white);
+  border-bottom: 1px solid var(--scratch-border);
+}
+
+.scratch-info-group {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.scratch-info-label {
+  font-size: 0.75rem;
+  font-weight: bold;
+  color: var(--scratch-text);
+  white-space: nowrap;
+}
+
+.scratch-input {
+  height: 32px;
+  border-radius: 16px;
+  border: 1px solid var(--scratch-input-border);
+  background-color: var(--scratch-white);
+  padding: 0 12px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--scratch-text-dark);
+  outline: none;
+  transition: border-color 0.2s;
+}
+.scratch-input:focus {
+  border-color: var(--scratch-blue);
+}
+.scratch-input[type='number'] {
+  text-align: center;
+  padding: 0 4px;
+}
+.scratch-input::-webkit-outer-spin-button,
+.scratch-input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+.scratch-input[type='number'] {
+  -moz-appearance: textfield;
+}
+
+.scratch-toggle-group {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.scratch-toggle-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: 16px;
+  border: 1px solid var(--scratch-input-border);
+  background-color: var(--scratch-white);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: var(--scratch-text-light);
+  transition: all 0.2s;
+}
+.scratch-toggle-btn:hover {
+  border-color: var(--scratch-purple);
+}
+.scratch-toggle-btn.active {
+  background-color: var(--scratch-purple);
+  border-color: var(--scratch-purple);
+  color: var(--scratch-white);
+}
+
+/* ── Sprite List & Backdrops ─────────────────────────────────────── */
+.scratch-bottom-panels {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+
+.scratch-sprite-list {
+  flex: 1;
+  display: flex;
+  align-content: flex-start;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 12px;
+  overflow-y: auto;
+  position: relative;
+}
+
+.scratch-backdrop-panel {
+  width: 80px;
+  border-left: 1px solid var(--scratch-border);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 12px 8px;
+  position: relative;
+  background-color: var(--scratch-bg);
+}
+
+.scratch-item-card {
+  width: 72px;
+  height: 84px;
+  border-radius: 8px;
+  border: 2px solid var(--scratch-border);
+  background-color: var(--scratch-white);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  cursor: pointer;
+  transition: border-color 0.2s;
+  position: relative;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+.scratch-item-card:hover {
+  border-color: var(--scratch-blue);
+}
+.scratch-item-card.selected {
+  border-color: var(--scratch-purple);
+}
+
+.scratch-item-thumb {
+  width: 100%;
+  height: 54px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px;
+}
+.scratch-item-thumb img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
+
+.scratch-item-name {
+  width: 100%;
+  height: 26px;
+  background-color: var(--scratch-bg);
+  border-top: 1px solid var(--scratch-border);
+  border-bottom-left-radius: 6px;
+  border-bottom-right-radius: 6px;
+  font-size: 0.65rem;
+  font-weight: bold;
+  color: var(--scratch-text);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 4px;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.scratch-item-card.selected .scratch-item-name {
+  background-color: var(--scratch-purple);
+  color: var(--scratch-white);
+  border-top-color: var(--scratch-purple);
+}
+
+.scratch-item-delete {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background-color: var(--scratch-purple);
+  color: var(--scratch-white);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.2s;
+  border: 1px solid var(--scratch-white);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+.scratch-item-card:hover .scratch-item-delete {
+  opacity: 1;
+}
+
+.scratch-backdrop-thumbnail {
+  width: 56px;
+  height: 42px;
+  border-radius: 4px;
+  border: 1px solid var(--scratch-border);
+  background-color: var(--scratch-white);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.scratch-fab {
+  position: absolute;
+  bottom: 16px;
+  right: 16px;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background-color: var(--scratch-purple);
+  color: var(--scratch-white);
+  border: 2px solid var(--scratch-white);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: transform 0.2s;
+  z-index: 10;
+}
+.scratch-fab:hover {
+  transform: scale(1.05);
+}
+
+.scratch-coord-hint {
+  position: absolute;
+  bottom: 8px;
+  left: 8px;
+  font-size: 0.6rem;
+  font-weight: bold;
+  color: var(--scratch-text-light);
+  background-color: rgba(255, 255, 255, 0.7);
+  padding: 2px 6px;
+  border-radius: 4px;
+}
