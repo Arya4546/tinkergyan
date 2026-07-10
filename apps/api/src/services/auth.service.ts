@@ -78,7 +78,15 @@ export class AuthService {
     await redis.setex(`rt:${rtHash}`, 2592000, user.id);
 
     return {
-      user: { id: user.id, name: user.name, email: user.email, xp: user.xp, level: user.level },
+      user: {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        xp: user.xp,
+        level: user.level,
+        streak: user.streak,
+        avatar: user.avatar,
+      },
       accessToken,
       refreshToken,
     };
@@ -111,7 +119,15 @@ export class AuthService {
     await redis.setex(`rt:${rtHash}`, 2592000, user.id);
 
     return {
-      user: { id: user.id, name: user.name, email: user.email, xp: user.xp, level: user.level },
+      user: {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        xp: user.xp,
+        level: user.level,
+        streak: user.streak,
+        avatar: user.avatar,
+      },
       accessToken,
       refreshToken,
     };
@@ -176,7 +192,15 @@ export class AuthService {
     await redis.setex(`rt:${newRtHash}`, 2592000, userId);
 
     return {
-      user: { id: user.id, name: user.name, email: user.email, xp: user.xp, level: user.level },
+      user: {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        xp: user.xp,
+        level: user.level,
+        streak: user.streak,
+        avatar: user.avatar,
+      },
       accessToken: newAccessToken,
       refreshToken: newRefreshToken,
     };

@@ -128,7 +128,7 @@ export default function Gallery() {
                   </span>
                   <div className="flex items-center gap-3">
                     <Link
-                      to={`/editor/${p.id}`}
+                      to={`/editor/${p.id}${p.boardTarget === 'software' ? '?engine=software' : '?engine=hardware'}`}
                       className="text-xs font-semibold text-emerald-600 hover:text-emerald-700 transition-colors"
                     >
                       View

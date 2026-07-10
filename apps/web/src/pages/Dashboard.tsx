@@ -71,7 +71,7 @@ function ProjectCard({
       </div>
 
       <Link
-        to={`/editor/${project.id}`}
+        to={`/editor/${project.id}${project.boardTarget === 'software' ? '?engine=software' : '?engine=hardware'}`}
         className="inline-flex items-center gap-2 text-xs font-semibold text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white transition-colors"
       >
         <Play size={12} className="fill-current" /> Open in Editor

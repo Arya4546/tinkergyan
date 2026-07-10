@@ -161,7 +161,7 @@ export default function Projects() {
 
                   <div className="mt-auto pt-4 border-t border-slate-100 dark:border-slate-800 flex justify-end">
                     <Link
-                      to={`/editor/${project.id}`}
+                      to={`/editor/${project.id}${project.boardTarget === 'software' ? '?engine=software' : '?engine=hardware'}`}
                       className="inline-flex items-center gap-2 text-xs font-semibold text-emerald-600 hover:text-emerald-700 transition-colors"
                     >
                       Open <Play size={12} className="fill-current" />

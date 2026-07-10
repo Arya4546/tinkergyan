@@ -17,3 +17,7 @@ packages/*/dist/
 
 # Local arduino-cli binaries, toolchains and cores
 bin/
+
+# Prisma generated client
+apps/api/src/generated/
+

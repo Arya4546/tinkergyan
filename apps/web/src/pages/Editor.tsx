@@ -321,9 +321,20 @@ export default function Editor() {
   // ── Sync URL with newly created project ──────────────────────────────
   useEffect(() => {
     if (projectId && routeProjectId !== projectId) {
-      navigate(`/editor/${projectId}`, { replace: true });
+      navigate(`/editor/${projectId}?engine=${engineMode}`, { replace: true });
     }
-  }, [projectId, routeProjectId, navigate]);
+  }, [projectId, routeProjectId, navigate, engineMode]);
+
+  // ── Sync URL query param to loaded project's board target ────────────────
+  useEffect(() => {
+    if (routeProjectId && projectId === routeProjectId) {
+      const currentEngine = searchParams.get('engine');
+      const targetEngine = board === 'software' ? 'software' : 'hardware';
+      if (currentEngine !== targetEngine) {
+        navigate(`/editor/${projectId}?engine=${targetEngine}`, { replace: true });
+      }
+    }
+  }, [projectId, routeProjectId, board, searchParams, navigate]);
 
   // ── Load project on mount if URL has an ID ─────────────────────────────
   useEffect(() => {
@@ -333,9 +344,11 @@ export default function Editor() {
       }
     } else {
       resetEditor();
+      const targetBoard = engineMode === 'software' ? 'software' : 'arduino:avr:uno';
+      useEditorStore.setState({ board: targetBoard });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [routeProjectId]);
+  }, [routeProjectId, engineMode]);
 
   // ── Reset editor store when leaving the Editor page ───────────────────
   useEffect(() => {
@@ -494,7 +507,7 @@ export default function Editor() {
     try {
       if (isDirty) await handleSave();
       const newId = await duplicateProject();
-      navigate(`/editor/${newId}`, { replace: true });
+      navigate(`/editor/${newId}?engine=${engineMode}`, { replace: true });
       addToast({
         type: 'success',
         title: 'Project copied!',
@@ -507,7 +520,7 @@ export default function Editor() {
         message: 'Something went wrong. Try again.',
       });
     }
-  }, [duplicateProject, navigate, addToast, isDirty, handleSave]);
+  }, [duplicateProject, navigate, addToast, isDirty, handleSave, engineMode]);
 
   const handleTogglePublic = useCallback(async () => {
     try {
