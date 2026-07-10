@@ -14,3 +14,6 @@ apps/*/node_modules/
 apps/*/dist/
 packages/*/node_modules/
 packages/*/dist/
+
+# Local arduino-cli binaries, toolchains and cores
+bin/

@@ -59,9 +59,9 @@ RUN test -f /app/apps/api/dist/server.js \
 # ════════════════════════════════════════════════════════════
 # Stage 3: Production image
 # ════════════════════════════════════════════════════════════
-FROM node:20-alpine
+FROM node:20-slim
 RUN corepack enable && corepack prepare pnpm@10.6.3 --activate
-RUN apk add --no-cache openssl curl libc6-compat python3
+RUN apt-get update && apt-get install -y --no-install-recommends openssl curl python3 ca-certificates && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 
 # Install just the arduino-cli binary (~30MB)
