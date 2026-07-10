@@ -14,8 +14,9 @@
  *   - Compile + run via Wandbox
  */
 import { useRef, useCallback, useEffect, useState } from 'react';
-import { Link, useParams, useNavigate } from 'react-router-dom';
+import { Link, useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import {
+  MoreVertical,
   Terminal,
   Save,
   Play,
@@ -181,14 +182,21 @@ function ConversionErrorModal({
 export default function Editor() {
   const { id: routeProjectId } = useParams<{ id?: string }>();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const engineMode = (searchParams.get('engine') as 'hardware' | 'software') || 'hardware';
   const [showTemplates, setShowTemplates] = useState(false);
+  const [showMoreMenu, setShowMoreMenu] = useState(false);
   const [hardwarePort, setHardwarePort] = useState<any>(null);
   const [isFlashing, setIsFlashing] = useState(false);
   const [flashProgress, setFlashProgress] = useState(0);
   const [flashMessage, setFlashMessage] = useState('');
   const [showSerialMonitor, setShowSerialMonitor] = useState(false);
-  const [showCodePanel, setShowCodePanel] = useState(false);
-  const [showSimulator, setShowSimulator] = useState(false);
+  const [showCodePanel, setShowCodePanel] = useState(
+    () => searchParams.get('engine') === 'software',
+  );
+  const [showSimulator, setShowSimulator] = useState(
+    () => searchParams.get('engine') === 'software',
+  );
   const [terminalWidth, setTerminalWidth] = useState(() => (window.innerWidth < 1024 ? 340 : 420));
   const [conversionError, setConversionError] = useState<{
     message: string;
@@ -197,6 +205,19 @@ export default function Editor() {
   } | null>(null);
   const [isConverting, setIsConverting] = useState(false);
   const workerRef = useRef<Worker | null>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      if (!target.closest('.relative')) {
+        setShowMoreMenu(false);
+      }
+    };
+    if (showMoreMenu) {
+      document.addEventListener('click', handleClickOutside);
+    }
+    return () => document.removeEventListener('click', handleClickOutside);
+  }, [showMoreMenu]);
 
   const getWorker = useCallback(() => {
     if (!workerRef.current) {
@@ -851,17 +872,19 @@ export default function Editor() {
 
             {/* Right: Board + controls + primary actions */}
             <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
-              <select
-                value={board}
-                onChange={(e) => setBoard(e.target.value)}
-                className="h-11 px-2 sm:px-3 font-sans text-sm font-medium bg-white dark:bg-dark-surface text-slate-700 dark:text-slate-200 rounded-lg border border-slate-200 dark:border-dark-border outline-none cursor-pointer focus-visible:ring-2 focus-visible:ring-primary-500 hidden sm:block"
-              >
-                {BOARDS.map((b) => (
-                  <option key={b.fqbn} value={b.fqbn}>
-                    {b.label}
-                  </option>
-                ))}
-              </select>
+              {engineMode === 'hardware' && (
+                <select
+                  value={board}
+                  onChange={(e) => setBoard(e.target.value)}
+                  className="h-11 px-2 sm:px-3 font-sans text-sm font-medium bg-white dark:bg-dark-surface text-slate-700 dark:text-slate-200 rounded-lg border border-slate-200 dark:border-dark-border outline-none cursor-pointer focus-visible:ring-2 focus-visible:ring-primary-500 hidden sm:block"
+                >
+                  {BOARDS.map((b) => (
+                    <option key={b.fqbn} value={b.fqbn}>
+                      {b.label}
+                    </option>
+                  ))}
+                </select>
+              )}
 
               {/* Font size controls (code mode only) */}
               {mode === 'code' && (
@@ -906,69 +929,78 @@ export default function Editor() {
                 </div>
               )}
 
-              {/* Secondary actions group */}
-              <div className="hidden sm:flex items-center gap-1">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setShowTemplates(true)}
-                  title="Choose a starter template"
+              {/* Secondary actions group -> Moved to More Menu */}
+              <div className="relative">
+                <button
+                  onClick={() => setShowMoreMenu(!showMoreMenu)}
+                  className="w-11 h-11 flex items-center justify-center rounded-xl text-slate-500 hover:text-slate-800 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-dark-border transition-colors focus-visible:ring-2 focus-visible:ring-primary-500"
+                  title="More options"
                 >
-                  <FileCode size={14} />
-                  <span className="hidden md:inline">Templates</span>
-                </Button>
+                  <MoreVertical size={20} />
+                </button>
 
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handleDownload}
-                  title="Download as .ino (Ctrl+Shift+D)"
-                >
-                  <Download size={14} />
-                  <span className="hidden md:inline">Download .ino</span>
-                </Button>
-
-                {projectId && (
-                  <>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={handleDuplicate}
-                      title="Duplicate this project"
+                {showMoreMenu && (
+                  <div className="absolute right-0 top-full mt-2 w-48 bg-white dark:bg-dark-surface border border-slate-200 dark:border-dark-border rounded-xl shadow-lg flex flex-col p-1 z-50">
+                    <button
+                      onClick={() => {
+                        setShowTemplates(true);
+                        setShowMoreMenu(false);
+                      }}
+                      className="flex items-center gap-2 px-3 py-2 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg text-left"
                     >
-                      <Copy size={14} />
-                      <span className="hidden md:inline">Copy</span>
-                    </Button>
-
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className={
-                        isPublic
-                          ? 'text-accent-600 border-accent-300 bg-accent-50 dark:bg-accent-900/20'
-                          : ''
-                      }
-                      onClick={handleTogglePublic}
-                      title={isPublic ? 'Make Private' : 'Share to Gallery'}
+                      <FileCode size={16} /> Templates
+                    </button>
+                    <button
+                      onClick={() => {
+                        handleDownload();
+                        setShowMoreMenu(false);
+                      }}
+                      className="flex items-center gap-2 px-3 py-2 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg text-left"
                     >
-                      <Globe size={14} />
-                      <span className="hidden md:inline">{isPublic ? 'Public' : 'Share'}</span>
-                    </Button>
-                  </>
+                      <Download size={16} /> Download .ino
+                    </button>
+                    <button
+                      onClick={() => {
+                        handleSave();
+                        setShowMoreMenu(false);
+                      }}
+                      disabled={isSaving}
+                      className="flex items-center gap-2 px-3 py-2 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg text-left disabled:opacity-50"
+                    >
+                      {isSaving ? (
+                        <Loader2 size={16} className="animate-spin" />
+                      ) : (
+                        <Save size={16} />
+                      )}
+                      {isSaving ? 'Saving...' : 'Save Project'}
+                    </button>
+                    {projectId && (
+                      <>
+                        <div className="h-px bg-slate-200 dark:bg-dark-border my-1" />
+                        <button
+                          onClick={() => {
+                            handleDuplicate();
+                            setShowMoreMenu(false);
+                          }}
+                          className="flex items-center gap-2 px-3 py-2 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg text-left"
+                        >
+                          <Copy size={16} /> Duplicate
+                        </button>
+                        <button
+                          onClick={() => {
+                            handleTogglePublic();
+                            setShowMoreMenu(false);
+                          }}
+                          className="flex items-center gap-2 px-3 py-2 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg text-left"
+                        >
+                          <Globe size={16} className={isPublic ? 'text-accent-500' : ''} />
+                          {isPublic ? 'Make Private' : 'Share to Gallery'}
+                        </button>
+                      </>
+                    )}
+                  </div>
                 )}
               </div>
-
-              {/* Save button — medium prominence */}
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleSave}
-                disabled={isSaving}
-                title="Save project (Ctrl+S)"
-              >
-                {isSaving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
-                <span className="hidden sm:inline">{isSaving ? 'Saving...' : 'Save'}</span>
-              </Button>
 
               {/* Connect Board — second-highest prominence */}
               <button
@@ -1037,21 +1069,27 @@ export default function Editor() {
               </button>
 
               {/* Simulator Panel Toggle */}
-              <button
-                onClick={() => {
-                  const nextState = !showSimulator;
-                  setShowSimulator(nextState);
-                  if (nextState) setShowCodePanel(true);
-                }}
-                title={showSimulator ? 'Hide Simulator' : 'Show Simulator'}
-                className={`w-11 h-11 rounded-xl flex items-center justify-center transition-all focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:outline-none active:scale-[0.97] hidden sm:flex ${
-                  showSimulator
-                    ? 'bg-emerald-500 text-white shadow-md shadow-emerald-500/20'
-                    : 'bg-slate-100 dark:bg-dark-border text-slate-500 hover:text-slate-800 dark:hover:text-white'
-                }`}
-              >
-                <Gamepad2 size={16} />
-              </button>
+              {engineMode === 'software' && (
+                <button
+                  onClick={() => {
+                    const nextState = !showSimulator;
+                    setShowSimulator(nextState);
+                    if (nextState) {
+                      setShowCodePanel(true);
+                    } else if (engineMode === 'software') {
+                      setShowCodePanel(false);
+                    }
+                  }}
+                  title={showSimulator ? 'Hide Simulator' : 'Show Simulator'}
+                  className={`w-11 h-11 rounded-xl flex items-center justify-center transition-all focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:outline-none active:scale-[0.97] hidden sm:flex ${
+                    showSimulator
+                      ? 'bg-emerald-500 text-white shadow-md shadow-emerald-500/20'
+                      : 'bg-slate-100 dark:bg-dark-border text-slate-500 hover:text-slate-800 dark:hover:text-white'
+                  }`}
+                >
+                  <Gamepad2 size={16} />
+                </button>
+              )}
 
               {/* ▶ Run — highest prominence, always rightmost */}
               <button
@@ -1091,6 +1129,7 @@ export default function Editor() {
               >
                 <BlocklyWorkspace
                   ref={blocklyRef}
+                  engineMode={engineMode}
                   onCodeChange={handleBlocklyCodeChange}
                   className="w-full h-full"
                 />
@@ -1146,14 +1185,18 @@ export default function Editor() {
                     ) : (
                       <>
                         {/* C++ preview header (block mode) */}
-                        {mode === 'block' && !isCompiling && !compileResult && !isFlashing && (
-                          <div className="border-b border-slate-800 bg-[#0a0a0a] px-4 py-2 flex items-center gap-2 shrink-0">
-                            <Code2 size={12} className="text-slate-500" />
-                            <span className="font-sans text-xs text-slate-500">
-                              Generated C++ Preview
-                            </span>
-                          </div>
-                        )}
+                        {mode === 'block' &&
+                          engineMode === 'hardware' &&
+                          !isCompiling &&
+                          !compileResult &&
+                          !isFlashing && (
+                            <div className="border-b border-slate-800 bg-[#0a0a0a] px-4 py-2 flex items-center gap-2 shrink-0">
+                              <Code2 size={12} className="text-slate-500" />
+                              <span className="font-sans text-xs text-slate-500">
+                                Generated C++ Preview
+                              </span>
+                            </div>
+                          )}
 
                         {/* Stdin input for programs that need cin/scanf */}
                         {mode === 'code' && !isFlashing && (
@@ -1204,6 +1247,7 @@ export default function Editor() {
                           ) : (
                             <div className="flex-1 overflow-y-auto p-4">
                               {mode === 'block' &&
+                                engineMode === 'hardware' &&
                                 (generatedCode ? (
                                   <pre className="font-mono text-xs text-emerald-400 leading-relaxed whitespace-pre-wrap">
                                     {generatedCode}

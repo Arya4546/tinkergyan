@@ -1,4 +1,5 @@
-import axios, { AxiosError, InternalAxiosRequestConfig } from 'axios';
+import type { AxiosError, InternalAxiosRequestConfig } from 'axios';
+import axios from 'axios';
 import { useAuthStore } from '../stores/auth.store';
 
 export const api = axios.create({
@@ -14,7 +15,7 @@ api.interceptors.request.use(
     }
     return config;
   },
-  (error) => Promise.reject(error)
+  (error: unknown) => Promise.reject(error instanceof Error ? error : new Error(String(error))),
 );
 
 let isRefreshing = false;
@@ -38,7 +39,7 @@ api.interceptors.response.use(
 
     if (error.response?.status === 401 && originalRequest && !originalRequest._retry) {
       if (
-        originalRequest.url?.includes('/auth/login') || 
+        originalRequest.url?.includes('/auth/login') ||
         originalRequest.url?.includes('/auth/refresh') ||
         originalRequest.url?.includes('/auth/logout')
       ) {
@@ -51,11 +52,13 @@ api.interceptors.response.use(
         })
           .then((token) => {
             if (originalRequest.headers) {
-              originalRequest.headers.Authorization = `Bearer ${token}`;
+              originalRequest.headers.Authorization = `Bearer ${String(token)}`;
             }
             return api(originalRequest);
           })
-          .catch((err) => Promise.reject(err));
+          .catch((err: unknown) =>
+            Promise.reject(err instanceof Error ? err : new Error(String(err))),
+          );
       }
 
       originalRequest._retry = true;
@@ -65,7 +68,7 @@ api.interceptors.response.use(
         const { data } = await axios.post(
           `${import.meta.env.VITE_API_URL || '/api'}/auth/refresh`,
           {},
-          { withCredentials: true }
+          { withCredentials: true },
         );
 
         const newAccessToken = data.data.accessToken;
@@ -81,13 +84,16 @@ api.interceptors.response.use(
       } catch (err) {
         processQueue(err as AxiosError, null);
         // Clear auth state gracefully so React Router redirects, avoiding hard refresh loops
-        useAuthStore.getState().logout().catch(() => {});
-        return Promise.reject(err);
+        useAuthStore
+          .getState()
+          .logout()
+          .catch(() => {});
+        return Promise.reject(err instanceof Error ? err : new Error(String(err)));
       } finally {
         isRefreshing = false;
       }
     }
 
     return Promise.reject(error);
-  }
+  },
 );

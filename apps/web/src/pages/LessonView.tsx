@@ -10,8 +10,14 @@
 import { useEffect, useState, useCallback } from 'react';
 import { Link, useParams, useNavigate } from 'react-router-dom';
 import {
-  ChevronLeft, ChevronRight, BookOpen, CheckCircle2,
-  Play, Loader2, Zap, Code2, FileText, Award,
+  ChevronLeft,
+  ChevronRight,
+  CheckCircle2,
+  Play,
+  Loader2,
+  Zap,
+  Code2,
+  Award,
 } from 'lucide-react';
 
 import { courseService, type LessonDetail, type CourseDetail } from '../services/course.service';
@@ -24,7 +30,7 @@ import { Loader } from '../components/ui/Loader';
 // Supports: headers, bold, inline code, code blocks, tables, lists, paragraphs
 
 function renderMarkdown(md: string): string {
-  let html = md
+  const html = md
     // Code blocks (``` ... ```)
     .replace(/```(\w*)\n([\s\S]*?)```/g, (_m, lang, code) => {
       return `<pre class="md-code-block"><code class="language-${lang || 'text'}">${escapeHtml(code.trim())}</code></pre>`;
@@ -39,7 +45,10 @@ function renderMarkdown(md: string): string {
     .replace(/`([^`]+)`/g, '<code class="md-inline-code">$1</code>')
     // Tables
     .replace(/^\|(.+)\|$/gm, (line) => {
-      const cells = line.split('|').filter(Boolean).map((c) => c.trim());
+      const cells = line
+        .split('|')
+        .filter(Boolean)
+        .map((c) => c.trim());
       if (cells.every((c) => /^[-:]+$/.test(c))) return ''; // separator row
       const tag = 'td';
       return `<tr>${cells.map((c) => `<${tag}>${c}</${tag}>`).join('')}</tr>`;
@@ -70,12 +79,12 @@ export default function LessonView() {
   const navigate = useNavigate();
   const addToast = useUIStore((s: any) => s.addToast);
 
-  const [lesson, setLesson]         = useState<LessonDetail | null>(null);
-  const [course, setCourse]         = useState<CourseDetail | null>(null);
-  const [isLoading, setLoading]     = useState(true);
+  const [lesson, setLesson] = useState<LessonDetail | null>(null);
+  const [course, setCourse] = useState<CourseDetail | null>(null);
+  const [isLoading, setLoading] = useState(true);
   const [isCompleting, setCompleting] = useState(false);
   const [isCompiling, setCompiling] = useState(false);
-  const [code, setCode]             = useState('');
+  const [code, setCode] = useState('');
   const [compileOutput, setCompileOutput] = useState<string | null>(null);
 
   // Fetch lesson + course in parallel
@@ -84,25 +93,24 @@ export default function LessonView() {
     setLoading(true);
     setCompileOutput(null);
 
-    Promise.all([
-      courseService.getLesson(lessonId),
-      courseService.get(slug),
-    ]).then(([lessonData, courseData]) => {
-      setLesson(lessonData);
-      setCourse(courseData);
-      setCode(lessonData.starterCode || '');
-    }).catch(() => {
-      addToast({ type: 'error', title: 'LOAD_FAILED', message: 'Lesson not found.' });
-      navigate(`/courses/${slug}`);
-    }).finally(() => {
-      setLoading(false);
-    });
+    Promise.all([courseService.getLesson(lessonId), courseService.get(slug)])
+      .then(([lessonData, courseData]) => {
+        setLesson(lessonData);
+        setCourse(courseData);
+        setCode(lessonData.starterCode || '');
+      })
+      .catch(() => {
+        addToast({ type: 'error', title: 'LOAD_FAILED', message: 'Lesson not found.' });
+        navigate(`/courses/${slug}`);
+      })
+      .finally(() => {
+        setLoading(false);
+      });
   }, [lessonId, slug, navigate, addToast]);
 
   // ── Navigation helpers ──────────────────────────────────────────────────
-  const allLessons = course?.modules.flatMap((m) =>
-    m.lessons.map((l) => ({ ...l, moduleTitle: m.title }))
-  ) ?? [];
+  const allLessons =
+    course?.modules.flatMap((m) => m.lessons.map((l) => ({ ...l, moduleTitle: m.title }))) ?? [];
   const currentIdx = allLessons.findIndex((l) => l.id === lessonId);
   const prevLesson = currentIdx > 0 ? allLessons[currentIdx - 1] : null;
   const nextLessonItem = currentIdx < allLessons.length - 1 ? allLessons[currentIdx + 1] : null;
@@ -113,11 +121,19 @@ export default function LessonView() {
     setCompleting(true);
     try {
       const result = await courseService.completeLesson(lessonId);
-      setLesson((prev) => prev ? { ...prev, completed: true } : null);
+      setLesson((prev) => (prev ? { ...prev, completed: true } : null));
       if (!result.alreadyCompleted && result.xpAwarded > 0) {
-        addToast({ type: 'success', title: 'XP_AWARDED', message: `+${result.xpAwarded} XP earned!` });
+        addToast({
+          type: 'success',
+          title: 'XP_AWARDED',
+          message: `+${result.xpAwarded} XP earned!`,
+        });
       } else {
-        addToast({ type: 'info', title: 'ALREADY_COMPLETE', message: 'Lesson was already completed.' });
+        addToast({
+          type: 'info',
+          title: 'ALREADY_COMPLETE',
+          message: 'Lesson was already completed.',
+        });
       }
     } catch {
       addToast({ type: 'error', title: 'ERROR', message: 'Could not mark complete.' });
@@ -137,7 +153,9 @@ export default function LessonView() {
       if (result.success) {
         setCompileOutput(result.stdout || 'Compilation successful!');
       } else {
-        setCompileOutput(result.stderr || result.errors.map((e: any) => `Line ${e.line}: ${e.message}`).join('\n'));
+        setCompileOutput(
+          result.stderr || result.errors.map((e: any) => `Line ${e.line}: ${e.message}`).join('\n'),
+        );
       }
     } catch {
       setCompileOutput('Compilation failed. Try again.');
@@ -187,9 +205,10 @@ export default function LessonView() {
 
       {/* Main content */}
       <div className={`flex-1 flex ${isCoding ? 'flex-row' : 'flex-col'} overflow-hidden`}>
-
         {/* Lesson content (markdown) */}
-        <div className={`${isCoding ? 'w-1/2 hw-border-r' : 'flex-1 max-w-4xl mx-auto'} overflow-y-auto p-6 lg:p-8 bg-white dark:bg-[#0A0A0A]`}>
+        <div
+          className={`${isCoding ? 'w-1/2 hw-border-r' : 'flex-1 max-w-4xl mx-auto'} overflow-y-auto p-6 lg:p-8 bg-white dark:bg-[#0A0A0A]`}
+        >
           <div
             className="lesson-content prose prose-invert max-w-none"
             dangerouslySetInnerHTML={{ __html: renderMarkdown(lesson.content) }}
@@ -211,10 +230,11 @@ export default function LessonView() {
                 onClick={handleCompile}
                 disabled={isCompiling}
               >
-                {isCompiling
-                  ? <Loader2 size={10} className="animate-spin mr-1" />
-                  : <Play size={10} className="mr-1" />
-                }
+                {isCompiling ? (
+                  <Loader2 size={10} className="animate-spin mr-1" />
+                ) : (
+                  <Play size={10} className="mr-1" />
+                )}
                 <span className="font-mono text-[9px] font-bold uppercase">
                   {isCompiling ? 'Running' : 'Run'}
                 </span>
@@ -233,7 +253,9 @@ export default function LessonView() {
             {/* Output panel */}
             {compileOutput !== null && (
               <div className="h-40 hw-border-t bg-[#0a0a0a] overflow-y-auto p-4 shrink-0">
-                <div className="font-mono text-[10px] text-slate-500 uppercase tracking-widest mb-2">OUTPUT</div>
+                <div className="font-mono text-[10px] text-slate-500 uppercase tracking-widest mb-2">
+                  OUTPUT
+                </div>
                 <pre className="font-mono text-xs text-slate-300 whitespace-pre-wrap leading-relaxed">
                   {compileOutput}
                 </pre>
@@ -253,7 +275,9 @@ export default function LessonView() {
           >
             <ChevronLeft size={12} /> {prevLesson.title}
           </Link>
-        ) : <div />}
+        ) : (
+          <div />
+        )}
 
         {/* Complete + Next */}
         <div className="flex items-center gap-3">
@@ -264,10 +288,11 @@ export default function LessonView() {
               onClick={handleComplete}
               disabled={isCompleting}
             >
-              {isCompleting
-                ? <Loader2 size={12} className="animate-spin mr-2" />
-                : <Award size={12} className="mr-2" />
-              }
+              {isCompleting ? (
+                <Loader2 size={12} className="animate-spin mr-2" />
+              ) : (
+                <Award size={12} className="mr-2" />
+              )}
               <span className="font-mono text-[10px] font-bold uppercase">Mark Complete</span>
             </Button>
           )}

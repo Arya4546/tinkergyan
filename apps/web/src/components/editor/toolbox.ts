@@ -10,10 +10,9 @@
  *     If both `colour` and `categorystyle` are present, Blockly silently ignores
  *     `categorystyle` — so only `categorystyle` must appear here.
  */
-export const INITIAL_TOOLBOX = {
-  kind: 'categoryToolbox',
-  contents: [
-    // ── Scratch Blocks ───────────────────────────────────────────────────────
+
+export function getToolbox(engineMode: 'hardware' | 'software') {
+  const scratchCategories = [
     {
       kind: 'category',
       name: '🟡 Events',
@@ -62,8 +61,9 @@ export const INITIAL_TOOLBOX = {
         { kind: 'block', type: 'scratch_looks_hide' },
       ],
     },
+  ];
 
-    // ── Arduino Structure ────────────────────────────────────────────────────
+  const hardwareCategories = [
     {
       kind: 'category',
       name: '🧩 Program',
@@ -75,8 +75,6 @@ export const INITIAL_TOOLBOX = {
         },
       ],
     },
-
-    // ── Digital I/O ──────────────────────────────────────────────────────────
     {
       kind: 'category',
       name: '⚡ Digital Pins',
@@ -87,8 +85,6 @@ export const INITIAL_TOOLBOX = {
         { kind: 'block', type: 'arduino_digital_read' },
       ],
     },
-
-    // ── Analog I/O ───────────────────────────────────────────────────────────
     {
       kind: 'category',
       name: '🌊 Analog & PWM',
@@ -99,18 +95,11 @@ export const INITIAL_TOOLBOX = {
           kind: 'block',
           type: 'arduino_analog_write',
           inputs: {
-            VALUE: {
-              shadow: {
-                type: 'math_number',
-                fields: { NUM: 255 },
-              },
-            },
+            VALUE: { shadow: { type: 'math_number', fields: { NUM: 255 } } },
           },
         },
       ],
     },
-
-    // ── Timing / Control ─────────────────────────────────────────────────────
     {
       kind: 'category',
       name: '⏱ Timing',
@@ -119,20 +108,11 @@ export const INITIAL_TOOLBOX = {
         {
           kind: 'block',
           type: 'arduino_delay',
-          inputs: {
-            DELAY_TIME: {
-              shadow: {
-                type: 'math_number',
-                fields: { NUM: 1000 },
-              },
-            },
-          },
+          inputs: { DELAY_TIME: { shadow: { type: 'math_number', fields: { NUM: 1000 } } } },
         },
         { kind: 'block', type: 'arduino_millis' },
       ],
     },
-
-    // ── Serial Monitor ───────────────────────────────────────────────────────
     {
       kind: 'category',
       name: '📡 Serial Monitor',
@@ -142,37 +122,23 @@ export const INITIAL_TOOLBOX = {
         {
           kind: 'block',
           type: 'arduino_serial_print',
-          inputs: {
-            VALUE: {
-              shadow: {
-                type: 'text',
-                fields: { TEXT: 'Hello' },
-              },
-            },
-          },
+          inputs: { VALUE: { shadow: { type: 'text', fields: { TEXT: 'Hello' } } } },
         },
         {
           kind: 'block',
           type: 'arduino_serial_println',
-          inputs: {
-            VALUE: {
-              shadow: {
-                type: 'text',
-                fields: { TEXT: 'Led ON' },
-              },
-            },
-          },
+          inputs: { VALUE: { shadow: { type: 'text', fields: { TEXT: 'Led ON' } } } },
         },
       ],
     },
+  ];
 
-    // ── Logic ────────────────────────────────────────────────────────────────
+  const sharedCategories = [
     {
       kind: 'category',
       name: '🔀 Logic',
       categorystyle: 'logic_category',
       contents: [
-        // Conditionals
         { kind: 'block', type: 'controls_if' },
         { kind: 'block', type: 'logic_compare' },
         { kind: 'block', type: 'logic_operation' },
@@ -180,8 +146,6 @@ export const INITIAL_TOOLBOX = {
         { kind: 'block', type: 'logic_boolean' },
       ],
     },
-
-    // ── Loops ────────────────────────────────────────────────────────────────
     {
       kind: 'category',
       name: '🔁 Loops',
@@ -190,11 +154,7 @@ export const INITIAL_TOOLBOX = {
         {
           kind: 'block',
           type: 'controls_repeat_ext',
-          inputs: {
-            TIMES: {
-              shadow: { type: 'math_number', fields: { NUM: 10 } },
-            },
-          },
+          inputs: { TIMES: { shadow: { type: 'math_number', fields: { NUM: 10 } } } },
         },
         { kind: 'block', type: 'controls_whileUntil' },
         {
@@ -209,8 +169,6 @@ export const INITIAL_TOOLBOX = {
         { kind: 'block', type: 'controls_flow_statements' },
       ],
     },
-
-    // ── Math ─────────────────────────────────────────────────────────────────
     {
       kind: 'category',
       name: '🔢 Math',
@@ -252,8 +210,6 @@ export const INITIAL_TOOLBOX = {
         },
       ],
     },
-
-    // ── Text ─────────────────────────────────────────────────────────────────
     {
       kind: 'category',
       name: '💬 Text',
@@ -266,21 +222,25 @@ export const INITIAL_TOOLBOX = {
         { kind: 'block', type: 'text_isEmpty' },
       ],
     },
-
-    // ── Variables ────────────────────────────────────────────────────────────
     {
       kind: 'category',
       name: '📦 Variables',
       categorystyle: 'variable_category',
       custom: 'VARIABLE',
     },
-
-    // ── Functions ────────────────────────────────────────────────────────────
     {
       kind: 'category',
       name: '🛠 My Blocks',
       categorystyle: 'function_category',
       custom: 'PROCEDURE',
     },
-  ],
-};
+  ];
+
+  return {
+    kind: 'categoryToolbox',
+    contents:
+      engineMode === 'software'
+        ? [...scratchCategories, ...sharedCategories]
+        : [...hardwareCategories, ...sharedCategories],
+  };
+}

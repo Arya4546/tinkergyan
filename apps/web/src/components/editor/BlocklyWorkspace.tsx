@@ -18,7 +18,7 @@ import * as En from 'blockly/msg/en';
 import './arduino-blocks';
 import './scratch-blocks';
 import { arduinoGenerator } from './arduino-generator';
-import { INITIAL_TOOLBOX } from './toolbox';
+import { getToolbox } from './toolbox';
 import { useUIStore } from '../../stores/ui.store';
 import { useEditorStore } from '../../stores/editor.store';
 
@@ -124,13 +124,14 @@ export interface BlocklyWorkspaceHandle {
 
 // ─── Props ────────────────────────────────────────────────────────────────────
 interface BlocklyWorkspaceProps {
+  engineMode?: 'hardware' | 'software';
   onCodeChange: (code: string) => void;
   className?: string;
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
 export const BlocklyWorkspace = forwardRef<BlocklyWorkspaceHandle, BlocklyWorkspaceProps>(
-  ({ onCodeChange, className = '' }, ref) => {
+  ({ engineMode = 'hardware', onCodeChange, className = '' }, ref) => {
     const blocklyDiv = useRef<HTMLDivElement>(null);
     const workspaceRef = useRef<Blockly.WorkspaceSvg | null>(null);
     const theme = useUIStore((s) => s.theme);
@@ -225,7 +226,7 @@ export const BlocklyWorkspace = forwardRef<BlocklyWorkspaceHandle, BlocklyWorksp
       }
 
       workspaceRef.current = Blockly.inject(blocklyDiv.current, {
-        toolbox: INITIAL_TOOLBOX,
+        toolbox: getToolbox(engineMode),
         theme: resolveBlocklyTheme(useUIStore.getState().theme),
         move: {
           scrollbars: true,
@@ -271,28 +272,59 @@ export const BlocklyWorkspace = forwardRef<BlocklyWorkspaceHandle, BlocklyWorksp
 
       workspaceRef.current.addChangeListener(onChange);
 
+      /* eslint-disable @typescript-eslint/no-unsafe-enum-comparison, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-member-access */
+      const onToolboxSelect = (event: Blockly.Events.Abstract) => {
+        if (event.type === Blockly.Events.TOOLBOX_ITEM_SELECT) {
+          const itemSelectEvent = event as any;
+          const workspace = workspaceRef.current;
+          if (!workspace) return;
+
+          const flyoutWidth = 250;
+          if (itemSelectEvent.newItem && !itemSelectEvent.oldItem) {
+            // Opening flyout
+            workspace.scroll(workspace.scrollX + flyoutWidth, workspace.scrollY);
+          } else if (!itemSelectEvent.newItem && itemSelectEvent.oldItem) {
+            // Closing flyout
+            workspace.scroll(workspace.scrollX - flyoutWidth, workspace.scrollY);
+          }
+        }
+      };
+      /* eslint-enable @typescript-eslint/no-unsafe-enum-comparison, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-member-access */
+      workspaceRef.current.addChangeListener(onToolboxSelect);
+
       // Auto-place the root arduino_program block so users have setup()/loop()
-      const rootBlock = workspaceRef.current.newBlock('arduino_program');
-      rootBlock.initSvg();
-      rootBlock.render();
-      rootBlock.moveBy(20, 20);
+      if (
+        engineMode === 'hardware' &&
+        workspaceRef.current.getBlocksByType('arduino_program').length === 0
+      ) {
+        const rootBlock = workspaceRef.current.newBlock('arduino_program');
+        rootBlock.initSvg();
+        rootBlock.render();
+        rootBlock.moveBy(20, 20);
 
-      // Set initial board title on the root block
-      const initialBoard = useEditorStore.getState().board;
-      const boardLabel = BOARDS.find((b) => b.fqbn === initialBoard)?.label || 'Arduino';
-      rootBlock.setFieldValue(`${boardLabel} Program`, 'TITLE');
+        // Set initial board title on the root block
+        const initialBoard = useEditorStore.getState().board;
+        const boardLabel = BOARDS.find((b) => b.fqbn === initialBoard)?.label || 'Arduino';
+        rootBlock.setFieldValue(`${boardLabel} Program`, 'TITLE');
 
-      // Emit initial code from the root block
-      try {
-        const code = arduinoGenerator.workspaceToCode(workspaceRef.current);
-        onCodeChange(code);
-      } catch {
-        onCodeChange('');
+        // Emit initial code from the root block
+        try {
+          const code = arduinoGenerator.workspaceToCode(workspaceRef.current);
+          onCodeChange(code);
+        } catch {
+          onCodeChange('');
+        }
       }
 
       // DO NOT put dispose() here to prevent strict mode from breaking global drag event listeners
       // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []); // Intentionally runs once — workspace lifecycle is managed internally
+
+    // Sync toolbox when engine mode changes
+    useEffect(() => {
+      if (!workspaceRef.current) return;
+      workspaceRef.current.updateToolbox(getToolbox(engineMode));
+    }, [engineMode]);
 
     // Sync board changes to update the root block's title and re-generate code
     useEffect(() => {

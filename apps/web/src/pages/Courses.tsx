@@ -6,10 +6,7 @@
  */
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import {
-  GraduationCap, BookOpen, Users, ChevronRight,
-  Zap, Loader2, CheckCircle2,
-} from 'lucide-react';
+import { GraduationCap, BookOpen, Users, ChevronRight, Zap, CheckCircle2 } from 'lucide-react';
 
 import { courseService, type CourseSummary } from '../services/course.service';
 import { PageHeader } from '../components/ui/PageHeader';
@@ -17,15 +14,30 @@ import { EmptyState } from '../components/ui/EmptyState';
 import { Loader } from '../components/ui/Loader';
 
 const DIFFICULTY_STYLES = {
-  BEGINNER:     { label: 'BEGINNER',     bg: 'bg-emerald-500/10', text: 'text-emerald-400', border: 'border-emerald-500/30' },
-  INTERMEDIATE: { label: 'INTERMEDIATE', bg: 'bg-yellow-500/10',  text: 'text-yellow-400',  border: 'border-yellow-500/30' },
-  ADVANCED:     { label: 'ADVANCED',     bg: 'bg-red-500/10',     text: 'text-red-400',     border: 'border-red-500/30' },
+  BEGINNER: {
+    label: 'BEGINNER',
+    bg: 'bg-emerald-500/10',
+    text: 'text-emerald-400',
+    border: 'border-emerald-500/30',
+  },
+  INTERMEDIATE: {
+    label: 'INTERMEDIATE',
+    bg: 'bg-yellow-500/10',
+    text: 'text-yellow-400',
+    border: 'border-yellow-500/30',
+  },
+  ADVANCED: {
+    label: 'ADVANCED',
+    bg: 'bg-red-500/10',
+    text: 'text-red-400',
+    border: 'border-red-500/30',
+  },
 } as const;
 
 export default function Courses() {
-  const [courses, setCourses]   = useState<CourseSummary[]>([]);
+  const [courses, setCourses] = useState<CourseSummary[]>([]);
   const [isLoading, setLoading] = useState(true);
-  const [error, setError]       = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     (async () => {
@@ -52,7 +64,9 @@ export default function Courses() {
         )}
 
         {!isLoading && error && (
-          <div className="font-mono text-xs text-red-400 uppercase tracking-widest text-center py-12">{error}</div>
+          <div className="font-mono text-xs text-red-400 uppercase tracking-widest text-center py-12">
+            {error}
+          </div>
         )}
 
         {!isLoading && !error && courses.length === 0 && (
@@ -74,15 +88,22 @@ export default function Courses() {
                   className="hw-border bg-slate-50 dark:bg-[#111111] flex flex-col group hover:bg-slate-900 dark:hover:bg-white hover:text-white dark:hover:text-slate-900 transition-colors overflow-hidden"
                 >
                   {/* Gradient accent bar */}
-                  <div className={`h-1.5 w-full ${
-                    course.difficulty === 'BEGINNER' ? 'bg-emerald-500' :
-                    course.difficulty === 'INTERMEDIATE' ? 'bg-yellow-400' : 'bg-red-500'
-                  }`} />
+                  <div
+                    className={`h-1.5 w-full ${
+                      course.difficulty === 'BEGINNER'
+                        ? 'bg-emerald-500'
+                        : course.difficulty === 'INTERMEDIATE'
+                          ? 'bg-yellow-400'
+                          : 'bg-red-500'
+                    }`}
+                  />
 
                   <div className="p-5 flex flex-col flex-1">
                     {/* Header: difficulty + enrolled */}
                     <div className="flex justify-between items-start mb-4">
-                      <div className={`inline-flex items-center gap-1 px-2 py-0.5 font-mono text-[9px] font-bold uppercase tracking-widest ${diff.bg} ${diff.text} border ${diff.border}`}>
+                      <div
+                        className={`inline-flex items-center gap-1 px-2 py-0.5 font-mono text-[9px] font-bold uppercase tracking-widest ${diff.bg} ${diff.text} border ${diff.border}`}
+                      >
                         <Zap size={8} /> {diff.label}
                       </div>
                       {course.isEnrolled && (
@@ -113,7 +134,10 @@ export default function Courses() {
                       <div className="flex items-center gap-1.5 font-mono text-[10px] text-slate-500 uppercase">
                         <Users size={10} /> {course.enrollmentCount}
                       </div>
-                      <ChevronRight size={12} className="ml-auto text-slate-400 group-hover:text-white dark:group-hover:text-slate-900" />
+                      <ChevronRight
+                        size={12}
+                        className="ml-auto text-slate-400 group-hover:text-white dark:group-hover:text-slate-900"
+                      />
                     </div>
                   </div>
                 </Link>

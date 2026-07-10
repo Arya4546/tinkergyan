@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import {
   Home,
@@ -10,6 +11,10 @@ import {
   Trophy,
   Award,
   X,
+  ChevronDown,
+  ChevronRight,
+  Cpu,
+  MonitorPlay,
 } from 'lucide-react';
 import { useUIStore } from '../../stores/ui.store';
 
@@ -18,7 +23,9 @@ const NAV_ITEMS = [
   { label: 'Events', icon: GraduationCap, href: '/courses' },
   { label: 'Workspace', icon: FolderCode, href: '/projects' },
   { label: 'Gallery', icon: Globe, href: '/gallery' },
-  { label: 'Engine', icon: TerminalSquare, href: '/editor' },
+  { label: 'Gallery', icon: Globe, href: '/gallery' },
+  // Engine is handled specially
+  { label: 'Leaderboard', icon: Trophy, href: '/leaderboard' },
   { label: 'Leaderboard', icon: Trophy, href: '/leaderboard' },
   { label: 'Achievements', icon: Award, href: '/badges' },
 ];
@@ -27,6 +34,8 @@ export function Sidebar() {
   const location = useLocation();
   const mobileMenuOpen = useUIStore((s) => s.mobileMenuOpen);
   const setMobileMenuOpen = useUIStore((s) => s.setMobileMenuOpen);
+  const isEngineActive = location.pathname.startsWith('/editor');
+  const [engineExpanded, setEngineExpanded] = useState(isEngineActive);
 
   return (
     <>
@@ -60,31 +69,95 @@ export function Sidebar() {
 
         {/* Nav Keys */}
         <nav className="flex-1 flex flex-col px-3 gap-2 mt-4 sm:mt-8">
-          {NAV_ITEMS.map((item) => {
-            const isActive =
-              (location.pathname.startsWith(item.href) && item.href !== '/dashboard') ||
-              (item.href === '/dashboard' && location.pathname === '/dashboard');
-            const Icon = item.icon;
+          {/* Inject Engine at its original position */}
+          {NAV_ITEMS.map((item, index) => {
+            const renderItem = (i: typeof item) => {
+              const isActive =
+                (location.pathname.startsWith(i.href) && i.href !== '/dashboard') ||
+                (i.href === '/dashboard' && location.pathname === '/dashboard');
+              const Icon = i.icon;
 
-            return (
-              <Link
-                key={item.href}
-                to={item.href}
-                onClick={() => setMobileMenuOpen(false)}
-                className={`h-12 flex items-center justify-center lg:justify-start px-0 lg:px-4 rounded-xl transition-all duration-200 ${
-                  isActive
-                    ? 'bg-white dark:bg-[#1A1D24] text-emerald-600 dark:text-emerald-400 shadow-sm border border-slate-200 dark:border-slate-800'
-                    : 'hover:bg-slate-200/50 dark:hover:bg-[#1A1D24] hover:text-slate-900 dark:hover:text-slate-200'
-                }`}
-              >
-                <Icon size={20} strokeWidth={isActive ? 2.5 : 2} className="shrink-0" />
-                <span
-                  className={`font-medium text-sm tracking-wide ml-3 sm:hidden lg:block ${isActive ? 'font-bold' : ''}`}
+              return (
+                <Link
+                  key={i.href}
+                  to={i.href}
+                  onClick={() => setMobileMenuOpen(false)}
+                  className={`h-12 flex items-center justify-center lg:justify-start px-0 lg:px-4 rounded-xl transition-all duration-200 ${
+                    isActive
+                      ? 'bg-white dark:bg-[#1A1D24] text-emerald-600 dark:text-emerald-400 shadow-sm border border-slate-200 dark:border-slate-800'
+                      : 'hover:bg-slate-200/50 dark:hover:bg-[#1A1D24] hover:text-slate-900 dark:hover:text-slate-200'
+                  }`}
                 >
-                  {item.label}
-                </span>
-              </Link>
-            );
+                  <Icon size={20} strokeWidth={isActive ? 2.5 : 2} className="shrink-0" />
+                  <span
+                    className={`font-medium text-sm tracking-wide ml-3 sm:hidden lg:block ${isActive ? 'font-bold' : ''}`}
+                  >
+                    {i.label}
+                  </span>
+                </Link>
+              );
+            };
+
+            const elements = [];
+            if (index === 4) {
+              // original Engine position
+              elements.push(
+                <div key="engine-menu" className="flex flex-col gap-1">
+                  <button
+                    onClick={() => setEngineExpanded(!engineExpanded)}
+                    className={`h-12 w-full flex items-center justify-between px-0 lg:px-4 rounded-xl transition-all duration-200 ${
+                      isEngineActive
+                        ? 'bg-white dark:bg-[#1A1D24] text-emerald-600 dark:text-emerald-400 shadow-sm border border-slate-200 dark:border-slate-800'
+                        : 'hover:bg-slate-200/50 dark:hover:bg-[#1A1D24] hover:text-slate-900 dark:hover:text-slate-200'
+                    }`}
+                  >
+                    <div className="flex items-center justify-center lg:justify-start w-full">
+                      <TerminalSquare
+                        size={20}
+                        strokeWidth={isEngineActive ? 2.5 : 2}
+                        className="shrink-0"
+                      />
+                      <span
+                        className={`font-medium text-sm tracking-wide ml-3 sm:hidden lg:block ${isEngineActive ? 'font-bold' : ''}`}
+                      >
+                        Engine
+                      </span>
+                    </div>
+                    <div className="hidden lg:block text-slate-400">
+                      {engineExpanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+                    </div>
+                  </button>
+                  {engineExpanded && (
+                    <div className="flex flex-col gap-1 lg:pl-11 pl-0">
+                      <Link
+                        to="/editor?engine=hardware"
+                        onClick={() => setMobileMenuOpen(false)}
+                        className={`h-10 flex items-center justify-center lg:justify-start px-0 lg:px-3 rounded-lg transition-all duration-200 ${location.search.includes('engine=hardware') ? 'bg-slate-200/50 dark:bg-[#1A1D24] text-emerald-600 dark:text-emerald-400 font-bold' : 'text-slate-500 hover:text-slate-900 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-[#1A1D24]'}`}
+                        title="Hardware Coding"
+                      >
+                        <Cpu size={16} className="shrink-0 lg:mr-2" />
+                        <span className="text-xs font-medium sm:hidden lg:block">
+                          Hardware Coding
+                        </span>
+                      </Link>
+                      <Link
+                        to="/editor?engine=software"
+                        onClick={() => setMobileMenuOpen(false)}
+                        className={`h-10 flex items-center justify-center lg:justify-start px-0 lg:px-3 rounded-lg transition-all duration-200 ${location.search.includes('engine=software') ? 'bg-slate-200/50 dark:bg-[#1A1D24] text-emerald-600 dark:text-emerald-400 font-bold' : 'text-slate-500 hover:text-slate-900 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-[#1A1D24]'}`}
+                        title="Software Coding"
+                      >
+                        <MonitorPlay size={16} className="shrink-0 lg:mr-2" />
+                        <span className="text-xs font-medium sm:hidden lg:block">
+                          Software Coding
+                        </span>
+                      </Link>
+                    </div>
+                  )}
+                </div>,
+              );
+            }
+            elements.push(renderItem(item));
+            return elements;
           })}
         </nav>
 
