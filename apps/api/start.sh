@@ -18,4 +18,4 @@ else
 fi
 
 echo "Starting server..."
-exec node dist/server.js
+exec node dist/server.cjs

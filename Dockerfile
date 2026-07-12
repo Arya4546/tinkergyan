@@ -53,8 +53,8 @@ COPY apps/api ./apps/api
 
 RUN pnpm --filter @tinkergyan/api build
 
-RUN test -f /app/apps/api/dist/server.js \
-    || (echo "❌ api build failed - dist/server.js missing" && exit 1)
+RUN test -f /app/apps/api/dist/server.cjs \
+    || (echo "❌ api build failed - dist/server.cjs missing" && exit 1)
 
 # ════════════════════════════════════════════════════════════
 # Stage 3: Production image

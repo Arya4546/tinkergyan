@@ -3,16 +3,11 @@ import cors from 'cors';
 import cookieParser from 'cookie-parser';
 import pinoHttp from 'pino-http';
 import path from 'path';
-import { fileURLToPath } from 'url';
 
 import { env } from './env';
 import { apiRouter } from './routes';
 import { errorHandler } from './middleware/error.middleware';
 import { logger } from './lib/logger';
-
-// ESM-compatible __dirname equivalent
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
 
 export const createApp = () => {
   const app = express();

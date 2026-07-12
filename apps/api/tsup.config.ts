@@ -2,12 +2,12 @@ import { defineConfig } from 'tsup';
 
 export default defineConfig({
   entry: ['src/server.ts'],
-  format: ['esm'],
+  format: ['cjs'],
   clean: true,
   splitting: false,
   sourcemap: true,
   minify: false,
-  // Mark Prisma as external to prevent 'Dynamic require of fs' errors
+  // Mark Prisma as external so native .node binaries aren't bundled
   external: ['@prisma/client'],
   onSuccess: 'prisma generate',
 });

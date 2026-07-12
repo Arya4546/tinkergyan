@@ -52,6 +52,7 @@ export function createBaseConfig({ tsconfigRootDir }) {
               '*.{js,cjs,mjs,ts}',
               'apps/*/tailwind.config.ts',
               'apps/*/postcss.config.js',
+              'apps/*/tsup.config.ts',
               'setup-husky.mjs',
             ],
             defaultProject: 'tsconfig.eslint.json',
