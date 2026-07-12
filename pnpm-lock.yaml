@@ -214,7 +214,11 @@ importers:
 
   packages/eslint-config: {}
 
-  packages/shared-types: {}
+  packages/shared-types:
+    devDependencies:
+      typescript:
+        specifier: ^5.8.2
+        version: 5.9.3
 
 packages:
 
