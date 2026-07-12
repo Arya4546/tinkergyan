@@ -7,8 +7,9 @@
  */
 import { AppError } from '../errors/app-error';
 import { prisma } from '../lib/prisma';
-import type { ProjectType } from '@prisma/client';
-import { Prisma } from '@prisma/client';
+import type { ProjectType, Prisma } from '@prisma/client';
+import pkg from '@prisma/client';
+const PrismaValue = pkg.Prisma;
 
 // ─── DTOs ─────────────────────────────────────────────────────────────────────
 
@@ -81,7 +82,7 @@ export class ProjectService {
         type: dto.type,
         boardTarget: dto.boardTarget,
         code: dto.code ?? null,
-        blockState: dto.blockState ?? Prisma.DbNull,
+        blockState: dto.blockState ?? PrismaValue.DbNull,
       },
     });
   }
@@ -172,7 +173,7 @@ export class ProjectService {
           type: src.type,
           boardTarget: src.boardTarget,
           code: src.code,
-          blockState: src.blockState ?? Prisma.DbNull,
+          blockState: src.blockState ?? PrismaValue.DbNull,
           forkedFrom: src.id,
         },
       });
