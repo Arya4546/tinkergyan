@@ -325,6 +325,8 @@ async function compileArduino(
       'text',
       '--output-dir',
       buildDir,
+      '--jobs',
+      '1',
       sketchDir,
     ];
     const { stdout, stderr } = await spawnWithTimeout(cliPath, args, timeoutMs);
@@ -483,6 +485,7 @@ function resolveArduinoCliPath(): string {
   const candidates = [
     '/usr/local/bin/arduino-cli',
     '/usr/bin/arduino-cli',
+    path.join(__dirname, '..', '..', '..', '..', 'bin', 'arduino-cli'), // Robust path relative to source file
     path.join(process.cwd(), 'bin', 'arduino-cli'),
     path.join(process.cwd(), '..', '..', 'bin', 'arduino-cli'), // If process.cwd() is inside apps/api
     path.join(os.homedir(), 'bin', 'arduino-cli'),
@@ -533,7 +536,7 @@ export async function compileForFirmware(
     await mkdir(buildDir, { recursive: true });
     await writeFile(sketchFile, code, 'utf8');
 
-    const args = ['compile', '--fqbn', board, '--output-dir', buildDir, sketchDir];
+    const args = ['compile', '--fqbn', board, '--output-dir', buildDir, '--jobs', '1', sketchDir];
     const { stdout, stderr } = await spawnWithTimeout(cliPath, args, timeoutMs);
     const errors = parseArduinoErrors(stderr, sketchFile);
     const hasError =

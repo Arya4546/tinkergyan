@@ -12,8 +12,9 @@ import {
   Award,
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { Loader } from '../components/ui/Loader';
+import { NewProjectDialog } from '../components/ui/NewProjectDialog';
 
 function ProjectCard({
   project,
@@ -83,6 +84,7 @@ function ProjectCard({
 export default function Dashboard() {
   const user = useAuthStore((s) => s.user);
   const { projects, isLoading, error, fetchProjects, removeProject } = useProjectStore();
+  const [isNewProjectOpen, setIsNewProjectOpen] = useState(false);
 
   useEffect(() => {
     void fetchProjects();
@@ -100,12 +102,12 @@ export default function Dashboard() {
             Here's what's happening with your workspace.
           </p>
         </div>
-        <Link
-          to="/editor"
+        <button
+          onClick={() => setIsNewProjectOpen(true)}
           className="inline-flex items-center gap-2 bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-semibold px-4 py-2.5 rounded-xl transition-colors shrink-0"
         >
           <Plus size={16} /> New Project
-        </Link>
+        </button>
       </div>
 
       <div className="flex-1 flex flex-col lg:flex-row min-h-0">
@@ -167,12 +169,12 @@ export default function Dashboard() {
               <p className="text-sm text-slate-400 mb-6">
                 Create your first project to get started.
               </p>
-              <Link
-                to="/editor"
+              <button
+                onClick={() => setIsNewProjectOpen(true)}
                 className="inline-flex items-center gap-2 bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-semibold px-5 py-2.5 rounded-xl transition-colors"
               >
                 <Plus size={16} /> Create Project
-              </Link>
+              </button>
             </div>
           )}
 
@@ -192,15 +194,15 @@ export default function Dashboard() {
               Quick Actions
             </h2>
             <div className="flex flex-col gap-2">
-              <Link
-                to="/editor"
-                className="flex items-center gap-3 px-4 py-3 bg-white dark:bg-[#111111] border border-slate-200 dark:border-slate-800 rounded-xl text-sm font-medium text-slate-700 dark:text-slate-300 hover:border-emerald-300 dark:hover:border-emerald-800 hover:text-slate-900 dark:hover:text-white transition-all"
+              <button
+                onClick={() => setIsNewProjectOpen(true)}
+                className="w-full flex items-center gap-3 px-4 py-3 bg-white dark:bg-[#111111] border border-slate-200 dark:border-slate-800 rounded-xl text-sm font-medium text-slate-700 dark:text-slate-300 hover:border-emerald-300 dark:hover:border-emerald-800 hover:text-slate-900 dark:hover:text-white transition-all text-left"
               >
                 <div className="w-7 h-7 bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 rounded-lg flex items-center justify-center shrink-0">
                   <Plus size={14} />
                 </div>
                 New Project
-              </Link>
+              </button>
               <Link
                 to="/courses"
                 className="flex items-center gap-3 px-4 py-3 bg-white dark:bg-[#111111] border border-slate-200 dark:border-slate-800 rounded-xl text-sm font-medium text-slate-700 dark:text-slate-300 hover:border-purple-300 dark:hover:border-purple-800 hover:text-slate-900 dark:hover:text-white transition-all"
@@ -250,6 +252,7 @@ export default function Dashboard() {
           )}
         </div>
       </div>
+      <NewProjectDialog open={isNewProjectOpen} onClose={() => setIsNewProjectOpen(false)} />
     </div>
   );
 }

@@ -290,7 +290,7 @@ export default function Editor() {
       if (!isResizing.current) return;
       const paddingRight = window.innerWidth < 640 ? 8 : 16;
       let newWidth = window.innerWidth - e.clientX - paddingRight;
-      newWidth = Math.max(200, Math.min(newWidth, window.innerWidth - 300));
+      newWidth = Math.max(200, Math.min(newWidth, window.innerWidth - 400));
       setTerminalWidth(newWidth);
 
       // Request animation frame for smooth resize
@@ -317,6 +317,17 @@ export default function Editor() {
       if (animationFrameId) cancelAnimationFrame(animationFrameId);
     };
   }, []);
+
+  // ── Notify Blockly when panels mount/unmount ──────────────────────────
+  // The flex container reflows correctly, but Blockly caches its container
+  // dimensions and needs an explicit resize call. The ResizeObserver in
+  // BlocklyWorkspace.tsx handles this automatically, but we also dispatch
+  // a window resize event as a belt-and-suspenders fallback.
+  useEffect(() => {
+    requestAnimationFrame(() => {
+      window.dispatchEvent(new Event('resize'));
+    });
+  }, [showCodePanel, showSimulator]);
 
   // ── Sync URL with newly created project ──────────────────────────────
   useEffect(() => {
@@ -789,11 +800,11 @@ export default function Editor() {
 
   // ─────────────────────────────────────────────────────────────────────────
   return (
-    <div className="flex h-screen bg-background dark:bg-dark-bg font-sans overflow-hidden bg-canvas-grid">
+    <div className="flex h-screen bg-background dark:bg-dark-bg font-sans overflow-hidden">
       <div className="flex w-full h-full p-2 sm:p-4">
         <div className="flex w-full h-full bg-white dark:bg-dark-surface rounded-2xl shadow-xl overflow-hidden relative border border-slate-100 dark:border-dark-border">
           {/* ── Top Control Bar ─────────────────────────────────────── */}
-          <div className="absolute top-0 left-0 w-full h-16 border-b border-slate-100 dark:border-dark-border bg-white dark:bg-dark-surface flex justify-between items-center z-10 px-3 sm:px-4 gap-2">
+          <div className="absolute top-0 left-0 w-full h-16 border-b border-slate-100 dark:border-dark-border bg-white dark:bg-dark-surface flex justify-between items-center z-30 px-3 sm:px-4 gap-2">
             {/* Left: Back + project title + dirty indicator */}
             <div className="flex items-center gap-2 min-w-0">
               <Link
@@ -959,18 +970,20 @@ export default function Editor() {
                         setShowTemplates(true);
                         setShowMoreMenu(false);
                       }}
-                      className="flex items-center gap-2 px-3 py-2 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg text-left"
+                      className="w-full flex items-center gap-2 px-3 py-2 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg text-left"
                     >
-                      <FileCode size={16} /> Templates
+                      <FileCode size={16} className="shrink-0" />
+                      <span>Templates</span>
                     </button>
                     <button
                       onClick={() => {
                         handleDownload();
                         setShowMoreMenu(false);
                       }}
-                      className="flex items-center gap-2 px-3 py-2 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg text-left"
+                      className="w-full flex items-center gap-2 px-3 py-2 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg text-left"
                     >
-                      <Download size={16} /> Download .ino
+                      <Download size={16} className="shrink-0" />
+                      <span>Download .ino</span>
                     </button>
                     <button
                       onClick={() => {
@@ -978,14 +991,14 @@ export default function Editor() {
                         setShowMoreMenu(false);
                       }}
                       disabled={isSaving}
-                      className="flex items-center gap-2 px-3 py-2 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg text-left disabled:opacity-50"
+                      className="w-full flex items-center gap-2 px-3 py-2 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg text-left disabled:opacity-50"
                     >
                       {isSaving ? (
-                        <Loader2 size={16} className="animate-spin" />
+                        <Loader2 size={16} className="animate-spin shrink-0" />
                       ) : (
-                        <Save size={16} />
+                        <Save size={16} className="shrink-0" />
                       )}
-                      {isSaving ? 'Saving...' : 'Save Project'}
+                      <span>{isSaving ? 'Saving...' : 'Save Project'}</span>
                     </button>
                     {projectId && (
                       <>
@@ -995,19 +1008,23 @@ export default function Editor() {
                             handleDuplicate();
                             setShowMoreMenu(false);
                           }}
-                          className="flex items-center gap-2 px-3 py-2 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg text-left"
+                          className="w-full flex items-center gap-2 px-3 py-2 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg text-left"
                         >
-                          <Copy size={16} /> Duplicate
+                          <Copy size={16} className="shrink-0" />
+                          <span>Duplicate</span>
                         </button>
                         <button
                           onClick={() => {
                             handleTogglePublic();
                             setShowMoreMenu(false);
                           }}
-                          className="flex items-center gap-2 px-3 py-2 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg text-left"
+                          className="w-full flex items-center gap-2 px-3 py-2 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg text-left"
                         >
-                          <Globe size={16} className={isPublic ? 'text-accent-500' : ''} />
-                          {isPublic ? 'Make Private' : 'Share to Gallery'}
+                          <Globe
+                            size={16}
+                            className={`shrink-0 ${isPublic ? 'text-accent-500' : ''}`}
+                          />
+                          <span>{isPublic ? 'Make Private' : 'Share to Gallery'}</span>
                         </button>
                       </>
                     )}
@@ -1015,71 +1032,82 @@ export default function Editor() {
                 )}
               </div>
 
-              {/* Connect Board — second-highest prominence */}
-              <button
-                onClick={handleConnectHardware}
-                title={
-                  hardwarePort ? 'Disconnect hardware' : `Connect your ${boardLabel} (Web Serial)`
-                }
-                className={`h-11 px-3 sm:px-4 rounded-xl font-sans font-semibold text-sm flex items-center gap-2 transition-all focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:outline-none active:scale-[0.97] ${
-                  hardwarePort
-                    ? 'bg-warning-500 hover:bg-warning-600 text-slate-900'
-                    : 'bg-accent-500 hover:bg-accent-400 text-slate-900'
-                }`}
-              >
-                <Usb size={16} />
-                <span className="hidden sm:inline">{hardwarePort ? 'Connected' : 'Connect'}</span>
-              </button>
+              {/* Hardware connection and control buttons */}
+              {engineMode === 'hardware' && (
+                <>
+                  {/* Connect Board — second-highest prominence */}
+                  <button
+                    onClick={handleConnectHardware}
+                    title={
+                      hardwarePort
+                        ? 'Disconnect hardware'
+                        : `Connect your ${boardLabel} (Web Serial)`
+                    }
+                    className={`h-11 px-3 sm:px-4 rounded-xl font-sans font-semibold text-sm flex items-center gap-2 transition-all focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:outline-none active:scale-[0.97] ${
+                      hardwarePort
+                        ? 'bg-warning-500 hover:bg-warning-600 text-slate-900'
+                        : 'bg-accent-500 hover:bg-accent-400 text-slate-900'
+                    }`}
+                  >
+                    <Usb size={16} />
+                    <span className="hidden sm:inline">
+                      {hardwarePort ? 'Connected' : 'Connect'}
+                    </span>
+                  </button>
 
-              {/* Upload firmware — visible only when board connected */}
-              {hardwarePort && (
-                <button
-                  onClick={handleUploadToHardware}
-                  disabled={isFlashing || isCompiling}
-                  title={`Compile & upload to your ${boardLabel}`}
-                  className="h-11 px-3 sm:px-4 rounded-xl font-sans font-semibold text-sm flex items-center gap-2 bg-blue-500 hover:bg-blue-600 text-white transition-all focus-visible:ring-2 focus-visible:ring-blue-400 focus-visible:outline-none active:scale-[0.97] disabled:opacity-50"
-                >
-                  {isFlashing ? (
-                    <Loader2 size={16} className="animate-spin" />
-                  ) : (
-                    <Upload size={16} />
+                  {/* Upload firmware — visible only when board connected */}
+                  {hardwarePort && (
+                    <button
+                      onClick={handleUploadToHardware}
+                      disabled={isFlashing || isCompiling}
+                      title={`Compile & upload to your ${boardLabel}`}
+                      className="h-11 px-3 sm:px-4 rounded-xl font-sans font-semibold text-sm flex items-center gap-2 bg-blue-500 hover:bg-blue-600 text-white transition-all focus-visible:ring-2 focus-visible:ring-blue-400 focus-visible:outline-none active:scale-[0.97] disabled:opacity-50"
+                    >
+                      {isFlashing ? (
+                        <Loader2 size={16} className="animate-spin" />
+                      ) : (
+                        <Upload size={16} />
+                      )}
+                      <span className="hidden sm:inline">
+                        {isFlashing ? `${flashProgress}%` : 'Upload'}
+                      </span>
+                    </button>
                   )}
-                  <span className="hidden sm:inline">
-                    {isFlashing ? `${flashProgress}%` : 'Upload'}
-                  </span>
-                </button>
-              )}
 
-              {/* Serial Monitor toggle — visible when board connected */}
-              {hardwarePort && (
-                <button
-                  onClick={() => setShowSerialMonitor(!showSerialMonitor)}
-                  title="Toggle Serial Monitor"
-                  className={`w-11 h-11 rounded-xl flex items-center justify-center transition-all focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:outline-none active:scale-[0.97] ${
-                    showSerialMonitor
-                      ? 'bg-primary-500 text-white'
-                      : 'bg-slate-100 dark:bg-dark-border text-slate-500 hover:text-slate-800 dark:hover:text-white'
-                  }`}
-                >
-                  <Terminal size={16} />
-                </button>
+                  {/* Serial Monitor toggle — visible when board connected */}
+                  {hardwarePort && (
+                    <button
+                      onClick={() => setShowSerialMonitor(!showSerialMonitor)}
+                      title="Toggle Serial Monitor"
+                      className={`w-11 h-11 rounded-xl flex items-center justify-center transition-all focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:outline-none active:scale-[0.97] ${
+                        showSerialMonitor
+                          ? 'bg-primary-500 text-white'
+                          : 'bg-slate-100 dark:bg-dark-border text-slate-500 hover:text-slate-800 dark:hover:text-white'
+                      }`}
+                    >
+                      <Terminal size={16} />
+                    </button>
+                  )}
+                </>
               )}
 
               {/* Code Panel Toggle */}
-              <button
-                onClick={() => {
-                  setShowCodePanel(!showCodePanel);
-                  if (showSimulator && showCodePanel) setShowSimulator(false);
-                }}
-                title={showCodePanel ? 'Hide Code Panel' : 'Show Code Panel'}
-                className={`w-11 h-11 rounded-xl flex items-center justify-center transition-all focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:outline-none active:scale-[0.97] hidden sm:flex ${
-                  showCodePanel && !showSimulator
-                    ? 'bg-slate-200 dark:bg-slate-700 text-slate-800 dark:text-white'
-                    : 'bg-slate-100 dark:bg-dark-border text-slate-500 hover:text-slate-800 dark:hover:text-white'
-                }`}
-              >
-                <PanelRight size={16} />
-              </button>
+              {engineMode === 'hardware' && (
+                <button
+                  onClick={() => {
+                    setShowCodePanel(!showCodePanel);
+                    if (showSimulator && showCodePanel) setShowSimulator(false);
+                  }}
+                  title={showCodePanel ? 'Hide Code Panel' : 'Show Code Panel'}
+                  className={`w-11 h-11 rounded-xl flex items-center justify-center transition-all focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:outline-none active:scale-[0.97] hidden sm:flex ${
+                    showCodePanel && !showSimulator
+                      ? 'bg-slate-200 dark:bg-slate-700 text-slate-800 dark:text-white'
+                      : 'bg-slate-100 dark:bg-dark-border text-slate-500 hover:text-slate-800 dark:hover:text-white'
+                  }`}
+                >
+                  <PanelRight size={16} />
+                </button>
+              )}
 
               {/* Simulator Panel Toggle */}
               {engineMode === 'software' && (
@@ -1179,7 +1207,7 @@ export default function Editor() {
             {showCodePanel && (
               <div
                 style={{ width: terminalWidth }}
-                className="hw-border-l bg-[#050505] flex flex-col shrink-0"
+                className="border-l border-slate-800 bg-[#050505] flex flex-col shrink-0"
               >
                 {/* Simulator Stage Panel */}
                 {showSimulator ? (

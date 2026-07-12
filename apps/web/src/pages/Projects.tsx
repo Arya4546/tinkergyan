@@ -14,6 +14,7 @@ import {
 import { useProjectStore } from '../stores/project.store';
 import { PageHeader } from '../components/ui/PageHeader';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
+import { NewProjectDialog } from '../components/ui/NewProjectDialog';
 
 type FilterType = 'ALL' | 'BLOCK' | 'CODE';
 
@@ -23,6 +24,7 @@ export default function Projects() {
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<FilterType>('ALL');
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
+  const [isNewProjectOpen, setIsNewProjectOpen] = useState(false);
 
   useEffect(() => {
     if (!hasFetched) void fetchProjects();
@@ -49,12 +51,12 @@ export default function Projects() {
   return (
     <div className="w-full h-full flex flex-col">
       <PageHeader icon={FolderCode} title="My Projects" subtitle={`${projects.length} projects`}>
-        <Link
-          to="/editor"
+        <button
+          onClick={() => setIsNewProjectOpen(true)}
           className="h-9 px-4 bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-semibold rounded-xl transition-colors flex items-center gap-2"
         >
           <Plus size={16} /> New Project
-        </Link>
+        </button>
       </PageHeader>
 
       {/* Search + Filter Bar */}
@@ -111,12 +113,12 @@ export default function Projects() {
                 : 'Create your first project to get started.'}
             </p>
             {!search && filter === 'ALL' && (
-              <Link
-                to="/editor"
+              <button
+                onClick={() => setIsNewProjectOpen(true)}
                 className="inline-flex items-center gap-2 bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-semibold px-5 py-2.5 rounded-xl transition-colors"
               >
                 <Plus size={16} /> Create Project
-              </Link>
+              </button>
             )}
           </div>
         )}
@@ -183,6 +185,7 @@ export default function Projects() {
         onConfirm={handleDelete}
         onCancel={() => setDeleteTarget(null)}
       />
+      <NewProjectDialog open={isNewProjectOpen} onClose={() => setIsNewProjectOpen(false)} />
     </div>
   );
 }

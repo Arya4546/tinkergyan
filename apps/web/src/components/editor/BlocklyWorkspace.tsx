@@ -273,20 +273,32 @@ export const BlocklyWorkspace = forwardRef<BlocklyWorkspaceHandle, BlocklyWorksp
       workspaceRef.current.addChangeListener(onChange);
 
       /* eslint-disable @typescript-eslint/no-unsafe-enum-comparison, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-member-access */
+
+      // ── Improved flyout scroll compensation ────────────────────────────
+      // Blockly's flyout is an absolute-positioned SVG overlay on the
+      // workspace (by design — not custom code). When a category flyout
+      // opens, we shift the workspace viewport by the flyout's measured
+      // width so blocks near the left edge aren't occluded. When it
+      // closes, we shift back. We also call svgResize to reposition
+      // zoom/trash controls.
       const onToolboxSelect = (event: Blockly.Events.Abstract) => {
         if (event.type === Blockly.Events.TOOLBOX_ITEM_SELECT) {
           const itemSelectEvent = event as any;
           const workspace = workspaceRef.current;
           if (!workspace) return;
 
-          const flyoutWidth = 250;
+          const flyout = workspace.getFlyout();
+          const flyoutWidth = flyout ? flyout.getWidth() : 0;
+
           if (itemSelectEvent.newItem && !itemSelectEvent.oldItem) {
-            // Opening flyout
+            // Opening flyout — shift viewport right by the measured flyout width
             workspace.scroll(workspace.scrollX + flyoutWidth, workspace.scrollY);
           } else if (!itemSelectEvent.newItem && itemSelectEvent.oldItem) {
-            // Closing flyout
+            // Closing flyout — shift viewport back
             workspace.scroll(workspace.scrollX - flyoutWidth, workspace.scrollY);
           }
+          // Reposition zoom/trash controls to stay clear of flyout
+          Blockly.svgResize(workspace);
         }
       };
       /* eslint-enable @typescript-eslint/no-unsafe-enum-comparison, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-member-access */
@@ -324,6 +336,8 @@ export const BlocklyWorkspace = forwardRef<BlocklyWorkspaceHandle, BlocklyWorksp
     useEffect(() => {
       if (!workspaceRef.current) return;
       workspaceRef.current.updateToolbox(getToolbox(engineMode));
+      // Toolbox width may change between engines — recalculate SVG layout
+      Blockly.svgResize(workspaceRef.current);
     }, [engineMode]);
 
     // Sync board changes to update the root block's title and re-generate code
@@ -356,6 +370,20 @@ export const BlocklyWorkspace = forwardRef<BlocklyWorkspaceHandle, BlocklyWorksp
       };
       window.addEventListener('resize', handleResize);
       return () => window.removeEventListener('resize', handleResize);
+    }, []);
+
+    // ResizeObserver — catches ALL container dimension changes (panel toggle,
+    // window resize, resizer drag) and tells Blockly to recalculate its SVG.
+    useEffect(() => {
+      const el = blocklyDiv.current;
+      if (!el) return;
+      const ro = new ResizeObserver(() => {
+        if (workspaceRef.current) {
+          Blockly.svgResize(workspaceRef.current);
+        }
+      });
+      ro.observe(el);
+      return () => ro.disconnect();
     }, []);
 
     return (

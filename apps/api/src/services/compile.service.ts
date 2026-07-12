@@ -24,20 +24,20 @@ export const SUPPORTED_BOARDS = [
 export type BoardFqbn = (typeof SUPPORTED_BOARDS)[number];
 
 export interface CompileRequest {
-  code:    string;
-  board:   BoardFqbn;
-  stdin?:  string;
+  code: string;
+  board: BoardFqbn;
+  stdin?: string;
   target?: 'simulate' | 'firmware';
 }
 
 export class CompileService {
-  static async compile(
-    userId: string,
-    request: CompileRequest,
-  ): Promise<CompileResult> {
+  static async compile(userId: string, request: CompileRequest): Promise<CompileResult> {
     const isFirmware = request.target === 'firmware';
     const mode = isFirmware ? 'arduino' : getCompilerMode();
-    logger.info({ userId, board: request.board, mode, target: request.target }, 'compile.service.start');
+    logger.info(
+      { userId, board: request.board, mode, target: request.target },
+      'compile.service.start',
+    );
 
     const release = await compileSemaphore.acquire();
 
@@ -47,22 +47,19 @@ export class CompileService {
       if (isFirmware) {
         // Force arduino-cli for firmware builds
         const { compileForFirmware } = await import('../lib/compiler');
-        result = await compileForFirmware(
-          request.code,
-          request.board,
-          env.MAX_COMPILE_TIMEOUT,
-        );
+        result = await compileForFirmware(request.code, request.board, env.MAX_COMPILE_TIMEOUT);
       } else {
-        result = await compile(
-          request.code,
-          request.board,
-          env.MAX_COMPILE_TIMEOUT,
-          request.stdin,
-        );
+        result = await compile(request.code, request.board, env.MAX_COMPILE_TIMEOUT, request.stdin);
       }
 
       logger.info(
-        { userId, success: result.success, engine: result.engine, durationMs: result.durationMs, hasHex: !!result.hexBase64 },
+        {
+          userId,
+          success: result.success,
+          engine: result.engine,
+          durationMs: result.durationMs,
+          hasHex: !!result.hexBase64,
+        },
         'compile.service.done',
       );
 
@@ -79,7 +76,7 @@ export class CompileService {
       }
 
       logger.error({ err, userId }, 'compile.service.error');
-      throw new AppError('COMPILE_ERROR', 'Compilation failed unexpectedly', 500);
+      throw new AppError('COMPILE_ERROR', `Compilation failed unexpectedly: ${message}`, 500);
     } finally {
       release();
     }
