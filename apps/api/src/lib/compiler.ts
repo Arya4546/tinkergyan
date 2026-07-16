@@ -373,8 +373,10 @@ function spawnWithTimeout(
   timeoutMs: number,
 ): Promise<{ stdout: string; stderr: string }> {
   return new Promise((resolve, reject) => {
+    let didTimeout = false;
     const controller = new AbortController();
     const timer = setTimeout(() => {
+      didTimeout = true;
       controller.abort();
       reject(new Error('COMPILE_TIMEOUT'));
     }, timeoutMs);
@@ -391,9 +393,13 @@ function spawnWithTimeout(
         stderr: Buffer.concat(stderrChunks).toString('utf8'),
       });
     });
-    child.on('error', (err) => {
+    child.on('error', (err: Error) => {
       clearTimeout(timer);
-      reject(err);
+      if (didTimeout || err.name === 'AbortError') {
+        reject(new Error('COMPILE_TIMEOUT'));
+      } else {
+        reject(err);
+      }
     });
   });
 }
