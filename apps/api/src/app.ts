@@ -3,6 +3,10 @@ import cors from 'cors';
 import cookieParser from 'cookie-parser';
 import pinoHttp from 'pino-http';
 import path from 'path';
+import { fileURLToPath } from 'url';
+
+const _dirname =
+  typeof __dirname !== 'undefined' ? __dirname : path.dirname(fileURLToPath(import.meta.url));
 
 import { env } from './env';
 import { apiRouter } from './routes';
@@ -14,7 +18,7 @@ export const createApp = () => {
 
   app.disable('x-powered-by');
 
-  const clientDistPath = path.join(__dirname, '../../web/dist');
+  const clientDistPath = path.join(_dirname, '../../web/dist');
   app.use(express.static(clientDistPath));
 
   app.use(

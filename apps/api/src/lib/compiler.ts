@@ -12,8 +12,12 @@ import { spawn } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { mkdtemp, writeFile, rm } from 'node:fs/promises';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import os from 'node:os';
 import { readdir, readFile } from 'node:fs/promises';
+
+const _dirname =
+  typeof __dirname !== 'undefined' ? __dirname : path.dirname(fileURLToPath(import.meta.url));
 import { env } from '../env';
 import { logger } from './logger';
 import { prepareForWandbox, adjustLineNumbers } from './arduino-shim';
@@ -491,7 +495,7 @@ function resolveArduinoCliPath(): string {
   const candidates = [
     '/usr/local/bin/arduino-cli',
     '/usr/bin/arduino-cli',
-    path.join(__dirname, '..', '..', '..', '..', 'bin', 'arduino-cli'), // Robust path relative to source file
+    path.join(_dirname, '..', '..', '..', '..', 'bin', 'arduino-cli'), // Robust path relative to source file
     path.join(process.cwd(), 'bin', 'arduino-cli'),
     path.join(process.cwd(), '..', '..', 'bin', 'arduino-cli'), // If process.cwd() is inside apps/api
     path.join(os.homedir(), 'bin', 'arduino-cli'),
