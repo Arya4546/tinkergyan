@@ -177,8 +177,8 @@ export const BlocklyWorkspace = forwardRef<BlocklyWorkspaceHandle, BlocklyWorksp
           const doc = parser.parseFromString(cleanXml, 'text/xml');
           const dom = doc.documentElement;
           Blockly.Xml.domToWorkspace(dom, workspaceRef.current);
-        } catch {
-          // Ignore malformed XML — workspace stays as-is
+        } catch (err) {
+          console.error('[loadXml error]', err);
         }
       },
       getCode() {

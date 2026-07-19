@@ -23,9 +23,7 @@ const NAV_ITEMS = [
   { label: 'Events', icon: GraduationCap, href: '/courses' },
   { label: 'Workspace', icon: FolderCode, href: '/projects' },
   { label: 'Gallery', icon: Globe, href: '/gallery' },
-  { label: 'Gallery', icon: Globe, href: '/gallery' },
   // Engine is handled specially
-  { label: 'Leaderboard', icon: Trophy, href: '/leaderboard' },
   { label: 'Leaderboard', icon: Trophy, href: '/leaderboard' },
   { label: 'Achievements', icon: Award, href: '/badges' },
 ];

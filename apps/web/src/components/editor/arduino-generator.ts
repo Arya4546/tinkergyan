@@ -452,7 +452,11 @@ arduinoGenerator.forBlock['math_change'] = function (block, generator) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 arduinoGenerator.forBlock['procedures_defnoreturn'] = function (block, generator) {
-  const name = generator.getProcedureName(block.getFieldValue('NAME'));
+  const rawName = block.getFieldValue('NAME');
+  if (rawName.includes('.')) {
+    return '';
+  }
+  const name = generator.getProcedureName(rawName);
   const branch = generator.statementToCode(block, 'STACK');
   const args =
     (block as any).arguments_
@@ -466,7 +470,11 @@ arduinoGenerator.forBlock['procedures_defnoreturn'] = function (block, generator
 };
 
 arduinoGenerator.forBlock['procedures_defreturn'] = function (block, generator) {
-  const name = generator.getProcedureName(block.getFieldValue('NAME'));
+  const rawName = block.getFieldValue('NAME');
+  if (rawName.includes('.')) {
+    return '';
+  }
+  const name = generator.getProcedureName(rawName);
   const branch = generator.statementToCode(block, 'STACK');
   const retVal = generator.valueToCode(block, 'RETURN', Order.NONE) || '0';
   const args =
@@ -480,7 +488,8 @@ arduinoGenerator.forBlock['procedures_defreturn'] = function (block, generator) 
 };
 
 arduinoGenerator.forBlock['procedures_callnoreturn'] = function (block, generator) {
-  const name = generator.getProcedureName(block.getFieldValue('NAME'));
+  const rawName = block.getFieldValue('NAME');
+  const name = rawName.includes('.') ? rawName : generator.getProcedureName(rawName);
   const args = (((block as any).arguments_ as string[]) ?? [])
     .map((_: string, i: number) => generator.valueToCode(block, `ARG${i}`, Order.NONE) || '0')
     .join(', ');
@@ -488,7 +497,8 @@ arduinoGenerator.forBlock['procedures_callnoreturn'] = function (block, generato
 };
 
 arduinoGenerator.forBlock['procedures_callreturn'] = function (block, generator) {
-  const name = generator.getProcedureName(block.getFieldValue('NAME'));
+  const rawName = block.getFieldValue('NAME');
+  const name = rawName.includes('.') ? rawName : generator.getProcedureName(rawName);
   const args = (((block as any).arguments_ as string[]) ?? [])
     .map((_: string, i: number) => generator.valueToCode(block, `ARG${i}`, Order.NONE) || '0')
     .join(', ');

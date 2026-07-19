@@ -1310,6 +1310,10 @@ class Parser {
       'delay',
       'delayMicroseconds',
       'millis',
+      'pulseIn',
+      'pulseInLong',
+      'shiftIn',
+      'shiftOut',
     ]);
     if (!standardFunctions.has(name)) {
       this.calledProcedures.set(
@@ -1354,30 +1358,6 @@ class Parser {
         return `<block type="arduino_serial_println">
           <value name="VALUE">${valXml}</value>
         </block>`;
-      }
-    }
-
-    const objType = this.variableTypes.get(objName);
-
-    if (objType === 'Servo') {
-      if (methodName === 'attach') {
-        const pinVal = this.getLiteralValue(args[0]) || '9';
-        return `<block type="servo_attach">
-          <value name="PIN">
-            <block type="math_number"><field name="NUM">${escapeXml(pinVal)}</field></block>
-          </value>
-        </block>`;
-      }
-      if (methodName === 'write') {
-        const angleVal = this.getLiteralValue(args[0]) || '90';
-        return `<block type="servo_write">
-          <value name="ANGLE">
-            <block type="math_number"><field name="NUM">${escapeXml(angleVal)}</field></block>
-          </value>
-        </block>`;
-      }
-      if (methodName === 'read') {
-        return `<block type="servo_read"></block>`;
       }
     }
 
@@ -1482,7 +1462,7 @@ export function cppToBlocks(code: string): string {
   const functionsXml: string[] = [];
   let yOffset = 100;
   for (const fnXml of res.functions) {
-    const withCoords = fnXml.replace('<block type="', `<block x="500" y="${yOffset}" type="`);
+    const withCoords = fnXml.replace('<block type="', `<block x="900" y="${yOffset}" type="`);
     functionsXml.push(withCoords);
     yOffset += 300;
   }
@@ -1490,7 +1470,7 @@ export function cppToBlocks(code: string): string {
   const additionalDefs: string[] = [];
   for (const [procName, argNames] of parser.calledProcedures.entries()) {
     if (!parser.definedFunctions.has(procName)) {
-      const defXml = `<block type="procedures_defnoreturn" x="500" y="${yOffset}">
+      const defXml = `<block type="procedures_defnoreturn" x="900" y="${yOffset}">
         <field name="NAME">${escapeXml(procName)}</field>
         <mutation>
           ${argNames.map((arg) => `<arg name="${escapeXml(arg)}"></arg>`).join('')}
