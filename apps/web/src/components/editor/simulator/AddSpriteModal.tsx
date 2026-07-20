@@ -12,11 +12,11 @@ interface PresetSprite {
 
 const PRESETS: PresetSprite[] = [
   {
-    name: 'Scratch Cat',
+    name: 'Stemmantra Logo',
     type: 'character',
     icon: <User size={24} className="text-indigo-500" />,
-    desc: 'Default Character',
-    image: '/sprites/cat.png',
+    desc: 'Default Logo Sprite',
+    image: '/sprites/scratch_games.svg',
   },
 ];
 

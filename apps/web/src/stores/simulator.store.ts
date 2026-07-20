@@ -63,12 +63,12 @@ interface SimulatorStore {
 // Generate a random ID for new sprites
 const generateId = () => Math.random().toString(36).substring(2, 9);
 
-// The default Scratch Cat sprite
+// The default Stemmantra sprite
 const defaultCatSprite: SimulatorSprite = {
   id: generateId(),
-  name: 'Sprite1',
+  name: 'Stemmantra',
   type: 'character',
-  image: '/sprites/cat.png',
+  image: '/sprites/scratch_games.svg',
   x: 0,
   y: 0,
   size: 100,

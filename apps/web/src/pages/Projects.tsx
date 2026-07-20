@@ -139,6 +139,15 @@ export default function Projects() {
                       {isBlock ? <Blocks size={18} /> : <TerminalSquare size={18} />}
                     </div>
                     <div className="flex items-center gap-2">
+                      <span
+                        className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                          project.boardTarget === 'software'
+                            ? 'bg-emerald-100 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400'
+                            : 'bg-purple-100 dark:bg-purple-950/40 text-purple-700 dark:text-purple-400'
+                        }`}
+                      >
+                        {project.boardTarget === 'software' ? 'Software' : 'Hardware'}
+                      </span>
                       {project.isPublic && (
                         <span className="text-xs font-semibold px-2 py-0.5 bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 rounded-full flex items-center gap-1">
                           <Zap size={10} /> Public
@@ -157,7 +166,8 @@ export default function Projects() {
                     {project.title}
                   </h3>
                   <p className="text-xs text-slate-500 dark:text-slate-400 mb-4">
-                    {project.boardTarget} &bull; {isBlock ? 'Block Logic' : 'C++ Code'} &bull;{' '}
+                    {project.boardTarget === 'software' ? 'Software Coding' : 'Hardware Coding'}{' '}
+                    &bull; {isBlock ? 'Block Logic' : 'C++ Code'} &bull;{' '}
                     {new Date(project.updatedAt).toLocaleDateString()}
                   </p>
 

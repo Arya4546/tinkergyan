@@ -24,14 +24,14 @@ export function ScratchControlBar() {
           className={`scratch-flag-btn ${isRunning ? 'running' : ''}`}
           title="Go"
         >
-          <GreenFlagIcon size={24} />
+          <GreenFlagIcon size={20} />
         </div>
         <div
           onClick={stopSimulation}
           className={`scratch-stop-btn ${isRunning ? 'running' : ''}`}
           title="Stop"
         >
-          <StopIcon size={24} />
+          <StopIcon size={20} />
         </div>
       </div>
 

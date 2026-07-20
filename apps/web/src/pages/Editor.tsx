@@ -14,7 +14,7 @@
  *   - Compile + run via Wandbox
  */
 import { useRef, useCallback, useEffect, useState } from 'react';
-import { Link, useParams, useNavigate, useSearchParams } from 'react-router-dom';
+import { Link, useParams, useNavigate, useSearchParams, useBlocker } from 'react-router-dom';
 import {
   MoreVertical,
   Terminal,
@@ -38,6 +38,7 @@ import {
   Star,
   Gamepad2,
   Home,
+  AlertTriangle,
 } from 'lucide-react';
 
 import { CompileConsole } from '../components/editor/CompileConsole';
@@ -283,6 +284,25 @@ export default function Editor() {
   const addToast = useUIStore((s: any) => s.addToast);
   const user = useUser();
 
+  const blocker = useBlocker(
+    ({ currentLocation, nextLocation }) =>
+      isDirty && currentLocation.pathname !== nextLocation.pathname,
+  );
+
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (isDirty) {
+        e.preventDefault();
+        e.returnValue = 'You have unsaved changes. Are you sure you want to leave?';
+        return e.returnValue;
+      }
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+    };
+  }, [isDirty]);
+
   // ── Resizer Effect ───────────────────────────────────────────────────
   useEffect(() => {
     let animationFrameId: number;
@@ -352,9 +372,11 @@ export default function Editor() {
     if (routeProjectId) {
       if (projectId !== routeProjectId) {
         loadProject(routeProjectId);
+        useSimulatorStore.getState().resetSimulator();
       }
     } else {
       resetEditor();
+      useSimulatorStore.getState().resetSimulator();
       const targetBoard = engineMode === 'software' ? 'software' : 'arduino:avr:uno';
       useEditorStore.setState({ board: targetBoard });
     }
@@ -365,6 +387,7 @@ export default function Editor() {
   useEffect(() => {
     return () => {
       resetEditor();
+      useSimulatorStore.getState().resetSimulator();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -818,6 +841,12 @@ export default function Editor() {
               <input
                 value={projectTitle}
                 onChange={(e) => setProjectTitle(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    void handleSave();
+                    e.currentTarget.blur();
+                  }
+                }}
                 className="font-sans font-semibold text-sm text-slate-800 dark:text-white bg-transparent border-none outline-none w-32 sm:w-44 truncate focus-visible:ring-2 focus-visible:ring-primary-500 rounded px-1"
                 spellCheck={false}
               />
@@ -1133,19 +1162,21 @@ export default function Editor() {
               )}
 
               {/* ▶ Run — highest prominence, always rightmost */}
-              <button
-                onClick={handleCompile}
-                disabled={isCompiling || isFlashing}
-                title="Compile & Run (Ctrl+Enter)"
-                className="h-11 px-4 sm:px-5 rounded-xl font-sans font-bold text-sm flex items-center gap-2 bg-primary-500 hover:bg-primary-600 text-white shadow-md hover:shadow-lg transition-all focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-1 focus-visible:outline-none active:scale-[0.97] disabled:opacity-50"
-              >
-                {isCompiling ? (
-                  <Loader2 size={16} className="animate-spin" />
-                ) : (
-                  <Play size={16} fill="currentColor" />
-                )}
-                <span>{isCompiling ? 'Running...' : 'Run'}</span>
-              </button>
+              {engineMode === 'hardware' && (
+                <button
+                  onClick={handleCompile}
+                  disabled={isCompiling || isFlashing}
+                  title="Compile & Run (Ctrl+Enter)"
+                  className="h-11 px-4 sm:px-5 rounded-xl font-sans font-bold text-sm flex items-center gap-2 bg-primary-500 hover:bg-primary-600 text-white shadow-md hover:shadow-lg transition-all focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-1 focus-visible:outline-none active:scale-[0.97] disabled:opacity-50"
+                >
+                  {isCompiling ? (
+                    <Loader2 size={16} className="animate-spin" />
+                  ) : (
+                    <Play size={16} fill="currentColor" />
+                  )}
+                  <span>{isCompiling ? 'Running...' : 'Run'}</span>
+                </button>
+              )}
             </div>
 
             {/* Flash progress bar */}
@@ -1335,6 +1366,70 @@ export default function Editor() {
       {/* ── Conversion Error Overlay ───────────────────────────────────── */}
       {conversionError && (
         <ConversionErrorModal error={conversionError} onClose={() => setConversionError(null)} />
+      )}
+
+      {/* ── Unsaved Changes Blocker Overlay ──────────────────────────────── */}
+      {blocker.state === 'blocked' && (
+        <div
+          className="fixed inset-0 z-[300] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4"
+          onClick={() => blocker.reset()}
+        >
+          <div
+            className="bg-white dark:bg-[#111111] border border-slate-200 dark:border-slate-800 rounded-3xl max-w-md w-full shadow-2xl p-6 relative flex flex-col gap-6"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="text-center">
+              <div className="w-12 h-12 rounded-2xl bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 flex items-center justify-center mx-auto mb-4">
+                <AlertTriangle size={24} />
+              </div>
+              <h3 className="text-lg font-bold text-slate-900 dark:text-white">Unsaved Changes</h3>
+              <p className="text-sm text-slate-500 dark:text-slate-400 mt-2">
+                You have unsaved changes in this project. What would you like to do before leaving?
+              </p>
+            </div>
+
+            <div className="flex flex-col gap-2">
+              <button
+                type="button"
+                onClick={async () => {
+                  const xml = blocklyRef.current?.getXml() ?? '';
+                  try {
+                    await saveProject(xml);
+                    blocker.proceed();
+                  } catch {
+                    addToast({
+                      type: 'error',
+                      title: 'Save failed',
+                      message: 'Could not save project. Navigation cancelled.',
+                    });
+                    blocker.reset();
+                  }
+                }}
+                className="w-full h-11 bg-emerald-500 hover:bg-emerald-600 text-white font-sans font-bold text-sm rounded-xl flex items-center justify-center gap-2 shadow-md transition-all duration-200 active:scale-[0.98]"
+              >
+                Save & Exit
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  blocker.proceed();
+                }}
+                className="w-full h-11 bg-red-500 hover:bg-red-600 text-white font-sans font-bold text-sm rounded-xl flex items-center justify-center gap-2 shadow-md transition-all duration-200 active:scale-[0.98]"
+              >
+                Discard Changes
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  blocker.reset();
+                }}
+                className="w-full h-11 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-sans font-semibold text-sm rounded-xl flex items-center justify-center gap-2 hover:bg-slate-200 dark:hover:bg-slate-700 transition-all duration-200 active:scale-[0.98]"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

@@ -49,16 +49,27 @@ function ProjectCard({
         <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${iconBg}`}>
           {isBlock ? <Beaker size={18} /> : <TerminalSquare size={18} />}
         </div>
-        <button
-          onClick={(e) => {
-            e.preventDefault();
-            void onDelete(project.id);
-          }}
-          className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
-          title="Delete project"
-        >
-          <Trash2 size={14} />
-        </button>
+        <div className="flex items-center gap-2">
+          <span
+            className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+              project.boardTarget === 'software'
+                ? 'bg-emerald-100 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400'
+                : 'bg-purple-100 dark:bg-purple-950/40 text-purple-700 dark:text-purple-400'
+            }`}
+          >
+            {project.boardTarget === 'software' ? 'Software' : 'Hardware'}
+          </span>
+          <button
+            onClick={(e) => {
+              e.preventDefault();
+              void onDelete(project.id);
+            }}
+            className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+            title="Delete project"
+          >
+            <Trash2 size={14} />
+          </button>
+        </div>
       </div>
 
       <div className="flex-1">
@@ -66,7 +77,8 @@ function ProjectCard({
           {project.title}
         </h3>
         <p className="text-xs text-slate-500 dark:text-slate-400">
-          {project.boardTarget} &bull; {isBlock ? 'Block Logic' : 'C++ Code'} &bull; Updated{' '}
+          {project.boardTarget === 'software' ? 'Software Coding' : 'Hardware Coding'} &bull;{' '}
+          {isBlock ? 'Block Logic' : 'C++ Code'} &bull; Updated{' '}
           {new Date(project.updatedAt).toLocaleDateString()}
         </p>
       </div>
