@@ -219,8 +219,17 @@ const renderSpriteVisual = (
 
 // ── Stage Canvas Component ───────────────────────────────────────────────────
 export function StageCanvas() {
-  const { sprites, activeSpriteId, setActiveSprite, updateSprite, backdrop, isRunning } =
-    useSimulatorStore();
+  const {
+    sprites,
+    activeSpriteId,
+    setActiveSprite,
+    updateSprite,
+    backdrop,
+    isRunning,
+    cameraX,
+    cameraY,
+    setCamera,
+  } = useSimulatorStore();
 
   const stageRef = useRef<HTMLDivElement>(null);
   const [dragState, setDragState] = useState<{
@@ -234,29 +243,40 @@ export function StageCanvas() {
 
   // Background styles
   const getBackgroundStyle = () => {
+    const bgX = `calc(50% - ${cameraX}px * (100% / 480))`;
+    const bgY = `calc(50% + ${cameraY}px * (100% / 360))`;
+
+    const baseStyle = {
+      backgroundPosition: `${bgX} ${bgY}`,
+    };
+
     switch (backdrop) {
       case 'grid':
         return {
+          ...baseStyle,
           backgroundColor: 'white',
           backgroundImage:
             'url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyMCIgaGVpZ2h0PSIyMCI+PGNpcmNsZSBjeD0iMSIgY3k9IjEiIHI9IjEiIGZpbGw9IiNjYmQ1ZTEiLz48L3N2Zz4=")',
           backgroundRepeat: 'repeat',
         };
       case 'breadboard':
-        return { backgroundColor: '#fef3c7' };
+        return { ...baseStyle, backgroundColor: '#fef3c7' };
       case 'space':
-        return { backgroundColor: '#0f172a' };
+        return { ...baseStyle, backgroundColor: '#0f172a' };
       default:
-        return { backgroundColor: 'white' };
+        return { ...baseStyle, backgroundColor: 'white' };
     }
   };
 
-  // Convert Scratch coordinates (center=0,0, x: -240→240, y: -180→180) to percentages
-  const scratchToPercent = useCallback((x: number, y: number) => {
-    const pctX = ((x + 240) / 480) * 100;
-    const pctY = ((180 - y) / 360) * 100;
-    return { pctX, pctY };
-  }, []);
+  // Convert Scratch coordinates (relative to camera viewport) to percentages
+  const scratchToPercent = useCallback(
+    (x: number, y: number) => {
+      const pctX = ((x - cameraX + 240) / 480) * 100;
+      const pctY = ((180 - (y - cameraY)) / 360) * 100;
+      return { pctX, pctY };
+    },
+    [cameraX, cameraY],
+  );
 
   const pixelDeltaToScratch = useCallback(() => {
     if (!stageRef.current) return { scaleX: 1, scaleY: 1 };
@@ -289,8 +309,8 @@ export function StageCanvas() {
         const rect = stageRef.current.getBoundingClientRect();
         const relX = e.clientX - rect.left;
         const relY = e.clientY - rect.top;
-        const scratchX = Math.round((relX / rect.width) * 480 - 240);
-        const scratchY = Math.round(180 - (relY / rect.height) * 360);
+        const scratchX = Math.round((relX / rect.width) * 480 - 240 + cameraX);
+        const scratchY = Math.round(180 - (relY / rect.height) * 360 + cameraY);
         setMouseCoords({ x: scratchX, y: scratchY });
       }
 
@@ -300,12 +320,50 @@ export function StageCanvas() {
       const dx = (e.clientX - dragState.startX) * scaleX;
       const dy = -(e.clientY - dragState.startY) * scaleY;
 
-      const newX = Math.round(Math.max(-240, Math.min(240, dragState.startSpriteX + dx)));
-      const newY = Math.round(Math.max(-180, Math.min(180, dragState.startSpriteY + dy)));
+      const proposedX = dragState.startSpriteX + dx;
+      const proposedY = dragState.startSpriteY + dy;
+
+      const sprite = sprites.find((s) => s.id === dragState.spriteId);
+      if (!sprite) return;
+
+      const halfSize = ((sprite.type === 'character' ? 100 : 64) * (sprite.size / 100)) / 2;
+
+      let currentCameraX = cameraX;
+      let currentCameraY = cameraY;
+
+      // If the proposed position goes outside the visible viewport, pan the camera!
+      if (proposedX + halfSize > 240 + currentCameraX) {
+        currentCameraX = proposedX + halfSize - 240;
+      } else if (proposedX - halfSize < -240 + currentCameraX) {
+        currentCameraX = proposedX - halfSize + 240;
+      }
+
+      if (proposedY + halfSize > 180 + currentCameraY) {
+        currentCameraY = proposedY + halfSize - 180;
+      } else if (proposedY - halfSize < -180 + currentCameraY) {
+        currentCameraY = proposedY - halfSize + 180;
+      }
+
+      if (currentCameraX !== cameraX || currentCameraY !== cameraY) {
+        setCamera(currentCameraX, currentCameraY);
+      }
+
+      const newX = Math.round(
+        Math.max(
+          -240 + currentCameraX + halfSize,
+          Math.min(240 + currentCameraX - halfSize, proposedX),
+        ),
+      );
+      const newY = Math.round(
+        Math.max(
+          -180 + currentCameraY + halfSize,
+          Math.min(180 + currentCameraY - halfSize, proposedY),
+        ),
+      );
 
       updateSprite(dragState.spriteId, { x: newX, y: newY });
     },
-    [dragState, pixelDeltaToScratch, updateSprite],
+    [dragState, pixelDeltaToScratch, updateSprite, sprites, cameraX, cameraY, setCamera],
   );
 
   const handlePointerUp = useCallback(() => {

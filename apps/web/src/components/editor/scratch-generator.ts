@@ -55,10 +55,16 @@ javascriptGenerator.forBlock['scratch_looks_hide'] = function () {
   return `await api.hide();\n`;
 };
 
+javascriptGenerator.forBlock['scratch_looks_switch_costume_to'] = function (block, _generator) {
+  const costume = block.getFieldValue('COSTUME') as string;
+  return `await api.switchCostume('${costume}');\n`;
+};
+
 /**
  * Generates Scratch JavaScript from a Blockly workspace.
  */
 export function workspaceToScratchCode(workspace: Workspace): string {
+  javascriptGenerator.init(workspace);
   let code = '';
   const topBlocks = workspace.getTopBlocks(true);
 
@@ -75,5 +81,5 @@ export function workspaceToScratchCode(workspace: Workspace): string {
     }
   }
 
-  return code;
+  return javascriptGenerator.finish(code);
 }

@@ -45,6 +45,8 @@ interface SimulatorStore {
   isRunning: boolean;
   greenFlagCount: number;
   stageViewMode: StageViewMode;
+  cameraX: number;
+  cameraY: number;
 
   // Actions
   addSprite: (sprite: Omit<SimulatorSprite, 'id'> & { id?: string }) => void;
@@ -58,6 +60,7 @@ interface SimulatorStore {
   toggleSimulation: () => void;
   stopSimulation: () => void;
   resetSimulator: () => void;
+  setCamera: (x: number, y: number) => void;
 }
 
 // Generate a random ID for new sprites
@@ -87,6 +90,8 @@ export const useSimulatorStore = create<SimulatorStore>()(
       isRunning: false,
       greenFlagCount: 0,
       stageViewMode: 'large',
+      cameraX: 0,
+      cameraY: 0,
 
       addSprite: (spriteInput) => {
         const id = spriteInput.id || generateId();
@@ -160,7 +165,7 @@ export const useSimulatorStore = create<SimulatorStore>()(
       },
 
       stopSimulation: () => {
-        set({ isRunning: false });
+        set({ isRunning: false, cameraX: 0, cameraY: 0 });
       },
 
       resetSimulator: () => {
@@ -172,7 +177,13 @@ export const useSimulatorStore = create<SimulatorStore>()(
           backdropCount: 1,
           isRunning: false,
           stageViewMode: 'large',
+          cameraX: 0,
+          cameraY: 0,
         });
+      },
+
+      setCamera: (x, y) => {
+        set({ cameraX: x, cameraY: y });
       },
     }),
     {

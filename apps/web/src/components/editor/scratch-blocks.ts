@@ -88,3 +88,21 @@ Blockly.Blocks['scratch_looks_hide'] = {
     this.setTooltip('Hides the sprite.');
   },
 };
+
+Blockly.Blocks['scratch_looks_switch_costume_to'] = {
+  init(this: Blockly.Block): void {
+    this.appendDummyInput()
+      .appendField('switch costume to')
+      .appendField(
+        new Blockly.FieldDropdown([
+          ['Stemmantra (Old)', '/sprites/scratch_games.svg'],
+          ['Stemmantra (New)', '/sprites/svg.svg'],
+        ]),
+        'COSTUME',
+      );
+    this.setPreviousStatement(true, null);
+    this.setNextStatement(true, null);
+    this.setColour(COLOR_LOOKS);
+    this.setTooltip('Changes the costume of the sprite.');
+  },
+};

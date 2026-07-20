@@ -11,6 +11,7 @@ export interface ScratchAPI {
   sayFor: (text: string, secs: number) => Promise<void>;
   show: () => Promise<void>;
   hide: () => Promise<void>;
+  switchCostume: (costume: string) => Promise<void>;
 }
 
 const wait = (ms: number, signal?: AbortSignal) => {
@@ -40,6 +41,50 @@ export class ScratchEngine {
       return store.sprites.find((s) => s.id === targetId);
     };
 
+    const updatePositionWithCamera = (
+      spriteId: string,
+      proposedX: number,
+      proposedY: number,
+      size: number,
+      type: string,
+    ) => {
+      const store = useSimulatorStore.getState();
+      const halfSize = ((type === 'character' ? 100 : 64) * (size / 100)) / 2;
+
+      let currentCameraX = store.cameraX;
+      let currentCameraY = store.cameraY;
+
+      // If the proposed position goes outside the visible viewport, pan the camera!
+      if (proposedX + halfSize > 240 + currentCameraX) {
+        currentCameraX = proposedX + halfSize - 240;
+      } else if (proposedX - halfSize < -240 + currentCameraX) {
+        currentCameraX = proposedX - halfSize + 240;
+      }
+
+      if (proposedY + halfSize > 180 + currentCameraY) {
+        currentCameraY = proposedY + halfSize - 180;
+      } else if (proposedY - halfSize < -180 + currentCameraY) {
+        currentCameraY = proposedY - halfSize + 180;
+      }
+
+      // Update camera in store if it has changed
+      if (currentCameraX !== store.cameraX || currentCameraY !== store.cameraY) {
+        store.setCamera(currentCameraX, currentCameraY);
+      }
+
+      // Clamp the sprite to the active camera boundaries
+      const finalX = Math.max(
+        -240 + currentCameraX + halfSize,
+        Math.min(240 + currentCameraX - halfSize, proposedX),
+      );
+      const finalY = Math.max(
+        -180 + currentCameraY + halfSize,
+        Math.min(180 + currentCameraY - halfSize, proposedY),
+      );
+
+      store.updateSprite(spriteId, { x: finalX, y: finalY });
+    };
+
     // The API object exposed to the blocks
     const api: ScratchAPI = {
       onGreenFlag: (callback) => {
@@ -47,7 +92,6 @@ export class ScratchEngine {
       },
 
       move: async (steps) => {
-        const store = useSimulatorStore.getState();
         const sprite = getTargetSprite();
         if (!sprite) return;
 
@@ -65,10 +109,10 @@ export class ScratchEngine {
         // So we invert dy.
         const dy = Math.round(steps * Math.sin(radians));
 
-        const newX = Math.max(-240, Math.min(240, sprite.x + dx));
-        const newY = Math.max(-180, Math.min(180, sprite.y - dy)); // Subtract dy because sin(-90) is negative but we want positive Y
+        const proposedX = sprite.x + dx;
+        const proposedY = sprite.y - dy; // Subtract dy because sin(-90) is negative but we want positive Y
 
-        store.updateSprite(sprite.id, { x: newX, y: newY });
+        updatePositionWithCamera(sprite.id, proposedX, proposedY, sprite.size, sprite.type);
 
         // Small yield to let UI render if inside a loop
         await wait(10, this.abortController?.signal);
@@ -85,10 +129,9 @@ export class ScratchEngine {
       },
 
       goTo: async (x, y) => {
-        const store = useSimulatorStore.getState();
         const sprite = getTargetSprite();
         if (!sprite) return;
-        store.updateSprite(sprite.id, { x, y });
+        updatePositionWithCamera(sprite.id, x, y, sprite.size, sprite.type);
         await wait(10, this.abortController?.signal);
       },
 
@@ -124,6 +167,20 @@ export class ScratchEngine {
           store.updateSprite(sprite.id, { visible: false });
         }
         return Promise.resolve();
+      },
+
+      switchCostume: async (costume) => {
+        const store = useSimulatorStore.getState();
+        const sprite = getTargetSprite();
+        if (sprite) {
+          // Map costume name to actual SVG path just in case, but value contains the path directly
+          store.updateSprite(sprite.id, {
+            image: costume,
+            costume:
+              costume === '/sprites/scratch_games.svg' ? 'Stemmantra (Old)' : 'Stemmantra (New)',
+          });
+        }
+        await wait(10, this.abortController?.signal);
       },
     };
 

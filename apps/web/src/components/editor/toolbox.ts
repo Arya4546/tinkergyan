@@ -59,6 +59,7 @@ export function getToolbox(engineMode: 'hardware' | 'software') {
         },
         { kind: 'block', type: 'scratch_looks_show' },
         { kind: 'block', type: 'scratch_looks_hide' },
+        { kind: 'block', type: 'scratch_looks_switch_costume_to' },
       ],
     },
   ];
