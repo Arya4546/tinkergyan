@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import { useUIStore } from '../../stores/ui.store';
 import { Tooltip } from '../ui/Tooltip';
+import { NewProjectDialog } from '../ui/NewProjectDialog';
 
 const NAV_ITEMS = [
   { label: 'Learning Plan', icon: Home, href: '/dashboard' },
@@ -35,6 +36,8 @@ export function Sidebar() {
   const setMobileMenuOpen = useUIStore((s) => s.setMobileMenuOpen);
   const isEngineActive = location.pathname.startsWith('/editor');
   const [engineExpanded, setEngineExpanded] = useState(isEngineActive);
+  const [newProjectOpen, setNewProjectOpen] = useState(false);
+  const [selectedCategory, setSelectedCategory] = useState<'software' | 'hardware' | null>(null);
 
   return (
     <>
@@ -136,32 +139,38 @@ export function Sidebar() {
                         position="right"
                         className="w-full"
                       >
-                        <Link
-                          to="/editor?engine=hardware"
-                          onClick={() => setMobileMenuOpen(false)}
+                        <button
+                          onClick={() => {
+                            setSelectedCategory('hardware');
+                            setNewProjectOpen(true);
+                            setMobileMenuOpen(false);
+                          }}
                           className={`h-10 w-full flex items-center justify-center lg:justify-start px-0 lg:px-3 rounded-lg transition-all duration-200 ${location.search.includes('engine=hardware') ? 'bg-slate-200/50 dark:bg-[#1A1D24] text-emerald-600 dark:text-emerald-400 font-bold' : 'text-slate-500 hover:text-slate-900 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-[#1A1D24]'}`}
                         >
                           <Cpu size={16} className="shrink-0 lg:mr-2" />
                           <span className="text-xs font-medium sm:hidden lg:block">
                             Hardware Coding
                           </span>
-                        </Link>
+                        </button>
                       </Tooltip>
                       <Tooltip
                         content="Software Coding (Blockly & Scratch)"
                         position="right"
                         className="w-full"
                       >
-                        <Link
-                          to="/editor?engine=software"
-                          onClick={() => setMobileMenuOpen(false)}
+                        <button
+                          onClick={() => {
+                            setSelectedCategory('software');
+                            setNewProjectOpen(true);
+                            setMobileMenuOpen(false);
+                          }}
                           className={`h-10 w-full flex items-center justify-center lg:justify-start px-0 lg:px-3 rounded-lg transition-all duration-200 ${location.search.includes('engine=software') ? 'bg-slate-200/50 dark:bg-[#1A1D24] text-emerald-600 dark:text-emerald-400 font-bold' : 'text-slate-500 hover:text-slate-900 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-[#1A1D24]'}`}
                         >
                           <MonitorPlay size={16} className="shrink-0 lg:mr-2" />
                           <span className="text-xs font-medium sm:hidden lg:block">
                             Software Coding
                           </span>
-                        </Link>
+                        </button>
                       </Tooltip>
                     </div>
                   )}
@@ -200,6 +209,12 @@ export function Sidebar() {
           </Tooltip>
         </div>
       </aside>
+
+      <NewProjectDialog
+        open={newProjectOpen}
+        onClose={() => setNewProjectOpen(false)}
+        preSelectedCategory={selectedCategory}
+      />
     </>
   );
 }

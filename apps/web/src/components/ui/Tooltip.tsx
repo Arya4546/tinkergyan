@@ -17,6 +17,8 @@ export function Tooltip({
   className = '',
 }: TooltipProps) {
   const [isVisible, setIsVisible] = useState(false);
+  const [shouldRender, setShouldRender] = useState(false);
+  const [isAnimating, setIsAnimating] = useState(false);
   const [coords, setCoords] = useState({ top: 0, left: 0 });
   const triggerRef = useRef<HTMLDivElement>(null);
   const tooltipRef = useRef<HTMLDivElement>(null);
@@ -96,7 +98,46 @@ export function Tooltip({
     return () => cancelAnimationFrame(id);
   }, [isVisible, updatePosition]);
 
+  useEffect(() => {
+    if (isVisible) {
+      const id = requestAnimationFrame(() => {
+        setShouldRender(true);
+        requestAnimationFrame(() => {
+          setIsAnimating(true);
+        });
+      });
+      return () => cancelAnimationFrame(id);
+    } else {
+      const id = requestAnimationFrame(() => {
+        setIsAnimating(false);
+      });
+      const timer = setTimeout(() => {
+        setShouldRender(false);
+      }, 150);
+      return () => {
+        cancelAnimationFrame(id);
+        clearTimeout(timer);
+      };
+    }
+  }, [isVisible]);
+
   if (!content) return <>{children}</>;
+
+  const getTransformClass = () => {
+    if (isAnimating) return 'opacity-100 scale-100 translate-x-0 translate-y-0';
+    switch (position) {
+      case 'top':
+        return 'opacity-0 scale-95 translate-y-1';
+      case 'bottom':
+        return 'opacity-0 scale-95 -translate-y-1';
+      case 'left':
+        return 'opacity-0 scale-95 translate-x-1';
+      case 'right':
+        return 'opacity-0 scale-95 -translate-x-1';
+      default:
+        return 'opacity-0 scale-95';
+    }
+  };
 
   return (
     <>
@@ -110,7 +151,7 @@ export function Tooltip({
       >
         {children}
       </div>
-      {isVisible &&
+      {shouldRender &&
         createPortal(
           <div
             ref={tooltipRef}
@@ -121,13 +162,15 @@ export function Tooltip({
               left: `${coords.left}px`,
               pointerEvents: 'none',
               zIndex: 99999,
+              transition:
+                'opacity 150ms cubic-bezier(0.16, 1, 0.3, 1), transform 150ms cubic-bezier(0.16, 1, 0.3, 1)',
             }}
-            className="
+            className={`
               px-2.5 py-1.5 text-xs font-semibold font-sans tracking-wide whitespace-nowrap
-              bg-slate-900/95 dark:bg-slate-800/95 text-slate-100 dark:text-slate-100
-              border border-slate-700/60 dark:border-slate-700/80 rounded-lg shadow-xl backdrop-blur-md
-              animate-in fade-in zoom-in-95 duration-100 ease-out
-            "
+              bg-slate-950/95 dark:bg-slate-900/95 text-slate-100 dark:text-slate-100
+              border border-slate-800/80 dark:border-slate-700/80 rounded-lg shadow-xl backdrop-blur-md
+              transform origin-center ${getTransformClass()}
+            `}
           >
             {content}
           </div>,
