@@ -225,6 +225,73 @@ export interface EditorState {
   scheduleAutoSave: (getBlockXml: () => string) => void;
 }
 
+// ─── ESP8266 Pin Conflict Detection ──────────────────────────────────────────
+function detectESP8266PinConflicts(code: string): CompileError[] {
+  const errors: CompileError[] = [];
+  const lines = code.split('\n');
+
+  // Find variable declarations or defines assigning pins 6-11
+  const varRegex =
+    /(?:const\s+)?(?:int|char|byte|short|uint8_t|uint16_t)\s+([a-zA-Z_][a-zA-Z0-9_]*)\s*=\s*(6|7|8|9|10|11)\b/i;
+  const defineRegex = /#define\s+([a-zA-Z_][a-zA-Z0-9_]*)\s+(6|7|8|9|10|11)\b/i;
+
+  const restrictedVars = new Map<string, { pin: string; lineNum: number }>();
+
+  lines.forEach((line, index) => {
+    const trimmed = line.trim();
+    if (trimmed.startsWith('//') || trimmed.startsWith('*') || trimmed.startsWith('/*')) {
+      return;
+    }
+    const varMatch = line.match(varRegex);
+    if (varMatch && varMatch[1] && varMatch[2]) {
+      restrictedVars.set(varMatch[1], { pin: varMatch[2], lineNum: index + 1 });
+      return;
+    }
+    const defineMatch = line.match(defineRegex);
+    if (defineMatch && defineMatch[1] && defineMatch[2]) {
+      restrictedVars.set(defineMatch[1], { pin: defineMatch[2], lineNum: index + 1 });
+    }
+  });
+
+  // Check for direct usage or variable usage of pins 6-11 in GPIO/Servo functions
+  const functionRegex =
+    /\b(pinMode|digitalWrite|digitalRead|analogWrite|analogRead|pulseIn|attach)\s*\(\s*([^,)]+)/i;
+
+  lines.forEach((line, index) => {
+    const trimmed = line.trim();
+    if (trimmed.startsWith('//') || trimmed.startsWith('*') || trimmed.startsWith('/*')) {
+      return;
+    }
+    const match = line.match(functionRegex);
+    if (match && match[1] && match[2]) {
+      const funcName = match[1];
+      const firstArg = match[2].trim();
+
+      // Check if it's a raw number 6-11
+      if (/^(6|7|8|9|10|11)$/.test(firstArg)) {
+        errors.push({
+          line: index + 1,
+          column: line.indexOf(firstArg) + 1,
+          severity: 'warning',
+          message: `Warning: Pin ${firstArg} is used in ${funcName}(). On ESP8266 (NodeMCU), GPIO6 to GPIO11 are reserved for internal SPI flash memory. Using them will crash the board and cause an infinite boot loop. Please use safe pins like D1 (5), D2 (4), D5 (14), or D6 (12).`,
+        });
+      }
+      // Check if it's a variable holding 6-11
+      else if (restrictedVars.has(firstArg)) {
+        const info = restrictedVars.get(firstArg)!;
+        errors.push({
+          line: index + 1,
+          column: line.indexOf(firstArg) + 1,
+          severity: 'warning',
+          message: `Warning: Variable '${firstArg}' (assigned to pin ${info.pin}) is used in ${funcName}(). On ESP8266 (NodeMCU), GPIO6 to GPIO11 are reserved for internal SPI flash memory. Using them will crash the board and cause an infinite boot loop. Please use safe pins like D1 (5), D2 (4), D5 (14), or D6 (12).`,
+        });
+      }
+    }
+  });
+
+  return errors;
+}
+
 // ─── Initial State ────────────────────────────────────────────────────────────
 
 const INITIAL_STATE = {
@@ -277,19 +344,35 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
         stdin: get().stdinInput,
         target,
       });
-      set({ compileResult: data.data.result as CompileResult });
+      const result = data.data.result as CompileResult;
+
+      if (get().board === 'esp8266:esp8266:nodemcuv2') {
+        const localErrors = detectESP8266PinConflicts(code);
+        if (localErrors.length > 0) {
+          result.errors = [...result.errors, ...localErrors];
+        }
+      }
+
+      set({ compileResult: result });
     } catch (err: any) {
       const message = err?.response?.data?.error?.message ?? 'Compilation failed unexpectedly';
-      set({
-        compileResult: {
-          success: false,
-          stdout: '',
-          stderr: message,
-          errors: [{ line: 0, column: 0, severity: 'error', message }],
-          durationMs: 0,
-          engine: 'wandbox',
-        },
-      });
+      const result: CompileResult = {
+        success: false,
+        stdout: '',
+        stderr: message,
+        errors: [{ line: 0, column: 0, severity: 'error', message }],
+        durationMs: 0,
+        engine: 'wandbox',
+      };
+
+      if (get().board === 'esp8266:esp8266:nodemcuv2') {
+        const localErrors = detectESP8266PinConflicts(code);
+        if (localErrors.length > 0) {
+          result.errors = [...result.errors, ...localErrors];
+        }
+      }
+
+      set({ compileResult: result });
     } finally {
       set({ isCompiling: false });
     }
