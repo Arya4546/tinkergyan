@@ -166,6 +166,7 @@ export const BlocklyWorkspace = forwardRef<BlocklyWorkspaceHandle, BlocklyWorksp
         if (!workspaceRef.current || !xml) return;
         try {
           workspaceRef.current.clear();
+          appliedFlyoutOffsetRef.current = 0;
           // Remove movable="false", deletable="false", and inline="true" from legacy block saves
           const cleanXml = xml
             .replace(/movable="false"/g, '')
@@ -196,6 +197,7 @@ export const BlocklyWorkspace = forwardRef<BlocklyWorkspaceHandle, BlocklyWorksp
     }));
 
     const isInit = useRef(false);
+    const appliedFlyoutOffsetRef = useRef<number>(0);
 
     // Resolve which Blockly theme to use based on current UI theme setting
     const resolveBlocklyTheme = (currentTheme: string) => {
@@ -213,6 +215,7 @@ export const BlocklyWorkspace = forwardRef<BlocklyWorkspaceHandle, BlocklyWorksp
       // Clear out any ghost DOM nodes from React 18 StrictMode unmounts
       blocklyDiv.current.innerHTML = '';
       isInit.current = true;
+      appliedFlyoutOffsetRef.current = 0;
 
       // ── Ensure html.dark class matches the resolved Blockly theme BEFORE inject ──
       // Navbar's useEffect may not have fired yet on first render, so we sync it here.
@@ -279,26 +282,37 @@ export const BlocklyWorkspace = forwardRef<BlocklyWorkspaceHandle, BlocklyWorksp
       // workspace (by design — not custom code). When a category flyout
       // opens, we shift the workspace viewport by the flyout's measured
       // width so blocks near the left edge aren't occluded. When it
-      // closes, we shift back. We also call svgResize to reposition
-      // zoom/trash controls.
+      // switches categories or closes, we adjust the shift dynamically.
+      const syncFlyoutScrollOffset = (newItem?: any) => {
+        const workspace = workspaceRef.current;
+        if (!workspace) return;
+
+        const flyout = workspace.getFlyout();
+        const toolbox = workspace.getToolbox();
+        const selectedItem =
+          newItem !== undefined
+            ? newItem
+            : (toolbox as unknown as { getSelected?: () => unknown })?.getSelected?.();
+        const isOpening = Boolean(selectedItem);
+
+        const rawWidth = flyout ? flyout.getWidth() : 0;
+        const targetWidth = isOpening ? (rawWidth > 0 ? rawWidth : 250) : 0;
+
+        const delta = targetWidth - appliedFlyoutOffsetRef.current;
+        if (delta !== 0) {
+          workspace.scroll(workspace.scrollX + delta, workspace.scrollY);
+          appliedFlyoutOffsetRef.current = targetWidth;
+        }
+        // Reposition zoom/trash controls to stay clear of flyout
+        Blockly.svgResize(workspace);
+      };
+
       const onToolboxSelect = (event: Blockly.Events.Abstract) => {
         if (event.type === Blockly.Events.TOOLBOX_ITEM_SELECT) {
           const itemSelectEvent = event as any;
-          const workspace = workspaceRef.current;
-          if (!workspace) return;
-
-          const flyout = workspace.getFlyout();
-          const flyoutWidth = flyout ? flyout.getWidth() : 0;
-
-          if (itemSelectEvent.newItem && !itemSelectEvent.oldItem) {
-            // Opening flyout — shift viewport right by the measured flyout width
-            workspace.scroll(workspace.scrollX + flyoutWidth, workspace.scrollY);
-          } else if (!itemSelectEvent.newItem && itemSelectEvent.oldItem) {
-            // Closing flyout — shift viewport back
-            workspace.scroll(workspace.scrollX - flyoutWidth, workspace.scrollY);
-          }
-          // Reposition zoom/trash controls to stay clear of flyout
-          Blockly.svgResize(workspace);
+          syncFlyoutScrollOffset(itemSelectEvent.newItem);
+          // Re-check after browser SVG layout pass in case block dimensions adjusted flyout width
+          requestAnimationFrame(() => syncFlyoutScrollOffset(itemSelectEvent.newItem));
         }
       };
       /* eslint-enable @typescript-eslint/no-unsafe-enum-comparison, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-member-access */
@@ -336,6 +350,7 @@ export const BlocklyWorkspace = forwardRef<BlocklyWorkspaceHandle, BlocklyWorksp
     useEffect(() => {
       if (!workspaceRef.current) return;
       workspaceRef.current.updateToolbox(getToolbox(engineMode));
+      appliedFlyoutOffsetRef.current = 0;
       // Toolbox width may change between engines — recalculate SVG layout
       Blockly.svgResize(workspaceRef.current);
     }, [engineMode]);
