@@ -343,3 +343,25 @@ html.dark .lesson-content .md-table td {
 html.dark .lesson-content .md-table tr:nth-child(even) {
   background-color: rgba(37, 38, 64, 0.5);
 }
+
+/* Custom Glassmorphism Tooltip for Blockly Blocks */
+.blocklyTooltipDiv {
+  background-color: rgba(15, 23, 42, 0.95) !important;
+  color: #f8fafc !important;
+  border: 1px solid rgba(51, 65, 85, 0.8) !important;
+  border-radius: 10px !important;
+  padding: 8px 12px !important;
+  font-family: 'Inter', system-ui, sans-serif !important;
+  font-size: 12px !important;
+  font-weight: 500 !important;
+  line-height: 1.4 !important;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3) !important;
+  backdrop-filter: blur(8px) !important;
+  z-index: 99999 !important;
+}
+
+html.dark .blocklyTooltipDiv {
+  background-color: rgba(30, 41, 59, 0.95) !important;
+  color: #f8fafc !important;
+  border: 1px solid rgba(71, 85, 105, 0.8) !important;
+}

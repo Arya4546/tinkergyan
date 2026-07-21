@@ -228,6 +228,9 @@ export const BlocklyWorkspace = forwardRef<BlocklyWorkspaceHandle, BlocklyWorksp
         document.documentElement.classList.remove('dark');
       }
 
+      // Set instant tooltip delay (100ms) for Blockly blocks
+      (Blockly.Tooltip as any).HOVER_MS = 100;
+
       workspaceRef.current = Blockly.inject(blocklyDiv.current, {
         toolbox: getToolbox(engineMode),
         theme: resolveBlocklyTheme(useUIStore.getState().theme),

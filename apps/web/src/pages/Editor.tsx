@@ -60,6 +60,7 @@ import { useUser } from '../stores/auth.store';
 import { useSimulatorStore } from '../stores/simulator.store';
 import { scratchEngine } from '../components/editor/simulator/ScratchEngine';
 import { workspaceToScratchCode } from '../components/editor/scratch-generator';
+import { Tooltip } from '../components/ui/Tooltip';
 
 // ─── Board dropdown options ───────────────────────────────────────────────────
 const BOARDS = [
@@ -830,13 +831,14 @@ export default function Editor() {
           <div className="absolute top-0 left-0 w-full h-16 border-b border-slate-100 dark:border-dark-border bg-white dark:bg-dark-surface flex justify-between items-center z-30 px-3 sm:px-4 gap-2">
             {/* Left: Back + project title + dirty indicator */}
             <div className="flex items-center gap-2 min-w-0">
-              <Link
-                to="/dashboard"
-                className="w-11 h-11 shrink-0 flex items-center justify-center rounded-xl bg-slate-100 dark:bg-dark-border text-slate-500 hover:text-slate-800 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:outline-none"
-                title="Go back to Dashboard"
-              >
-                <Home size={18} strokeWidth={2.5} />
-              </Link>
+              <Tooltip content="Dashboard" position="bottom">
+                <Link
+                  to="/dashboard"
+                  className="w-11 h-11 shrink-0 flex items-center justify-center rounded-xl bg-slate-100 dark:bg-dark-border text-slate-500 hover:text-slate-800 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:outline-none"
+                >
+                  <Home size={18} strokeWidth={2.5} />
+                </Link>
+              </Tooltip>
 
               <input
                 value={projectTitle}
@@ -851,30 +853,27 @@ export default function Editor() {
                 spellCheck={false}
               />
               {isDirty && (
-                <div
-                  className="w-2 h-2 rounded-full bg-warning-500 shrink-0"
-                  title="Unsaved changes"
-                />
+                <Tooltip content="Unsaved Changes" position="bottom">
+                  <div className="w-2 h-2 rounded-full bg-warning-500 shrink-0" />
+                </Tooltip>
               )}
 
               {/* Gamification surface */}
               {user && (
                 <div className="hidden lg:flex items-center gap-3 px-3 py-1.5 bg-slate-100 dark:bg-dark-surface rounded-full border border-slate-200 dark:border-dark-border ml-2">
-                  <div
-                    className="flex items-center gap-1.5 text-warning-500"
-                    title={`${user.streak} day streak!`}
-                  >
-                    <Zap size={14} fill="currentColor" />
-                    <span className="font-sans font-bold text-xs">{user.streak}</span>
-                  </div>
-                  <div className="w-px h-3 bg-slate-300 dark:bg-slate-700" />
-                  <div
-                    className="flex items-center gap-1.5 text-celebrate"
-                    title={`Level ${user.level}`}
-                  >
-                    <Star size={14} fill="currentColor" />
-                    <span className="font-sans font-bold text-xs">Lvl {user.level}</span>
-                  </div>
+                  <Tooltip content={`${user.streak} day streak!`} position="bottom">
+                    <div className="flex items-center gap-1.5 text-warning-500">
+                      <Zap size={14} fill="currentColor" />
+                      <span className="font-sans font-bold text-xs">{user.streak}</span>
+                    </div>
+                  </Tooltip>
+                  <div className="w-px h-3 bg-slate-300 dark:bg-[#1A1D24]" />
+                  <Tooltip content={`Level ${user.level}`} position="bottom">
+                    <div className="flex items-center gap-1.5 text-celebrate">
+                      <Star size={14} fill="currentColor" />
+                      <span className="font-sans font-bold text-xs">Lvl {user.level}</span>
+                    </div>
+                  </Tooltip>
                 </div>
               )}
             </div>
@@ -882,115 +881,127 @@ export default function Editor() {
             {/* Centre: Mode toggle */}
             <div className="flex items-center gap-2 shrink-0">
               <div className="flex items-center bg-slate-100 dark:bg-dark-border rounded-xl p-1">
-                <button
-                  onClick={switchToBlock}
-                  className={`flex items-center gap-1.5 h-9 px-3 rounded-lg font-sans font-semibold text-sm transition-all focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:outline-none ${
-                    mode === 'block'
-                      ? 'bg-white dark:bg-dark-surface text-slate-800 dark:text-white shadow-sm'
-                      : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-200'
-                  }`}
-                >
-                  <LayoutGrid size={14} /> <span className="hidden sm:inline">Blocks</span>
-                </button>
-                <button
-                  onClick={switchToCode}
-                  className={`flex items-center gap-1.5 h-9 px-3 rounded-lg font-sans font-semibold text-sm transition-all focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:outline-none ${
-                    mode === 'code'
-                      ? 'bg-white dark:bg-dark-surface text-slate-800 dark:text-white shadow-sm'
-                      : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-200'
-                  }`}
-                >
-                  <Code2 size={14} /> <span className="hidden sm:inline">C++</span>
-                </button>
+                <Tooltip content="Visual Block Editor" position="bottom">
+                  <button
+                    onClick={switchToBlock}
+                    className={`flex items-center gap-1.5 h-9 px-3 rounded-lg font-sans font-semibold text-sm transition-all focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:outline-none ${
+                      mode === 'block'
+                        ? 'bg-white dark:bg-dark-surface text-slate-800 dark:text-white shadow-sm'
+                        : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-200'
+                    }`}
+                  >
+                    <LayoutGrid size={14} /> <span className="hidden sm:inline">Blocks</span>
+                  </button>
+                </Tooltip>
+                <Tooltip content="C++ Text Code Editor" position="bottom">
+                  <button
+                    onClick={switchToCode}
+                    className={`flex items-center gap-1.5 h-9 px-3 rounded-lg font-sans font-semibold text-sm transition-all focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:outline-none ${
+                      mode === 'code'
+                        ? 'bg-white dark:bg-dark-surface text-slate-800 dark:text-white shadow-sm'
+                        : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-200'
+                    }`}
+                  >
+                    <Code2 size={14} /> <span className="hidden sm:inline">C++</span>
+                  </button>
+                </Tooltip>
               </div>
               {mode === 'code' && (
-                <button
-                  onClick={handleConvertCodeToBlocks}
-                  disabled={isConverting}
-                  className="h-11 px-3 sm:px-4 rounded-xl font-sans font-semibold text-sm flex items-center gap-2 bg-gradient-to-r from-violet-500 to-indigo-600 hover:from-violet-600 hover:to-indigo-700 text-white shadow-md shadow-indigo-500/25 hover:shadow-lg transition-all active:scale-[0.97] disabled:opacity-50 disabled:cursor-not-allowed"
-                  title="Translate C++ code back to Blockly blocks"
-                >
-                  {isConverting ? (
-                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                  ) : (
-                    <LayoutGrid size={14} />
-                  )}
-                  <span className="hidden md:inline">
-                    {isConverting ? 'Converting...' : 'Convert to Blocks'}
-                  </span>
-                  <span className="inline md:hidden">{isConverting ? '...' : 'Convert'}</span>
-                </button>
+                <Tooltip content="Translate C++ code back to Blockly blocks" position="bottom">
+                  <button
+                    onClick={handleConvertCodeToBlocks}
+                    disabled={isConverting}
+                    className="h-11 px-3 sm:px-4 rounded-xl font-sans font-semibold text-sm flex items-center gap-2 bg-gradient-to-r from-violet-500 to-indigo-600 hover:from-violet-600 hover:to-indigo-700 text-white shadow-md shadow-indigo-500/25 hover:shadow-lg transition-all active:scale-[0.97] disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {isConverting ? (
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    ) : (
+                      <LayoutGrid size={14} />
+                    )}
+                    <span className="hidden md:inline">
+                      {isConverting ? 'Converting...' : 'Convert to Blocks'}
+                    </span>
+                    <span className="inline md:hidden">{isConverting ? '...' : 'Convert'}</span>
+                  </button>
+                </Tooltip>
               )}
             </div>
 
             {/* Right: Board + controls + primary actions */}
             <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
               {engineMode === 'hardware' && (
-                <select
-                  value={board}
-                  onChange={(e) => setBoard(e.target.value)}
-                  className="h-11 px-2 sm:px-3 font-sans text-sm font-medium bg-white dark:bg-dark-surface text-slate-700 dark:text-slate-200 rounded-lg border border-slate-200 dark:border-dark-border outline-none cursor-pointer focus-visible:ring-2 focus-visible:ring-primary-500 hidden sm:block"
-                >
-                  {BOARDS.map((b) => (
-                    <option key={b.fqbn} value={b.fqbn}>
-                      {b.label}
-                    </option>
-                  ))}
-                </select>
+                <Tooltip content="Select Target Microcontroller Board" position="bottom">
+                  <select
+                    value={board}
+                    onChange={(e) => setBoard(e.target.value)}
+                    className="h-11 px-2 sm:px-3 font-sans text-sm font-medium bg-white dark:bg-dark-surface text-slate-700 dark:text-slate-200 rounded-lg border border-slate-200 dark:border-dark-border outline-none cursor-pointer focus-visible:ring-2 focus-visible:ring-primary-500 hidden sm:block"
+                  >
+                    {BOARDS.map((b) => (
+                      <option key={b.fqbn} value={b.fqbn}>
+                        {b.label}
+                      </option>
+                    ))}
+                  </select>
+                </Tooltip>
               )}
 
               {/* Font size controls (code mode only) */}
               {mode === 'code' && (
                 <div className="flex items-center bg-slate-100 dark:bg-dark-border rounded-lg overflow-hidden">
-                  <button
-                    onClick={decreaseFontSize}
-                    className="w-11 h-11 flex items-center justify-center text-slate-500 hover:text-slate-800 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:outline-none"
-                    title="Decrease font"
-                  >
-                    <Minus size={14} />
-                  </button>
+                  <Tooltip content="Decrease Font Size" position="bottom">
+                    <button
+                      onClick={decreaseFontSize}
+                      className="w-11 h-11 flex items-center justify-center text-slate-500 hover:text-slate-800 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:outline-none"
+                    >
+                      <Minus size={14} />
+                    </button>
+                  </Tooltip>
                   <span className="w-8 h-11 flex items-center justify-center font-sans text-xs font-semibold text-slate-500">
                     {fontSize}
                   </span>
-                  <button
-                    onClick={increaseFontSize}
-                    className="w-11 h-11 flex items-center justify-center text-slate-500 hover:text-slate-800 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:outline-none"
-                    title="Increase font"
-                  >
-                    <Plus size={14} />
-                  </button>
+                  <Tooltip content="Increase Font Size" position="bottom">
+                    <button
+                      onClick={increaseFontSize}
+                      className="w-11 h-11 flex items-center justify-center text-slate-500 hover:text-slate-800 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:outline-none"
+                    >
+                      <Plus size={14} />
+                    </button>
+                  </Tooltip>
                 </div>
               )}
 
               {/* Undo/Redo (block mode only) */}
               {mode === 'block' && (
                 <div className="flex items-center gap-1">
-                  <button
-                    onClick={() => blocklyRef.current?.undo()}
-                    className="w-11 h-11 flex items-center justify-center rounded-lg text-slate-500 hover:text-slate-800 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-dark-border transition-colors focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:outline-none"
-                    title="Undo (Ctrl+Z)"
-                  >
-                    <Undo size={16} />
-                  </button>
-                  <button
-                    onClick={() => blocklyRef.current?.redo()}
-                    className="w-11 h-11 flex items-center justify-center rounded-lg text-slate-500 hover:text-slate-800 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-dark-border transition-colors focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:outline-none"
-                    title="Redo (Ctrl+Y)"
-                  >
-                    <Redo size={16} />
-                  </button>
+                  <Tooltip content="Undo (Ctrl+Z)" position="bottom">
+                    <button
+                      onClick={() => blocklyRef.current?.undo()}
+                      className="w-11 h-11 flex items-center justify-center rounded-lg text-slate-500 hover:text-slate-800 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-dark-border transition-colors focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:outline-none"
+                    >
+                      <Undo size={16} />
+                    </button>
+                  </Tooltip>
+                  <Tooltip content="Redo (Ctrl+Y)" position="bottom">
+                    <button
+                      onClick={() => blocklyRef.current?.redo()}
+                      className="w-11 h-11 flex items-center justify-center rounded-lg text-slate-500 hover:text-slate-800 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-dark-border transition-colors focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:outline-none"
+                    >
+                      <Redo size={16} />
+                    </button>
+                  </Tooltip>
                 </div>
               )}
 
               {/* Secondary actions group -> Moved to More Menu */}
               <div className="relative">
-                <button
-                  onClick={() => setShowMoreMenu(!showMoreMenu)}
-                  className="w-11 h-11 flex items-center justify-center rounded-xl text-slate-500 hover:text-slate-800 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-dark-border transition-colors focus-visible:ring-2 focus-visible:ring-primary-500"
-                  title="More options"
-                >
-                  <MoreVertical size={20} />
-                </button>
+                <Tooltip content="More Options" position="bottom">
+                  <button
+                    onClick={() => setShowMoreMenu(!showMoreMenu)}
+                    className="w-11 h-11 flex items-center justify-center rounded-xl text-slate-500 hover:text-slate-800 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-dark-border transition-colors focus-visible:ring-2 focus-visible:ring-primary-500"
+                  >
+                    <MoreVertical size={20} />
+                  </button>
+                </Tooltip>
 
                 {showMoreMenu && (
                   <div className="absolute right-0 top-full mt-2 w-48 bg-white dark:bg-dark-surface border border-slate-200 dark:border-dark-border rounded-xl shadow-lg flex flex-col p-1 z-50">
@@ -1065,117 +1076,135 @@ export default function Editor() {
               {engineMode === 'hardware' && (
                 <>
                   {/* Connect Board — second-highest prominence */}
-                  <button
-                    onClick={handleConnectHardware}
-                    title={
+                  <Tooltip
+                    content={
                       hardwarePort
-                        ? 'Disconnect hardware'
-                        : `Connect your ${boardLabel} (Web Serial)`
+                        ? 'Disconnect Hardware Board'
+                        : `Connect ${boardLabel} via Web Serial`
                     }
-                    className={`h-11 px-3 sm:px-4 rounded-xl font-sans font-semibold text-sm flex items-center gap-2 transition-all focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:outline-none active:scale-[0.97] ${
-                      hardwarePort
-                        ? 'bg-warning-500 hover:bg-warning-600 text-slate-900'
-                        : 'bg-accent-500 hover:bg-accent-400 text-slate-900'
-                    }`}
+                    position="bottom"
                   >
-                    <Usb size={16} />
-                    <span className="hidden sm:inline">
-                      {hardwarePort ? 'Connected' : 'Connect'}
-                    </span>
-                  </button>
+                    <button
+                      onClick={handleConnectHardware}
+                      className={`h-11 px-3 sm:px-4 rounded-xl font-sans font-semibold text-sm flex items-center gap-2 transition-all focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:outline-none active:scale-[0.97] ${
+                        hardwarePort
+                          ? 'bg-warning-500 hover:bg-warning-600 text-slate-900'
+                          : 'bg-accent-500 hover:bg-accent-400 text-slate-900'
+                      }`}
+                    >
+                      <Usb size={16} />
+                      <span className="hidden sm:inline">
+                        {hardwarePort ? 'Connected' : 'Connect'}
+                      </span>
+                    </button>
+                  </Tooltip>
 
                   {/* Upload firmware — visible only when board connected */}
                   {hardwarePort && (
-                    <button
-                      onClick={handleUploadToHardware}
-                      disabled={isFlashing || isCompiling}
-                      title={`Compile & upload to your ${boardLabel}`}
-                      className="h-11 px-3 sm:px-4 rounded-xl font-sans font-semibold text-sm flex items-center gap-2 bg-blue-500 hover:bg-blue-600 text-white transition-all focus-visible:ring-2 focus-visible:ring-blue-400 focus-visible:outline-none active:scale-[0.97] disabled:opacity-50"
+                    <Tooltip
+                      content={`Compile & Upload firmware to ${boardLabel}`}
+                      position="bottom"
                     >
-                      {isFlashing ? (
-                        <Loader2 size={16} className="animate-spin" />
-                      ) : (
-                        <Upload size={16} />
-                      )}
-                      <span className="hidden sm:inline">
-                        {isFlashing ? `${flashProgress}%` : 'Upload'}
-                      </span>
-                    </button>
+                      <button
+                        onClick={handleUploadToHardware}
+                        disabled={isFlashing || isCompiling}
+                        className="h-11 px-3 sm:px-4 rounded-xl font-sans font-semibold text-sm flex items-center gap-2 bg-blue-500 hover:bg-blue-600 text-white transition-all focus-visible:ring-2 focus-visible:ring-blue-400 focus-visible:outline-none active:scale-[0.97] disabled:opacity-50"
+                      >
+                        {isFlashing ? (
+                          <Loader2 size={16} className="animate-spin" />
+                        ) : (
+                          <Upload size={16} />
+                        )}
+                        <span className="hidden sm:inline">
+                          {isFlashing ? `${flashProgress}%` : 'Upload'}
+                        </span>
+                      </button>
+                    </Tooltip>
                   )}
 
                   {/* Serial Monitor toggle — visible when board connected */}
                   {hardwarePort && (
-                    <button
-                      onClick={() => setShowSerialMonitor(!showSerialMonitor)}
-                      title="Toggle Serial Monitor"
-                      className={`w-11 h-11 rounded-xl flex items-center justify-center transition-all focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:outline-none active:scale-[0.97] ${
-                        showSerialMonitor
-                          ? 'bg-primary-500 text-white'
-                          : 'bg-slate-100 dark:bg-dark-border text-slate-500 hover:text-slate-800 dark:hover:text-white'
-                      }`}
-                    >
-                      <Terminal size={16} />
-                    </button>
+                    <Tooltip content="Toggle Hardware Serial Monitor Log" position="bottom">
+                      <button
+                        onClick={() => setShowSerialMonitor(!showSerialMonitor)}
+                        className={`w-11 h-11 rounded-xl flex items-center justify-center transition-all focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:outline-none active:scale-[0.97] ${
+                          showSerialMonitor
+                            ? 'bg-primary-500 text-white'
+                            : 'bg-slate-100 dark:bg-dark-border text-slate-500 hover:text-slate-800 dark:hover:text-white'
+                        }`}
+                      >
+                        <Terminal size={16} />
+                      </button>
+                    </Tooltip>
                   )}
                 </>
               )}
 
               {/* Code Panel Toggle */}
               {engineMode === 'hardware' && (
-                <button
-                  onClick={() => {
-                    setShowCodePanel(!showCodePanel);
-                    if (showSimulator && showCodePanel) setShowSimulator(false);
-                  }}
-                  title={showCodePanel ? 'Hide Code Panel' : 'Show Code Panel'}
-                  className={`w-11 h-11 rounded-xl flex items-center justify-center transition-all focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:outline-none active:scale-[0.97] hidden sm:flex ${
-                    showCodePanel && !showSimulator
-                      ? 'bg-slate-200 dark:bg-slate-700 text-slate-800 dark:text-white'
-                      : 'bg-slate-100 dark:bg-dark-border text-slate-500 hover:text-slate-800 dark:hover:text-white'
-                  }`}
+                <Tooltip
+                  content={showCodePanel ? 'Hide C++ Code Preview' : 'Show C++ Code Preview'}
+                  position="bottom"
                 >
-                  <PanelRight size={16} />
-                </button>
+                  <button
+                    onClick={() => {
+                      setShowCodePanel(!showCodePanel);
+                      if (showSimulator && showCodePanel) setShowSimulator(false);
+                    }}
+                    className={`w-11 h-11 rounded-xl flex items-center justify-center transition-all focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:outline-none active:scale-[0.97] hidden sm:flex ${
+                      showCodePanel && !showSimulator
+                        ? 'bg-slate-200 dark:bg-slate-700 text-slate-800 dark:text-white'
+                        : 'bg-slate-100 dark:bg-dark-border text-slate-500 hover:text-slate-800 dark:hover:text-white'
+                    }`}
+                  >
+                    <PanelRight size={16} />
+                  </button>
+                </Tooltip>
               )}
 
               {/* Simulator Panel Toggle */}
               {engineMode === 'software' && (
-                <button
-                  onClick={() => {
-                    const nextState = !showSimulator;
-                    setShowSimulator(nextState);
-                    if (nextState) {
-                      setShowCodePanel(true);
-                    } else if (engineMode === 'software') {
-                      setShowCodePanel(false);
-                    }
-                  }}
-                  title={showSimulator ? 'Hide Simulator' : 'Show Simulator'}
-                  className={`w-11 h-11 rounded-xl flex items-center justify-center transition-all focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:outline-none active:scale-[0.97] hidden sm:flex ${
-                    showSimulator
-                      ? 'bg-emerald-500 text-white shadow-md shadow-emerald-500/20'
-                      : 'bg-slate-100 dark:bg-dark-border text-slate-500 hover:text-slate-800 dark:hover:text-white'
-                  }`}
+                <Tooltip
+                  content={showSimulator ? 'Hide Stage Simulator' : 'Show Stage Simulator'}
+                  position="bottom"
                 >
-                  <Gamepad2 size={16} />
-                </button>
+                  <button
+                    onClick={() => {
+                      const nextState = !showSimulator;
+                      setShowSimulator(nextState);
+                      if (nextState) {
+                        setShowCodePanel(true);
+                      } else if (engineMode === 'software') {
+                        setShowCodePanel(false);
+                      }
+                    }}
+                    className={`w-11 h-11 rounded-xl flex items-center justify-center transition-all focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:outline-none active:scale-[0.97] hidden sm:flex ${
+                      showSimulator
+                        ? 'bg-emerald-500 text-white shadow-md shadow-emerald-500/20'
+                        : 'bg-slate-100 dark:bg-dark-border text-slate-500 hover:text-slate-800 dark:hover:text-white'
+                    }`}
+                  >
+                    <Gamepad2 size={16} />
+                  </button>
+                </Tooltip>
               )}
 
               {/* ▶ Run — highest prominence, always rightmost */}
               {engineMode === 'hardware' && (
-                <button
-                  onClick={handleCompile}
-                  disabled={isCompiling || isFlashing}
-                  title="Compile & Run (Ctrl+Enter)"
-                  className="h-11 px-4 sm:px-5 rounded-xl font-sans font-bold text-sm flex items-center gap-2 bg-primary-500 hover:bg-primary-600 text-white shadow-md hover:shadow-lg transition-all focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-1 focus-visible:outline-none active:scale-[0.97] disabled:opacity-50"
-                >
-                  {isCompiling ? (
-                    <Loader2 size={16} className="animate-spin" />
-                  ) : (
-                    <Play size={16} fill="currentColor" />
-                  )}
-                  <span>{isCompiling ? 'Running...' : 'Run'}</span>
-                </button>
+                <Tooltip content="Compile & Execute Code (Ctrl+Enter)" position="bottom">
+                  <button
+                    onClick={handleCompile}
+                    disabled={isCompiling || isFlashing}
+                    className="h-11 px-4 sm:px-5 rounded-xl font-sans font-bold text-sm flex items-center gap-2 bg-primary-500 hover:bg-primary-600 text-white shadow-md hover:shadow-lg transition-all focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-1 focus-visible:outline-none active:scale-[0.97] disabled:opacity-50"
+                  >
+                    {isCompiling ? (
+                      <Loader2 size={16} className="animate-spin" />
+                    ) : (
+                      <Play size={16} fill="currentColor" />
+                    )}
+                    <span>{isCompiling ? 'Running...' : 'Run'}</span>
+                  </button>
+                </Tooltip>
               )}
             </div>
 

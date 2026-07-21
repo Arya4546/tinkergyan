@@ -15,6 +15,7 @@ import { useProjectStore } from '../stores/project.store';
 import { PageHeader } from '../components/ui/PageHeader';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import { NewProjectDialog } from '../components/ui/NewProjectDialog';
+import { Tooltip } from '../components/ui/Tooltip';
 
 type FilterType = 'ALL' | 'BLOCK' | 'CODE';
 
@@ -153,12 +154,14 @@ export default function Projects() {
                           <Zap size={10} /> Public
                         </span>
                       )}
-                      <button
-                        onClick={() => setDeleteTarget(project.id)}
-                        className="opacity-0 group-hover:opacity-100 transition-opacity w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20"
-                      >
-                        <Trash2 size={14} />
-                      </button>
+                      <Tooltip content="Delete Project" position="top">
+                        <button
+                          onClick={() => setDeleteTarget(project.id)}
+                          className="opacity-0 group-hover:opacity-100 transition-opacity w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </Tooltip>
                     </div>
                   </div>
 
@@ -172,12 +175,14 @@ export default function Projects() {
                   </p>
 
                   <div className="mt-auto pt-4 border-t border-slate-100 dark:border-slate-800 flex justify-end">
-                    <Link
-                      to={`/editor/${project.id}${project.boardTarget === 'software' ? '?engine=software' : '?engine=hardware'}`}
-                      className="inline-flex items-center gap-2 text-xs font-semibold text-emerald-600 hover:text-emerald-700 transition-colors"
-                    >
-                      Open <Play size={12} className="fill-current" />
-                    </Link>
+                    <Tooltip content="Open in Workspace Editor" position="top">
+                      <Link
+                        to={`/editor/${project.id}${project.boardTarget === 'software' ? '?engine=software' : '?engine=hardware'}`}
+                        className="inline-flex items-center gap-2 text-xs font-semibold text-emerald-600 hover:text-emerald-700 transition-colors"
+                      >
+                        Open <Play size={12} className="fill-current" />
+                      </Link>
+                    </Tooltip>
                   </div>
                 </div>
               );

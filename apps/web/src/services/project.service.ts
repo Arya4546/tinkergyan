@@ -7,35 +7,35 @@
 import { api } from './api';
 
 export interface ProjectSummary {
-  id:          string;
-  title:       string;
-  type:        'BLOCK' | 'CODE';
+  id: string;
+  title: string;
+  type: 'BLOCK' | 'CODE';
   boardTarget: string;
-  isPublic:    boolean;
-  forkCount:   number;
-  createdAt:   string;
-  updatedAt:   string;
+  isPublic: boolean;
+  forkCount: number;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface ProjectDetail extends ProjectSummary {
-  code:       string | null;
-  blockState: unknown | null;
+  code: string | null;
+  blockState: unknown;
 }
 
 export interface CreateProjectInput {
-  title:       string;
-  type:        'BLOCK' | 'CODE';
+  title: string;
+  type: 'BLOCK' | 'CODE';
   boardTarget?: string;
-  code?:       string;
+  code?: string;
   blockState?: string;
 }
 
 export interface UpdateProjectInput {
-  title?:       string;
-  code?:        string;
-  blockState?:  string;
+  title?: string;
+  code?: string;
+  blockState?: string;
   boardTarget?: string;
-  isPublic?:    boolean;
+  isPublic?: boolean;
 }
 
 export const projectService = {

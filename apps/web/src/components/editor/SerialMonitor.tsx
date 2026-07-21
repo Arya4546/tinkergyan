@@ -8,6 +8,7 @@
  */
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { Radio, Send, Trash2, Download, Pause, Play, ChevronDown } from 'lucide-react';
+import { Tooltip } from '../ui/Tooltip';
 
 const BAUD_RATES = [300, 1200, 2400, 4800, 9600, 19200, 38400, 57600, 115200] as const;
 
@@ -225,32 +226,38 @@ export function SerialMonitor({ port }: SerialMonitorProps) {
         </div>
 
         {/* Pause/Resume */}
-        <button
-          onClick={() => setIsPaused(!isPaused)}
-          className={`p-1.5 transition-colors ${isPaused ? 'text-amber-400 hover:bg-amber-500/10' : 'text-slate-500 hover:text-slate-300'}`}
-          title={isPaused ? 'Resume' : 'Pause'}
+        <Tooltip
+          content={isPaused ? 'Resume Serial Stream' : 'Pause Serial Output'}
+          position="bottom"
         >
-          {isPaused ? <Play size={12} /> : <Pause size={12} />}
-        </button>
+          <button
+            onClick={() => setIsPaused(!isPaused)}
+            className={`p-1.5 transition-colors ${isPaused ? 'text-amber-400 hover:bg-amber-500/10' : 'text-slate-500 hover:text-slate-300'}`}
+          >
+            {isPaused ? <Play size={12} /> : <Pause size={12} />}
+          </button>
+        </Tooltip>
 
         {/* Export */}
-        <button
-          onClick={handleExport}
-          className="p-1.5 text-slate-500 hover:text-slate-300 transition-colors"
-          title="Export log"
-          disabled={lines.length === 0}
-        >
-          <Download size={12} />
-        </button>
+        <Tooltip content="Export Logs to File" position="bottom">
+          <button
+            onClick={handleExport}
+            className="p-1.5 text-slate-500 hover:text-slate-300 transition-colors"
+            disabled={lines.length === 0}
+          >
+            <Download size={12} />
+          </button>
+        </Tooltip>
 
         {/* Clear */}
-        <button
-          onClick={handleClear}
-          className="p-1.5 text-slate-500 hover:text-red-400 transition-colors"
-          title="Clear"
-        >
-          <Trash2 size={12} />
-        </button>
+        <Tooltip content="Clear Output Logs" position="bottom">
+          <button
+            onClick={handleClear}
+            className="p-1.5 text-slate-500 hover:text-red-400 transition-colors"
+          >
+            <Trash2 size={12} />
+          </button>
+        </Tooltip>
       </div>
 
       {/* Output area */}
@@ -306,14 +313,15 @@ export function SerialMonitor({ port }: SerialMonitorProps) {
           placeholder="Type message to send..."
           className="flex-1 bg-transparent font-mono text-[11px] text-slate-300 px-3 py-2.5 outline-none placeholder:text-slate-700"
         />
-        <button
-          onClick={handleSend}
-          disabled={!inputValue.trim()}
-          className="px-3 py-2.5 text-emerald-500 hover:text-emerald-400 disabled:text-slate-700 transition-colors"
-          title="Send (Enter)"
-        >
-          <Send size={14} />
-        </button>
+        <Tooltip content="Send Message (Enter)" position="left">
+          <button
+            onClick={handleSend}
+            disabled={!inputValue.trim()}
+            className="px-3 py-2.5 text-emerald-500 hover:text-emerald-400 disabled:text-slate-700 transition-colors"
+          >
+            <Send size={14} />
+          </button>
+        </Tooltip>
       </div>
     </div>
   );
