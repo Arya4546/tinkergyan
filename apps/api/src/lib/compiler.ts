@@ -10,11 +10,21 @@
  */
 import { spawn } from 'node:child_process';
 import { existsSync } from 'node:fs';
-import { mkdtemp, writeFile, rm } from 'node:fs/promises';
+import { mkdtemp, mkdir, writeFile, rm } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import os from 'node:os';
 import { readdir, readFile } from 'node:fs/promises';
+
+/**
+ * Fixed, persistent cache dir for arduino-cli's precompiled core (core.a).
+ * Must stay outside the per-compile mkdtemp dir below — arduino-cli keys its
+ * cache off the build path, so a fresh random path every request means every
+ * compile rebuilds the whole ESP8266 SDK from scratch instead of reusing it.
+ */
+const ARDUINO_BUILD_CACHE_PATH = process.env.ARDUINO_DIRECTORIES_DATA
+  ? path.join(process.env.ARDUINO_DIRECTORIES_DATA, 'build-cache')
+  : path.join(os.tmpdir(), 'tinkergyan-arduino-build-cache');
 
 const _dirname =
   typeof __dirname !== 'undefined' ? __dirname : path.dirname(fileURLToPath(import.meta.url));
@@ -316,8 +326,9 @@ async function compileArduino(
   const sketchFile = path.join(sketchDir, 'sketch.ino');
 
   try {
-    await (await import('node:fs/promises')).mkdir(sketchDir, { recursive: true });
-    await (await import('node:fs/promises')).mkdir(buildDir, { recursive: true });
+    await mkdir(sketchDir, { recursive: true });
+    await mkdir(buildDir, { recursive: true });
+    await mkdir(ARDUINO_BUILD_CACHE_PATH, { recursive: true });
     await writeFile(sketchFile, code, 'utf8');
 
     const cliPath = env.ARDUINO_CLI_PATH!;
@@ -329,6 +340,8 @@ async function compileArduino(
       'text',
       '--output-dir',
       buildDir,
+      '--build-cache-path',
+      ARDUINO_BUILD_CACHE_PATH,
       '--jobs',
       '1',
       sketchDir,
