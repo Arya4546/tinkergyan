@@ -46,19 +46,25 @@ else
   echo "✅ Installed: $(arduino-cli version)"
 fi
 
-# Update core index
+# Register third-party board indexes (single `config set` call — it overwrites,
+# so both URLs must be passed together) and refresh the index once.
 echo "📦 Updating board index..."
+arduino-cli config set board_manager.additional_urls \
+  "https://arduino.esp8266.com/stable/package_esp8266com_index.json" \
+  "https://raw.githubusercontent.com/espressif/arduino-esp32/gh-pages/package_esp32_index.json"
 arduino-cli core update-index
 
-# Install AVR core (Arduino Uno, Mega, Nano, etc.)
+# Install AVR core (Arduino Uno, Nano, Mega)
 echo "📦 Installing arduino:avr core..."
 arduino-cli core install arduino:avr
 
-# Install ESP8266 core
+# Install ESP8266 core (NodeMCU)
 echo "📦 Installing esp8266 core..."
-arduino-cli config set board_manager.additional_urls "https://arduino.esp8266.com/stable/package_esp8266com_index.json"
-arduino-cli core update-index
 arduino-cli core install esp8266:esp8266 || echo "⚠️  ESP8266 core install failed (non-critical)"
+
+# Install ESP32 core (ESP32 Dev Module)
+echo "📦 Installing esp32 core..."
+arduino-cli core install esp32:esp32 || echo "⚠️  ESP32 core install failed (non-critical)"
 
 # Install common libraries
 echo "📦 Installing common libraries..."
@@ -73,4 +79,4 @@ echo "  ✅ arduino-cli setup complete!"
 echo "  📍 Path: $(which arduino-cli)"
 echo "  📦 Installed cores:"
 arduino-cli core list
-echo "══════════════════════════════════════════════════════════"Execute is working when the arduino uno board is not connected
+echo "══════════════════════════════════════════════════════════"

@@ -225,8 +225,15 @@ export interface EditorState {
   scheduleAutoSave: (getBlockXml: () => string) => void;
 }
 
-// ─── ESP8266 Pin Conflict Detection ──────────────────────────────────────────
-function detectESP8266PinConflicts(code: string): CompileError[] {
+// ─── ESP Pin Conflict Detection (ESP8266 + ESP32) ────────────────────────────
+// GPIO6–11 connect to the internal SPI flash on both chips — driving them
+// crashes the board into a boot loop. On ESP32, GPIO34–39 are input-only.
+function detectEspPinConflicts(code: string, board: string): CompileError[] {
+  const isEsp32 = board.startsWith('esp32');
+  const boardName = isEsp32 ? 'ESP32' : 'ESP8266 (NodeMCU)';
+  const safePinHint = isEsp32
+    ? 'Please use safe pins like 4, 5, 16, 17, 25, 26, or 27.'
+    : 'Please use safe pins like D1 (5), D2 (4), D5 (14), or D6 (12).';
   const errors: CompileError[] = [];
   const lines = code.split('\n');
 
@@ -273,7 +280,7 @@ function detectESP8266PinConflicts(code: string): CompileError[] {
           line: index + 1,
           column: line.indexOf(firstArg) + 1,
           severity: 'warning',
-          message: `Warning: Pin ${firstArg} is used in ${funcName}(). On ESP8266 (NodeMCU), GPIO6 to GPIO11 are reserved for internal SPI flash memory. Using them will crash the board and cause an infinite boot loop. Please use safe pins like D1 (5), D2 (4), D5 (14), or D6 (12).`,
+          message: `Warning: Pin ${firstArg} is used in ${funcName}(). On ${boardName}, GPIO6 to GPIO11 are reserved for internal SPI flash memory. Using them will crash the board and cause an infinite boot loop. ${safePinHint}`,
         });
       }
       // Check if it's a variable holding 6-11
@@ -283,11 +290,33 @@ function detectESP8266PinConflicts(code: string): CompileError[] {
           line: index + 1,
           column: line.indexOf(firstArg) + 1,
           severity: 'warning',
-          message: `Warning: Variable '${firstArg}' (assigned to pin ${info.pin}) is used in ${funcName}(). On ESP8266 (NodeMCU), GPIO6 to GPIO11 are reserved for internal SPI flash memory. Using them will crash the board and cause an infinite boot loop. Please use safe pins like D1 (5), D2 (4), D5 (14), or D6 (12).`,
+          message: `Warning: Variable '${firstArg}' (assigned to pin ${info.pin}) is used in ${funcName}(). On ${boardName}, GPIO6 to GPIO11 are reserved for internal SPI flash memory. Using them will crash the board and cause an infinite boot loop. ${safePinHint}`,
         });
       }
     }
   });
+
+  // ESP32 only: GPIO34–39 have no output driver — writing to them silently fails
+  if (isEsp32) {
+    const outputOnInputOnlyRegex =
+      /\b(digitalWrite|analogWrite)\s*\(\s*(34|35|36|39)\b|\bpinMode\s*\(\s*(34|35|36|39)\s*,\s*OUTPUT\b/;
+    lines.forEach((line, index) => {
+      const trimmed = line.trim();
+      if (trimmed.startsWith('//') || trimmed.startsWith('*') || trimmed.startsWith('/*')) {
+        return;
+      }
+      const match = line.match(outputOnInputOnlyRegex);
+      if (match) {
+        const pin = match[2] ?? match[3] ?? '';
+        errors.push({
+          line: index + 1,
+          column: line.indexOf(pin) + 1,
+          severity: 'warning',
+          message: `Warning: Pin ${pin} is input-only on ESP32 (GPIO34 to GPIO39 can only read). Writing to it will not work. Use an output-capable pin like 4, 5, 16, 17, 25, 26, or 27 instead.`,
+        });
+      }
+    });
+  }
 
   return errors;
 }
@@ -346,8 +375,8 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
       });
       const result = data.data.result as CompileResult;
 
-      if (get().board === 'esp8266:esp8266:nodemcuv2') {
-        const localErrors = detectESP8266PinConflicts(code);
+      if (get().board.startsWith('esp')) {
+        const localErrors = detectEspPinConflicts(code, get().board);
         if (localErrors.length > 0) {
           result.errors = [...result.errors, ...localErrors];
         }
@@ -365,8 +394,8 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
         engine: 'wandbox',
       };
 
-      if (get().board === 'esp8266:esp8266:nodemcuv2') {
-        const localErrors = detectESP8266PinConflicts(code);
+      if (get().board.startsWith('esp')) {
+        const localErrors = detectEspPinConflicts(code, get().board);
         if (localErrors.length > 0) {
           result.errors = [...result.errors, ...localErrors];
         }

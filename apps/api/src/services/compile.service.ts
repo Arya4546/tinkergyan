@@ -17,8 +17,10 @@ export type { CompileResult };
 
 export const SUPPORTED_BOARDS = [
   'arduino:avr:uno',
+  'arduino:avr:nano',
   'arduino:avr:mega',
   'esp8266:esp8266:nodemcuv2',
+  'esp32:esp32:esp32',
 ] as const;
 
 export type BoardFqbn = (typeof SUPPORTED_BOARDS)[number];

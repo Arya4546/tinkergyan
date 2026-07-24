@@ -61,13 +61,7 @@ import { useSimulatorStore } from '../stores/simulator.store';
 import { scratchEngine } from '../components/editor/simulator/ScratchEngine';
 import { workspaceToScratchCode } from '../components/editor/scratch-generator';
 import { Tooltip } from '../components/ui/Tooltip';
-
-// ─── Board dropdown options ───────────────────────────────────────────────────
-const BOARDS = [
-  { fqbn: 'arduino:avr:uno', label: 'Arduino Uno' },
-  { fqbn: 'arduino:avr:mega', label: 'Arduino Mega' },
-  { fqbn: 'esp8266:esp8266:nodemcuv2', label: 'NodeMCU (ESP8266)' },
-] as const;
+import { BOARDS, getBoardLabel } from '../lib/boards';
 
 // ─── Template Picker Modal ────────────────────────────────────────────────────
 function TemplatePicker({
@@ -281,7 +275,7 @@ export default function Editor() {
 
   const isRunning = useSimulatorStore((s) => s.isRunning);
 
-  const boardLabel = BOARDS.find((b) => b.fqbn === board)?.label || 'Board';
+  const boardLabel = getBoardLabel(board);
   const addToast = useUIStore((s: any) => s.addToast);
   const user = useUser();
 

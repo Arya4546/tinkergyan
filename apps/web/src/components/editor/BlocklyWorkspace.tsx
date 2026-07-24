@@ -21,6 +21,7 @@ import { arduinoGenerator } from './arduino-generator';
 import { getToolbox } from './toolbox';
 import { useUIStore } from '../../stores/ui.store';
 import { useEditorStore } from '../../stores/editor.store';
+import { getBoardLabel } from '../../lib/boards';
 
 declare global {
   interface Window {
@@ -30,12 +31,6 @@ declare global {
 
 Blockly.setLocale(En as unknown as Record<string, string>);
 window.Blockly = Blockly;
-
-const BOARDS = [
-  { fqbn: 'arduino:avr:uno', label: 'Arduino Uno' },
-  { fqbn: 'arduino:avr:mega', label: 'Arduino Mega' },
-  { fqbn: 'esp8266:esp8266:nodemcuv2', label: 'NodeMCU (ESP8266)' },
-] as const;
 
 // ─── Blockly theme definitions ────────────────────────────────────────────────
 //
@@ -333,8 +328,7 @@ export const BlocklyWorkspace = forwardRef<BlocklyWorkspaceHandle, BlocklyWorksp
 
         // Set initial board title on the root block
         const initialBoard = useEditorStore.getState().board;
-        const boardLabel = BOARDS.find((b) => b.fqbn === initialBoard)?.label || 'Arduino';
-        rootBlock.setFieldValue(`${boardLabel} Program`, 'TITLE');
+        rootBlock.setFieldValue(`${getBoardLabel(initialBoard)} Program`, 'TITLE');
 
         // Emit initial code from the root block
         try {
@@ -362,7 +356,7 @@ export const BlocklyWorkspace = forwardRef<BlocklyWorkspaceHandle, BlocklyWorksp
     useEffect(() => {
       if (!workspaceRef.current) return;
       const blocks = workspaceRef.current.getBlocksByType('arduino_program');
-      const boardLabel = BOARDS.find((b) => b.fqbn === board)?.label || 'Arduino';
+      const boardLabel = getBoardLabel(board);
       for (const block of blocks) {
         block.setFieldValue(`${boardLabel} Program`, 'TITLE');
       }

@@ -4,12 +4,8 @@ import { api } from '../services/api';
 import { useUIStore } from '../stores/ui.store';
 import { PageHeader } from '../components/ui/PageHeader';
 import { Loader } from '../components/ui/Loader';
+import { BOARDS } from '../lib/boards';
 
-const BOARDS = [
-  { value: 'arduino:avr:uno', label: 'Arduino Uno' },
-  { value: 'arduino:avr:mega', label: 'Arduino Mega' },
-  { value: 'esp8266:esp8266:nodemcuv2', label: 'NodeMCU (ESP8266)' },
-];
 const FONT_SIZES = [10, 12, 14, 16, 18, 20, 22, 24];
 
 interface Preferences {
@@ -203,7 +199,7 @@ export default function Settings() {
                   className={iClass}
                 >
                   {BOARDS.map((b) => (
-                    <option key={b.value} value={b.value}>
+                    <option key={b.fqbn} value={b.fqbn}>
                       {b.label}
                     </option>
                   ))}

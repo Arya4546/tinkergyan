@@ -7,6 +7,7 @@
  */
 import * as Blockly from 'blockly/core';
 import { useEditorStore } from '../../stores/editor.store';
+import { getBoardDefinition } from '../../lib/boards';
 
 // ─── Color palette (consistent with toolbox categories) ──────────────────────
 const COLOR_STRUCTURE = '#1565C0'; // Dark blue  — program structure
@@ -16,78 +17,21 @@ const COLOR_CONTROL = '#6A1B9A'; // Purple — timing & control
 const COLOR_SERIAL = '#B71C1C'; // Dark red — serial comms
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
-const UNO_DIGITAL = [
-  '0',
-  '1',
-  '2',
-  '3',
-  '4',
-  '5',
-  '6',
-  '7',
-  '8',
-  '9',
-  '10',
-  '11',
-  '12',
-  '13',
-  'LED_BUILTIN',
-];
-const UNO_PWM = ['3', '5', '6', '9', '10', '11'];
-const UNO_ANALOG = ['A0', 'A1', 'A2', 'A3', 'A4', 'A5'];
+// Pin dropdowns resolve lazily from the board registry so switching boards in
+// the editor immediately re-populates every dropdown with that board's pins.
 
-const MEGA_DIGITAL = Array.from({ length: 54 }, (_, i) => String(i)).concat(['LED_BUILTIN']);
-const MEGA_PWM = ['2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12', '13', '44', '45', '46'];
-const MEGA_ANALOG = Array.from({ length: 16 }, (_, i) => `A${i}`);
-
-const ESP8266_DIGITAL = [
-  'D0',
-  'D1',
-  'D2',
-  'D3',
-  'D4',
-  'D5',
-  'D6',
-  'D7',
-  'D8',
-  'RX',
-  'TX',
-  'LED_BUILTIN',
-];
-const ESP8266_PWM = ['D1', 'D2', 'D5', 'D6', 'D7', 'D8'];
-const ESP8266_ANALOG = ['A0'];
+const toOptions = (pins: readonly string[]): [string, string][] => pins.map((p) => [p, p]);
 
 const getDigitalPins = function (this: Blockly.FieldDropdown): [string, string][] {
-  const board = useEditorStore.getState().board;
-  if (board === 'arduino:avr:mega') {
-    return MEGA_DIGITAL.map((p) => [p, p]);
-  }
-  if (board === 'esp8266:esp8266:nodemcuv2') {
-    return ESP8266_DIGITAL.map((p) => [p, p]);
-  }
-  return UNO_DIGITAL.map((p) => [p, p]);
+  return toOptions(getBoardDefinition(useEditorStore.getState().board).digitalPins);
 };
 
 const getPwmPins = function (this: Blockly.FieldDropdown): [string, string][] {
-  const board = useEditorStore.getState().board;
-  if (board === 'arduino:avr:mega') {
-    return MEGA_PWM.map((p) => [p, p]);
-  }
-  if (board === 'esp8266:esp8266:nodemcuv2') {
-    return ESP8266_PWM.map((p) => [p, p]);
-  }
-  return UNO_PWM.map((p) => [p, p]);
+  return toOptions(getBoardDefinition(useEditorStore.getState().board).pwmPins);
 };
 
 const getAnalogPins = function (this: Blockly.FieldDropdown): [string, string][] {
-  const board = useEditorStore.getState().board;
-  if (board === 'arduino:avr:mega') {
-    return MEGA_ANALOG.map((p) => [p, p]);
-  }
-  if (board === 'esp8266:esp8266:nodemcuv2') {
-    return ESP8266_ANALOG.map((p) => [p, p]);
-  }
-  return UNO_ANALOG.map((p) => [p, p]);
+  return toOptions(getBoardDefinition(useEditorStore.getState().board).analogPins);
 };
 
 const BAUD_RATES = [

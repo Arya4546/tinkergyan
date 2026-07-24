@@ -314,6 +314,23 @@ function friendlyExitMessage(status: string, signal?: string, programError?: str
 
 // ─── 2. Arduino CLI (local compile) ───────────────────────────────────────────
 
+/**
+ * Pick the flashable firmware artifact from an arduino-cli build directory.
+ *
+ * AVR boards (Uno/Nano/Mega) emit a .hex — skip the with_bootloader variant.
+ * ESP32 emits several .bin files; only the merged image (bootloader +
+ * partitions + app) boots when flashed at offset 0x0, so it must win over
+ * the app-only, bootloader, and partition binaries. ESP8266 emits a single
+ * complete .bin flashed at 0x0.
+ */
+function pickFirmwareFile(files: string[]): string | undefined {
+  return (
+    files.find((f) => f.endsWith('.hex') && !f.includes('with_bootloader')) ||
+    files.find((f) => f.endsWith('.merged.bin')) ||
+    files.find((f) => f.endsWith('.bin') && !f.includes('bootloader') && !f.includes('partitions'))
+  );
+}
+
 async function compileArduino(
   code: string,
   board: string,
@@ -331,7 +348,7 @@ async function compileArduino(
     await mkdir(ARDUINO_BUILD_CACHE_PATH, { recursive: true });
     await writeFile(sketchFile, code, 'utf8');
 
-    const cliPath = env.ARDUINO_CLI_PATH!;
+    const cliPath = resolveArduinoCliPath();
     const args = [
       'compile',
       '--fqbn',
@@ -355,9 +372,7 @@ async function compileArduino(
     if (!hasError) {
       try {
         const files = await readdir(buildDir);
-        const binFile =
-          files.find((f) => f.endsWith('.hex') && !f.includes('with_bootloader')) ||
-          files.find((f) => f.endsWith('.bin'));
+        const binFile = pickFirmwareFile(files);
         if (binFile) {
           const binData = await readFile(path.join(buildDir, binFile));
           hexBase64 = binData.toString('base64');
@@ -544,63 +559,6 @@ export async function compileForFirmware(
   board: string,
   timeoutMs = env.MAX_COMPILE_TIMEOUT,
 ): Promise<CompileResult> {
-  const cliPath = resolveArduinoCliPath();
-  logger.info({ board, cliPath }, 'compileForFirmware.start');
-
-  const start = Date.now();
-  const tmpDir = await mkdtemp(path.join(os.tmpdir(), 'tinkergyan-fw-'));
-  const sketchDir = path.join(tmpDir, 'sketch');
-  const buildDir = path.join(tmpDir, 'build');
-  const sketchFile = path.join(sketchDir, 'sketch.ino');
-
-  try {
-    const { mkdir } = await import('node:fs/promises');
-    await mkdir(sketchDir, { recursive: true });
-    await mkdir(buildDir, { recursive: true });
-    await writeFile(sketchFile, code, 'utf8');
-
-    const args = ['compile', '--fqbn', board, '--output-dir', buildDir, '--jobs', '1', sketchDir];
-    const { stdout, stderr } = await spawnWithTimeout(cliPath, args, timeoutMs);
-    const errors = parseArduinoErrors(stderr, sketchFile);
-    const hasError =
-      errors.some((e) => e.severity === 'error') || stderr.toLowerCase().includes('error:');
-
-    // Extract hex/bin firmware
-    let hexBase64: string | undefined;
-    if (!hasError) {
-      try {
-        const files = await readdir(buildDir);
-        // Prefer .hex for AVR, .bin for ESP, but exclude the with_bootloader variant
-        const binFile =
-          files.find((f) => f.endsWith('.hex') && !f.includes('with_bootloader')) ||
-          files.find((f) => f.endsWith('.bin'));
-        if (binFile) {
-          const binData = await readFile(path.join(buildDir, binFile));
-          hexBase64 = binData.toString('base64');
-          logger.info(
-            { board, size: binData.length, file: binFile },
-            'compileForFirmware.hex_extracted',
-          );
-        } else {
-          logger.warn({ buildFiles: files }, 'compileForFirmware.no_hex_found');
-        }
-      } catch (err) {
-        logger.warn({ err }, 'compileForFirmware.read_hex_failed');
-      }
-    }
-
-    return {
-      success: !hasError,
-      stdout,
-      stderr,
-      errors,
-      durationMs: Date.now() - start,
-      engine: 'arduino',
-      ...(hexBase64 ? { hexBase64 } : {}),
-    };
-  } finally {
-    await rm(tmpDir, { recursive: true, force: true }).catch((e) => {
-      logger.warn({ err: e, tmpDir }, 'Failed to clean firmware temp dir');
-    });
-  }
+  logger.info({ board }, 'compileForFirmware.start');
+  return compileArduino(code, board, timeoutMs);
 }

@@ -28,11 +28,12 @@ export type BadgeTriggerType =
   | 'STREAK_7'
   | 'XP_100';
 
-/** Known hardware board targets supported in the early phases. */
+/** Known hardware board targets supported by the compile pipeline. */
 export type KnownBoardTarget =
   | 'arduino:avr:uno'
   | 'arduino:avr:nano'
-  | 'esp8266:esp8266:generic'
+  | 'arduino:avr:mega'
+  | 'esp8266:esp8266:nodemcuv2'
   | 'esp32:esp32:esp32';
 
 /** Allows known board targets while leaving room for future boards. */

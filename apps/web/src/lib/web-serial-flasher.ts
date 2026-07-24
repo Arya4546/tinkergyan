@@ -2,15 +2,17 @@
  * web-serial-flasher.ts
  *
  * Handles firmware upload to Arduino boards via Web Serial API.
- * Implements a simplified STK500v1 protocol for AVR boards (Uno, Mega)
- * and raw binary upload for ESP boards.
+ * - STK500v1 for ATmega328P boards (Uno, Nano — incl. old-bootloader fallback)
+ * - STK500v2 for the Mega
+ * - esptool-js for ESP8266 and ESP32 (raw binary / merged image at 0x0)
  *
  * Usage:
  *   const flasher = new WebSerialFlasher(port);
  *   await flasher.flash(hexBase64, { board, onProgress });
  */
+import { getBoardDefinition, type BoardFqbn } from './boards';
 
-export type FlashBoard = 'arduino:avr:uno' | 'arduino:avr:mega' | 'esp8266:esp8266:nodemcuv2';
+export type FlashBoard = BoardFqbn;
 
 export interface FlashOptions {
   board: FlashBoard;
@@ -127,72 +129,107 @@ export class WebSerialFlasher {
     }
   }
 
+  /** Close (if open) and reopen the port at the given baud, claiming streams. */
+  private async openForFlashing(baudRate: number): Promise<void> {
+    try {
+      await this.port.close();
+    } catch {
+      /* may already be closed */
+    }
+    await this.port.open({ baudRate });
+
+    if (!this.port.readable || !this.port.writable) {
+      throw new Error('Port streams are not available');
+    }
+    this.readBuffer = [];
+    this.reader = this.port.readable.getReader();
+    this.writer = this.port.writable.getWriter();
+    this.startBackgroundRead();
+  }
+
+  /** Stop the background read loop and release both stream locks. Idempotent. */
+  private async releaseStreams(): Promise<void> {
+    this.isReading = false;
+    this.reader?.cancel().catch(() => {}); // Force read loop to exit
+
+    try {
+      await this.readerPromise;
+    } catch {
+      /* ignore */
+    }
+
+    this.reader?.releaseLock();
+    this.writer?.releaseLock();
+    this.reader = null;
+    this.writer = null;
+  }
+
+  /** Toggle DTR/RTS to reset the board into its serial bootloader. */
+  private async resetIntoBootloader(): Promise<void> {
+    await this.port.setSignals({ dataTerminalReady: false, requestToSend: false });
+    await this.delay(250);
+    await this.port.setSignals({ dataTerminalReady: true, requestToSend: true });
+    await this.delay(250); // Increased post-reset delay for stability
+  }
+
+  /** Attempt STK500v1 GET_SYNC handshake. Returns true once INSYNC/OK seen. */
+  private async trySyncV1(): Promise<boolean> {
+    for (let attempt = 0; attempt < 10; attempt++) {
+      try {
+        await this.sendCommand([STK_GET_SYNC, CRC_EOP]);
+        // Read bytes one by one to avoid framing errors with junk data
+        const deadline = Date.now() + 500;
+        let foundSync = false;
+        while (Date.now() < deadline) {
+          const b = await this.readResponse(1, 100).catch(() => null);
+          if (b && b[0] === STK_INSYNC) {
+            foundSync = true;
+            break;
+          }
+        }
+        if (foundSync) {
+          const b2 = await this.readResponse(1, 100).catch(() => null);
+          if (b2 && b2[0] === STK_OK) {
+            return true;
+          }
+        }
+      } catch {
+        // ignore
+      }
+      await this.delay(50);
+    }
+    return false;
+  }
+
   private async flashAVR(
     firmware: Uint8Array,
     board: string,
     onProgress?: (p: number, m: string) => void,
     log: (m: string) => void = () => {},
   ): Promise<void> {
-    // Ensure port is closed so we can reopen with correct baud
-    try {
-      await this.port.close();
-    } catch {
-      /* may already be closed */
-    }
-
-    // Arduino Uno uses 115200 baud for upload, Mega uses 115200 too
-    const uploadBaud = 115200;
-    await this.port.open({ baudRate: uploadBaud });
-
-    log(`Port opened at ${uploadBaud} baud for flashing`);
-    onProgress?.(10, 'Port ready');
-
-    if (!this.port.readable || !this.port.writable) {
-      throw new Error('Port streams are not available');
-    }
-    this.reader = this.port.readable.getReader();
-    this.writer = this.port.writable.getWriter();
-
-    this.startBackgroundRead();
+    // Nano lists a 57600 fallback for old-bootloader clones; Uno is 115200 only.
+    const uploadBauds = getBoardDefinition(board).uploadBauds;
 
     try {
-      // Reset the board by toggling DTR and RTS signals
-      log('Asserting DTR to reset board...');
-      onProgress?.(15, 'Waiting for bootloader');
-      await this.port.setSignals({ dataTerminalReady: false, requestToSend: false });
-      await this.delay(250);
-      await this.port.setSignals({ dataTerminalReady: true, requestToSend: true });
-      await this.delay(250); // Increased post-reset delay for stability
-
-      // Sync with bootloader
-      log('Syncing with STK500 bootloader...');
-      onProgress?.(20, 'Syncing with bootloader');
-
       let synced = false;
-      for (let attempt = 0; attempt < 10; attempt++) {
-        try {
-          await this.sendCommand([STK_GET_SYNC, CRC_EOP]);
-          // Read bytes one by one to avoid framing errors with junk data
-          const deadline = Date.now() + 500;
-          let foundSync = false;
-          while (Date.now() < deadline) {
-            const b = await this.readResponse(1, 100).catch(() => null);
-            if (b && b[0] === STK_INSYNC) {
-              foundSync = true;
-              break;
-            }
-          }
-          if (foundSync) {
-            const b2 = await this.readResponse(1, 100).catch(() => null);
-            if (b2 && b2[0] === STK_OK) {
-              synced = true;
-              break;
-            }
-          }
-        } catch {
-          // ignore
-        }
-        await this.delay(50);
+      for (const uploadBaud of uploadBauds) {
+        await this.openForFlashing(uploadBaud);
+        log(`Port opened at ${uploadBaud} baud for flashing`);
+        onProgress?.(10, 'Port ready');
+
+        // Reset the board by toggling DTR and RTS signals
+        log('Asserting DTR to reset board...');
+        onProgress?.(15, 'Waiting for bootloader');
+        await this.resetIntoBootloader();
+
+        // Sync with bootloader
+        log('Syncing with STK500 bootloader...');
+        onProgress?.(20, 'Syncing with bootloader');
+        synced = await this.trySyncV1();
+        if (synced) break;
+
+        log(`No response at ${uploadBaud} baud`);
+        await this.releaseStreams();
       }
 
       if (!synced) {
@@ -266,19 +303,7 @@ export class WebSerialFlasher {
       log('Programming mode exited ✓');
       onProgress?.(95, 'Finalizing');
     } finally {
-      this.isReading = false;
-      this.reader?.cancel().catch(() => {}); // Force read loop to exit
-
-      try {
-        await this.readerPromise;
-      } catch {
-        /* ignore */
-      }
-
-      this.reader?.releaseLock();
-      this.writer?.releaseLock();
-      this.reader = null;
-      this.writer = null;
+      await this.releaseStreams();
 
       // Close and reopen at normal baud for Serial Monitor
       try {
@@ -390,35 +415,18 @@ export class WebSerialFlasher {
     log: (m: string) => void = () => {},
   ): Promise<void> {
     this.seqV2 = 0; // Reset sequence counter before upload
-    // Ensure port is closed so we can reopen with correct baud
-    try {
-      await this.port.close();
-    } catch {
-      /* may already be closed */
-    }
 
     const uploadBaud = 115200;
-    await this.port.open({ baudRate: uploadBaud });
+    await this.openForFlashing(uploadBaud);
 
     log(`Port opened at ${uploadBaud} baud for flashing Mega (STK500v2)`);
     onProgress?.(10, 'Port ready');
-
-    if (!this.port.readable || !this.port.writable) {
-      throw new Error('Port streams are not available');
-    }
-    this.reader = this.port.readable.getReader();
-    this.writer = this.port.writable.getWriter();
-
-    this.startBackgroundRead();
 
     try {
       // Reset the board by toggling DTR and RTS signals
       log('Asserting DTR to reset board...');
       onProgress?.(15, 'Waiting for bootloader');
-      await this.port.setSignals({ dataTerminalReady: false, requestToSend: false });
-      await this.delay(250);
-      await this.port.setSignals({ dataTerminalReady: true, requestToSend: true });
-      await this.delay(250); // Increased post-reset delay for stability
+      await this.resetIntoBootloader();
 
       // Sync with bootloader using CMD_SIGN_ON (0x01)
       log('Syncing with STK500v2 bootloader...');
@@ -531,19 +539,7 @@ export class WebSerialFlasher {
       log('Programming mode exited ✓');
       onProgress?.(95, 'Finalizing');
     } finally {
-      this.isReading = false;
-      this.reader?.cancel().catch(() => {}); // Force read loop to exit
-
-      try {
-        await this.readerPromise;
-      } catch {
-        /* ignore */
-      }
-
-      this.reader?.releaseLock();
-      this.writer?.releaseLock();
-      this.reader = null;
-      this.writer = null;
+      await this.releaseStreams();
 
       // Close and reopen at normal baud for Serial Monitor
       try {
@@ -577,17 +573,8 @@ export class WebSerialFlasher {
       },
     };
 
-    // We must release the locks created in the constructor so ESPLoader can use the port!
-    if (this.reader) {
-      this.isReading = false;
-      await this.reader.cancel().catch(() => {});
-      this.reader.releaseLock();
-      this.reader = null;
-    }
-    if (this.writer) {
-      this.writer.releaseLock();
-      this.writer = null;
-    }
+    // We must release any held stream locks so ESPLoader can use the port!
+    await this.releaseStreams();
 
     try {
       onProgress?.(5, 'Connecting to ROM bootloader...');
@@ -611,9 +598,10 @@ export class WebSerialFlasher {
 
       onProgress?.(15, 'Preparing flash...');
 
-      // The compiled binary for ESP8266 is usually written at 0x0000.
-      // For ESP32 it varies (usually bootloader at 0x1000, partitions at 0x8000, app at 0x10000).
-      // Standard arduino-cli outputs a single combined binary for ESP32 at 0x0000.
+      // ESP8266 firmware is a single complete image written at 0x0000.
+      // For ESP32 the server sends the merged image (bootloader + partition
+      // table + app combined), which is also flashed at 0x0000 — never flash
+      // an app-only ESP32 binary here, it would not boot.
       const fileArray = [
         {
           data: firmware,
