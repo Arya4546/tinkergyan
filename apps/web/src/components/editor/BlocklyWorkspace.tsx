@@ -138,6 +138,7 @@ export const BlocklyWorkspace = forwardRef<BlocklyWorkspaceHandle, BlocklyWorksp
       callback: (result: string | null) => void;
     } | null>(null);
     const [promptValue, setPromptValue] = React.useState('');
+    const [isEmpty, setIsEmpty] = React.useState(false);
 
     // Intercept Blockly prompts to show a beautiful, premium custom React modal
     useEffect(() => {
@@ -228,6 +229,9 @@ export const BlocklyWorkspace = forwardRef<BlocklyWorkspaceHandle, BlocklyWorksp
 
       workspaceRef.current = Blockly.inject(blocklyDiv.current, {
         toolbox: getToolbox(engineMode),
+        // Zelos is Blockly's Scratch-style renderer: rounded blocks, full
+        // C-shape wrapping around nested statements — the kid-friendly look.
+        renderer: 'zelos',
         theme: resolveBlocklyTheme(useUIStore.getState().theme),
         move: {
           scrollbars: true,
@@ -263,6 +267,7 @@ export const BlocklyWorkspace = forwardRef<BlocklyWorkspaceHandle, BlocklyWorksp
           return;
         }
         if (!workspaceRef.current) return;
+        setIsEmpty(workspaceRef.current.getAllBlocks(false).length === 0);
         try {
           const code = arduinoGenerator.workspaceToCode(workspaceRef.current);
           onCodeChange(code);
@@ -339,6 +344,8 @@ export const BlocklyWorkspace = forwardRef<BlocklyWorkspaceHandle, BlocklyWorksp
         }
       }
 
+      setIsEmpty(workspaceRef.current.getAllBlocks(false).length === 0);
+
       // DO NOT put dispose() here to prevent strict mode from breaking global drag event listeners
       // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []); // Intentionally runs once — workspace lifecycle is managed internally
@@ -401,6 +408,26 @@ export const BlocklyWorkspace = forwardRef<BlocklyWorkspaceHandle, BlocklyWorksp
     return (
       <div className={`relative w-full h-full ${className}`}>
         <div ref={blocklyDiv} className="absolute inset-0" />
+
+        {/* Friendly empty-canvas hint — clicks pass through to the workspace */}
+        {isEmpty && (
+          <div className="absolute inset-0 z-10 flex items-center justify-center pointer-events-none select-none">
+            <div className="flex flex-col items-center gap-2 px-6 text-center">
+              <img
+                src="/sprites/svg.svg"
+                alt=""
+                className="w-24 h-28 mb-2 opacity-90 drop-shadow-lg animate-bounce"
+                style={{ animationDuration: '2.5s' }}
+              />
+              <p className="font-sans font-bold text-lg text-slate-500 dark:text-slate-300">
+                Let&apos;s build something!
+              </p>
+              <p className="font-sans text-sm text-slate-400 dark:text-slate-500 max-w-xs">
+                Pick a category on the left, then drag blocks onto this canvas to start coding.
+              </p>
+            </div>
+          </div>
+        )}
 
         {/* Custom dialog prompt modal for variable creation */}
         {promptData && (

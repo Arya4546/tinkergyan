@@ -39,6 +39,9 @@ import {
   Gamepad2,
   Home,
   AlertTriangle,
+  Cpu,
+  ChevronDown,
+  Check,
 } from 'lucide-react';
 
 import { CompileConsole } from '../components/editor/CompileConsole';
@@ -173,6 +176,68 @@ function ConversionErrorModal({
   );
 }
 
+// ─── Custom Board Selector Dropdown ──────────────────────────────────────────
+// Replaces the native <select> whose popup list can't be styled.
+function BoardSelect({ value, onChange }: { value: string; onChange: (fqbn: string) => void }) {
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    // Capture phase so it fires even when Blockly stops event propagation.
+    const handlePointerDown = (e: PointerEvent) => {
+      if (rootRef.current && !rootRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    };
+    document.addEventListener('pointerdown', handlePointerDown, true);
+    return () => document.removeEventListener('pointerdown', handlePointerDown, true);
+  }, [open]);
+
+  return (
+    <div ref={rootRef} className="relative hidden sm:block">
+      <Tooltip content="Select Target Microcontroller Board" position="bottom">
+        <button
+          onClick={() => setOpen(!open)}
+          className="h-11 pl-3 pr-2.5 rounded-xl font-sans text-sm font-semibold flex items-center gap-2 bg-slate-100 dark:bg-dark-border text-slate-700 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:outline-none"
+        >
+          <Cpu size={15} className="text-primary-500 shrink-0" />
+          <span className="max-w-[130px] truncate">{getBoardLabel(value)}</span>
+          <ChevronDown
+            size={14}
+            className={`shrink-0 text-slate-400 transition-transform duration-150 ${open ? 'rotate-180' : ''}`}
+          />
+        </button>
+      </Tooltip>
+
+      {open && (
+        <div className="absolute right-0 top-full mt-2 w-56 bg-white dark:bg-dark-surface border border-slate-200 dark:border-dark-border rounded-xl shadow-xl p-1.5 z-50 animate-pop">
+          <p className="px-3 pt-1.5 pb-2 font-sans text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+            Choose your board
+          </p>
+          {BOARDS.map((b) => (
+            <button
+              key={b.fqbn}
+              onClick={() => {
+                onChange(b.fqbn);
+                setOpen(false);
+              }}
+              className={`w-full flex items-center justify-between gap-2 px-3 py-2.5 rounded-lg font-sans text-sm text-left transition-colors ${
+                value === b.fqbn
+                  ? 'bg-primary-500/10 text-primary-500 font-semibold'
+                  : 'text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800'
+              }`}
+            >
+              <span className="truncate">{b.label}</span>
+              {value === b.fqbn && <Check size={15} className="shrink-0" />}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 
 export default function Editor() {
@@ -202,17 +267,19 @@ export default function Editor() {
   const [isConverting, setIsConverting] = useState(false);
   const workerRef = useRef<Worker | null>(null);
 
+  const moreMenuRef = useRef<HTMLDivElement>(null);
+
   useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
-      const target = e.target as HTMLElement;
-      if (!target.closest('.relative')) {
+    if (!showMoreMenu) return;
+    // Capture-phase pointerdown: fires even when the click lands on the Blockly
+    // canvas, which stops propagation and never lets a document 'click' bubble.
+    const handlePointerDown = (e: PointerEvent) => {
+      if (moreMenuRef.current && !moreMenuRef.current.contains(e.target as Node)) {
         setShowMoreMenu(false);
       }
     };
-    if (showMoreMenu) {
-      document.addEventListener('click', handleClickOutside);
-    }
-    return () => document.removeEventListener('click', handleClickOutside);
+    document.addEventListener('pointerdown', handlePointerDown, true);
+    return () => document.removeEventListener('pointerdown', handlePointerDown, true);
   }, [showMoreMenu]);
 
   const getWorker = useCallback(() => {
@@ -303,8 +370,7 @@ export default function Editor() {
     let animationFrameId: number;
     const handleMouseMove = (e: MouseEvent) => {
       if (!isResizing.current) return;
-      const paddingRight = window.innerWidth < 640 ? 8 : 16;
-      let newWidth = window.innerWidth - e.clientX - paddingRight;
+      let newWidth = window.innerWidth - e.clientX;
       newWidth = Math.max(200, Math.min(newWidth, window.innerWidth - 400));
       setTerminalWidth(newWidth);
 
@@ -819,565 +885,547 @@ export default function Editor() {
   // ─────────────────────────────────────────────────────────────────────────
   return (
     <div className="flex h-screen bg-background dark:bg-dark-bg font-sans overflow-hidden">
-      <div className="flex w-full h-full p-2 sm:p-4">
-        <div className="flex w-full h-full bg-white dark:bg-dark-surface rounded-2xl shadow-xl overflow-hidden relative border border-slate-100 dark:border-dark-border">
-          {/* ── Top Control Bar ─────────────────────────────────────── */}
-          <div className="absolute top-0 left-0 w-full h-16 border-b border-slate-100 dark:border-dark-border bg-white dark:bg-dark-surface flex justify-between items-center z-30 px-3 sm:px-4 gap-2">
-            {/* Left: Back + project title + dirty indicator */}
-            <div className="flex items-center gap-2 min-w-0">
-              <Tooltip content="Dashboard" position="bottom">
-                <Link
-                  to="/dashboard"
-                  className="w-11 h-11 shrink-0 flex items-center justify-center rounded-xl bg-slate-100 dark:bg-dark-border text-slate-500 hover:text-slate-800 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:outline-none"
+      {/* Full-bleed editor — the top bar and toolbox reach the screen edges */}
+      <div className="flex w-full h-full bg-white dark:bg-dark-surface overflow-hidden relative">
+        {/* ── Top Control Bar ─────────────────────────────────────── */}
+        <div className="absolute top-0 left-0 w-full h-16 border-b border-slate-100 dark:border-dark-border bg-white dark:bg-dark-surface flex justify-between items-center z-30 px-3 sm:px-4 gap-2">
+          {/* Left: Back + project title + dirty indicator */}
+          <div className="flex items-center gap-2 min-w-0">
+            <Tooltip content="Dashboard" position="bottom">
+              <Link
+                to="/dashboard"
+                className="w-11 h-11 shrink-0 flex items-center justify-center rounded-xl bg-slate-100 dark:bg-dark-border text-slate-500 hover:text-slate-800 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:outline-none"
+              >
+                <Home size={18} strokeWidth={2.5} />
+              </Link>
+            </Tooltip>
+
+            <input
+              value={projectTitle}
+              onChange={(e) => setProjectTitle(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  void handleSave();
+                  e.currentTarget.blur();
+                }
+              }}
+              className="font-sans font-semibold text-sm text-slate-800 dark:text-white bg-transparent border-none outline-none w-32 sm:w-44 truncate focus-visible:ring-2 focus-visible:ring-primary-500 rounded px-1"
+              spellCheck={false}
+            />
+            {isDirty && (
+              <Tooltip content="Unsaved Changes" position="bottom">
+                <div className="w-2 h-2 rounded-full bg-warning-500 shrink-0" />
+              </Tooltip>
+            )}
+
+            {/* Gamification surface */}
+            {user && (
+              <div className="hidden lg:flex items-center gap-3 px-3 py-1.5 bg-slate-100 dark:bg-dark-surface rounded-full border border-slate-200 dark:border-dark-border ml-2">
+                <Tooltip content={`${user.streak} day streak!`} position="bottom">
+                  <div className="flex items-center gap-1.5 text-warning-500">
+                    <Zap size={14} fill="currentColor" />
+                    <span className="font-sans font-bold text-xs">{user.streak}</span>
+                  </div>
+                </Tooltip>
+                <div className="w-px h-3 bg-slate-300 dark:bg-[#1A1D24]" />
+                <Tooltip content={`Level ${user.level}`} position="bottom">
+                  <div className="flex items-center gap-1.5 text-celebrate">
+                    <Star size={14} fill="currentColor" />
+                    <span className="font-sans font-bold text-xs">Lvl {user.level}</span>
+                  </div>
+                </Tooltip>
+              </div>
+            )}
+          </div>
+
+          {/* Centre: Mode toggle */}
+          <div className="flex items-center gap-2 shrink-0">
+            <div className="flex items-center bg-slate-100 dark:bg-dark-border rounded-xl p-1">
+              <Tooltip content="Visual Block Editor" position="bottom">
+                <button
+                  onClick={switchToBlock}
+                  className={`flex items-center gap-1.5 h-9 px-3 rounded-lg font-sans font-semibold text-sm transition-all focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:outline-none ${
+                    mode === 'block'
+                      ? 'bg-white dark:bg-dark-surface text-slate-800 dark:text-white shadow-sm'
+                      : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-200'
+                  }`}
                 >
-                  <Home size={18} strokeWidth={2.5} />
-                </Link>
+                  <LayoutGrid size={14} /> <span className="hidden sm:inline">Blocks</span>
+                </button>
+              </Tooltip>
+              <Tooltip content="C++ Text Code Editor" position="bottom">
+                <button
+                  onClick={switchToCode}
+                  className={`flex items-center gap-1.5 h-9 px-3 rounded-lg font-sans font-semibold text-sm transition-all focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:outline-none ${
+                    mode === 'code'
+                      ? 'bg-white dark:bg-dark-surface text-slate-800 dark:text-white shadow-sm'
+                      : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-200'
+                  }`}
+                >
+                  <Code2 size={14} /> <span className="hidden sm:inline">C++</span>
+                </button>
+              </Tooltip>
+            </div>
+            {mode === 'code' && (
+              <Tooltip content="Translate C++ code back to Blockly blocks" position="bottom">
+                <button
+                  onClick={handleConvertCodeToBlocks}
+                  disabled={isConverting}
+                  className="h-11 px-3 sm:px-4 rounded-xl font-sans font-semibold text-sm flex items-center gap-2 bg-gradient-to-r from-violet-500 to-indigo-600 hover:from-violet-600 hover:to-indigo-700 text-white shadow-md shadow-indigo-500/25 hover:shadow-lg transition-all active:scale-[0.97] disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {isConverting ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  ) : (
+                    <LayoutGrid size={14} />
+                  )}
+                  <span className="hidden md:inline">
+                    {isConverting ? 'Converting...' : 'Convert to Blocks'}
+                  </span>
+                  <span className="inline md:hidden">{isConverting ? '...' : 'Convert'}</span>
+                </button>
+              </Tooltip>
+            )}
+          </div>
+
+          {/* Right: Board + controls + primary actions */}
+          <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+            {engineMode === 'hardware' && <BoardSelect value={board} onChange={setBoard} />}
+
+            {/* Font size controls (code mode only) */}
+            {mode === 'code' && (
+              <div className="flex items-center bg-slate-100 dark:bg-dark-border rounded-lg overflow-hidden">
+                <Tooltip content="Decrease Font Size" position="bottom">
+                  <button
+                    onClick={decreaseFontSize}
+                    className="w-11 h-11 flex items-center justify-center text-slate-500 hover:text-slate-800 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:outline-none"
+                  >
+                    <Minus size={14} />
+                  </button>
+                </Tooltip>
+                <span className="w-8 h-11 flex items-center justify-center font-sans text-xs font-semibold text-slate-500">
+                  {fontSize}
+                </span>
+                <Tooltip content="Increase Font Size" position="bottom">
+                  <button
+                    onClick={increaseFontSize}
+                    className="w-11 h-11 flex items-center justify-center text-slate-500 hover:text-slate-800 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:outline-none"
+                  >
+                    <Plus size={14} />
+                  </button>
+                </Tooltip>
+              </div>
+            )}
+
+            {/* Undo/Redo (block mode only) */}
+            {mode === 'block' && (
+              <div className="flex items-center gap-1">
+                <Tooltip content="Undo (Ctrl+Z)" position="bottom">
+                  <button
+                    onClick={() => blocklyRef.current?.undo()}
+                    className="w-11 h-11 flex items-center justify-center rounded-lg text-slate-500 hover:text-slate-800 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-dark-border transition-colors focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:outline-none"
+                  >
+                    <Undo size={16} />
+                  </button>
+                </Tooltip>
+                <Tooltip content="Redo (Ctrl+Y)" position="bottom">
+                  <button
+                    onClick={() => blocklyRef.current?.redo()}
+                    className="w-11 h-11 flex items-center justify-center rounded-lg text-slate-500 hover:text-slate-800 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-dark-border transition-colors focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:outline-none"
+                  >
+                    <Redo size={16} />
+                  </button>
+                </Tooltip>
+              </div>
+            )}
+
+            {/* Secondary actions group -> Moved to More Menu */}
+            <div className="relative" ref={moreMenuRef}>
+              <Tooltip content="More Options" position="bottom">
+                <button
+                  onClick={() => setShowMoreMenu(!showMoreMenu)}
+                  className="w-11 h-11 flex items-center justify-center rounded-xl text-slate-500 hover:text-slate-800 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-dark-border transition-colors focus-visible:ring-2 focus-visible:ring-primary-500"
+                >
+                  <MoreVertical size={20} />
+                </button>
               </Tooltip>
 
-              <input
-                value={projectTitle}
-                onChange={(e) => setProjectTitle(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    void handleSave();
-                    e.currentTarget.blur();
-                  }
-                }}
-                className="font-sans font-semibold text-sm text-slate-800 dark:text-white bg-transparent border-none outline-none w-32 sm:w-44 truncate focus-visible:ring-2 focus-visible:ring-primary-500 rounded px-1"
-                spellCheck={false}
-              />
-              {isDirty && (
-                <Tooltip content="Unsaved Changes" position="bottom">
-                  <div className="w-2 h-2 rounded-full bg-warning-500 shrink-0" />
-                </Tooltip>
-              )}
-
-              {/* Gamification surface */}
-              {user && (
-                <div className="hidden lg:flex items-center gap-3 px-3 py-1.5 bg-slate-100 dark:bg-dark-surface rounded-full border border-slate-200 dark:border-dark-border ml-2">
-                  <Tooltip content={`${user.streak} day streak!`} position="bottom">
-                    <div className="flex items-center gap-1.5 text-warning-500">
-                      <Zap size={14} fill="currentColor" />
-                      <span className="font-sans font-bold text-xs">{user.streak}</span>
-                    </div>
-                  </Tooltip>
-                  <div className="w-px h-3 bg-slate-300 dark:bg-[#1A1D24]" />
-                  <Tooltip content={`Level ${user.level}`} position="bottom">
-                    <div className="flex items-center gap-1.5 text-celebrate">
-                      <Star size={14} fill="currentColor" />
-                      <span className="font-sans font-bold text-xs">Lvl {user.level}</span>
-                    </div>
-                  </Tooltip>
-                </div>
-              )}
-            </div>
-
-            {/* Centre: Mode toggle */}
-            <div className="flex items-center gap-2 shrink-0">
-              <div className="flex items-center bg-slate-100 dark:bg-dark-border rounded-xl p-1">
-                <Tooltip content="Visual Block Editor" position="bottom">
+              {showMoreMenu && (
+                <div className="absolute right-0 top-full mt-2 w-48 bg-white dark:bg-dark-surface border border-slate-200 dark:border-dark-border rounded-xl shadow-lg flex flex-col p-1 z-50">
                   <button
-                    onClick={switchToBlock}
-                    className={`flex items-center gap-1.5 h-9 px-3 rounded-lg font-sans font-semibold text-sm transition-all focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:outline-none ${
-                      mode === 'block'
-                        ? 'bg-white dark:bg-dark-surface text-slate-800 dark:text-white shadow-sm'
-                        : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-200'
-                    }`}
+                    onClick={() => {
+                      setShowTemplates(true);
+                      setShowMoreMenu(false);
+                    }}
+                    className="w-full flex items-center gap-2 px-3 py-2 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg text-left"
                   >
-                    <LayoutGrid size={14} /> <span className="hidden sm:inline">Blocks</span>
+                    <FileCode size={16} className="shrink-0" />
+                    <span>Templates</span>
                   </button>
-                </Tooltip>
-                <Tooltip content="C++ Text Code Editor" position="bottom">
                   <button
-                    onClick={switchToCode}
-                    className={`flex items-center gap-1.5 h-9 px-3 rounded-lg font-sans font-semibold text-sm transition-all focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:outline-none ${
-                      mode === 'code'
-                        ? 'bg-white dark:bg-dark-surface text-slate-800 dark:text-white shadow-sm'
-                        : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-200'
-                    }`}
+                    onClick={() => {
+                      handleDownload();
+                      setShowMoreMenu(false);
+                    }}
+                    className="w-full flex items-center gap-2 px-3 py-2 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg text-left"
                   >
-                    <Code2 size={14} /> <span className="hidden sm:inline">C++</span>
+                    <Download size={16} className="shrink-0" />
+                    <span>Download .ino</span>
                   </button>
-                </Tooltip>
-              </div>
-              {mode === 'code' && (
-                <Tooltip content="Translate C++ code back to Blockly blocks" position="bottom">
                   <button
-                    onClick={handleConvertCodeToBlocks}
-                    disabled={isConverting}
-                    className="h-11 px-3 sm:px-4 rounded-xl font-sans font-semibold text-sm flex items-center gap-2 bg-gradient-to-r from-violet-500 to-indigo-600 hover:from-violet-600 hover:to-indigo-700 text-white shadow-md shadow-indigo-500/25 hover:shadow-lg transition-all active:scale-[0.97] disabled:opacity-50 disabled:cursor-not-allowed"
+                    onClick={() => {
+                      handleSave();
+                      setShowMoreMenu(false);
+                    }}
+                    disabled={isSaving}
+                    className="w-full flex items-center gap-2 px-3 py-2 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg text-left disabled:opacity-50"
                   >
-                    {isConverting ? (
-                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    {isSaving ? (
+                      <Loader2 size={16} className="animate-spin shrink-0" />
                     ) : (
-                      <LayoutGrid size={14} />
+                      <Save size={16} className="shrink-0" />
                     )}
-                    <span className="hidden md:inline">
-                      {isConverting ? 'Converting...' : 'Convert to Blocks'}
-                    </span>
-                    <span className="inline md:hidden">{isConverting ? '...' : 'Convert'}</span>
+                    <span>{isSaving ? 'Saving...' : 'Save Project'}</span>
                   </button>
-                </Tooltip>
+                  {projectId && (
+                    <>
+                      <div className="h-px bg-slate-200 dark:bg-dark-border my-1" />
+                      <button
+                        onClick={() => {
+                          handleDuplicate();
+                          setShowMoreMenu(false);
+                        }}
+                        className="w-full flex items-center gap-2 px-3 py-2 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg text-left"
+                      >
+                        <Copy size={16} className="shrink-0" />
+                        <span>Duplicate</span>
+                      </button>
+                      <button
+                        onClick={() => {
+                          handleTogglePublic();
+                          setShowMoreMenu(false);
+                        }}
+                        className="w-full flex items-center gap-2 px-3 py-2 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg text-left"
+                      >
+                        <Globe
+                          size={16}
+                          className={`shrink-0 ${isPublic ? 'text-accent-500' : ''}`}
+                        />
+                        <span>{isPublic ? 'Make Private' : 'Share to Gallery'}</span>
+                      </button>
+                    </>
+                  )}
+                </div>
               )}
             </div>
 
-            {/* Right: Board + controls + primary actions */}
-            <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
-              {engineMode === 'hardware' && (
-                <Tooltip content="Select Target Microcontroller Board" position="bottom">
-                  <select
-                    value={board}
-                    onChange={(e) => setBoard(e.target.value)}
-                    className="h-11 px-2 sm:px-3 font-sans text-sm font-medium bg-white dark:bg-dark-surface text-slate-700 dark:text-slate-200 rounded-lg border border-slate-200 dark:border-dark-border outline-none cursor-pointer focus-visible:ring-2 focus-visible:ring-primary-500 hidden sm:block"
-                  >
-                    {BOARDS.map((b) => (
-                      <option key={b.fqbn} value={b.fqbn}>
-                        {b.label}
-                      </option>
-                    ))}
-                  </select>
-                </Tooltip>
-              )}
-
-              {/* Font size controls (code mode only) */}
-              {mode === 'code' && (
-                <div className="flex items-center bg-slate-100 dark:bg-dark-border rounded-lg overflow-hidden">
-                  <Tooltip content="Decrease Font Size" position="bottom">
-                    <button
-                      onClick={decreaseFontSize}
-                      className="w-11 h-11 flex items-center justify-center text-slate-500 hover:text-slate-800 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:outline-none"
-                    >
-                      <Minus size={14} />
-                    </button>
-                  </Tooltip>
-                  <span className="w-8 h-11 flex items-center justify-center font-sans text-xs font-semibold text-slate-500">
-                    {fontSize}
-                  </span>
-                  <Tooltip content="Increase Font Size" position="bottom">
-                    <button
-                      onClick={increaseFontSize}
-                      className="w-11 h-11 flex items-center justify-center text-slate-500 hover:text-slate-800 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:outline-none"
-                    >
-                      <Plus size={14} />
-                    </button>
-                  </Tooltip>
-                </div>
-              )}
-
-              {/* Undo/Redo (block mode only) */}
-              {mode === 'block' && (
-                <div className="flex items-center gap-1">
-                  <Tooltip content="Undo (Ctrl+Z)" position="bottom">
-                    <button
-                      onClick={() => blocklyRef.current?.undo()}
-                      className="w-11 h-11 flex items-center justify-center rounded-lg text-slate-500 hover:text-slate-800 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-dark-border transition-colors focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:outline-none"
-                    >
-                      <Undo size={16} />
-                    </button>
-                  </Tooltip>
-                  <Tooltip content="Redo (Ctrl+Y)" position="bottom">
-                    <button
-                      onClick={() => blocklyRef.current?.redo()}
-                      className="w-11 h-11 flex items-center justify-center rounded-lg text-slate-500 hover:text-slate-800 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-dark-border transition-colors focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:outline-none"
-                    >
-                      <Redo size={16} />
-                    </button>
-                  </Tooltip>
-                </div>
-              )}
-
-              {/* Secondary actions group -> Moved to More Menu */}
-              <div className="relative">
-                <Tooltip content="More Options" position="bottom">
+            {/* Hardware connection and control buttons */}
+            {engineMode === 'hardware' && (
+              <>
+                {/* Connect Board — second-highest prominence */}
+                <Tooltip
+                  content={
+                    hardwarePort
+                      ? 'Disconnect Hardware Board'
+                      : `Connect ${boardLabel} via Web Serial`
+                  }
+                  position="bottom"
+                >
                   <button
-                    onClick={() => setShowMoreMenu(!showMoreMenu)}
-                    className="w-11 h-11 flex items-center justify-center rounded-xl text-slate-500 hover:text-slate-800 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-dark-border transition-colors focus-visible:ring-2 focus-visible:ring-primary-500"
+                    onClick={handleConnectHardware}
+                    className={`h-11 px-3 sm:px-4 rounded-xl font-sans font-semibold text-sm flex items-center gap-2 transition-all focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:outline-none active:scale-[0.97] ${
+                      hardwarePort
+                        ? 'bg-warning-500 hover:bg-warning-600 text-slate-900'
+                        : 'bg-accent-500 hover:bg-accent-400 text-slate-900'
+                    }`}
                   >
-                    <MoreVertical size={20} />
+                    <Usb size={16} />
+                    <span className="hidden sm:inline">
+                      {hardwarePort ? 'Connected' : 'Connect'}
+                    </span>
                   </button>
                 </Tooltip>
 
-                {showMoreMenu && (
-                  <div className="absolute right-0 top-full mt-2 w-48 bg-white dark:bg-dark-surface border border-slate-200 dark:border-dark-border rounded-xl shadow-lg flex flex-col p-1 z-50">
+                {/* Upload firmware — visible only when board connected */}
+                {hardwarePort && (
+                  <Tooltip content={`Compile & Upload firmware to ${boardLabel}`} position="bottom">
                     <button
-                      onClick={() => {
-                        setShowTemplates(true);
-                        setShowMoreMenu(false);
-                      }}
-                      className="w-full flex items-center gap-2 px-3 py-2 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg text-left"
+                      onClick={handleUploadToHardware}
+                      disabled={isFlashing || isCompiling}
+                      className="h-11 px-3 sm:px-4 rounded-xl font-sans font-semibold text-sm flex items-center gap-2 bg-blue-500 hover:bg-blue-600 text-white transition-all focus-visible:ring-2 focus-visible:ring-blue-400 focus-visible:outline-none active:scale-[0.97] disabled:opacity-50"
                     >
-                      <FileCode size={16} className="shrink-0" />
-                      <span>Templates</span>
-                    </button>
-                    <button
-                      onClick={() => {
-                        handleDownload();
-                        setShowMoreMenu(false);
-                      }}
-                      className="w-full flex items-center gap-2 px-3 py-2 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg text-left"
-                    >
-                      <Download size={16} className="shrink-0" />
-                      <span>Download .ino</span>
-                    </button>
-                    <button
-                      onClick={() => {
-                        handleSave();
-                        setShowMoreMenu(false);
-                      }}
-                      disabled={isSaving}
-                      className="w-full flex items-center gap-2 px-3 py-2 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg text-left disabled:opacity-50"
-                    >
-                      {isSaving ? (
-                        <Loader2 size={16} className="animate-spin shrink-0" />
+                      {isFlashing ? (
+                        <Loader2 size={16} className="animate-spin" />
                       ) : (
-                        <Save size={16} className="shrink-0" />
+                        <Upload size={16} />
                       )}
-                      <span>{isSaving ? 'Saving...' : 'Save Project'}</span>
-                    </button>
-                    {projectId && (
-                      <>
-                        <div className="h-px bg-slate-200 dark:bg-dark-border my-1" />
-                        <button
-                          onClick={() => {
-                            handleDuplicate();
-                            setShowMoreMenu(false);
-                          }}
-                          className="w-full flex items-center gap-2 px-3 py-2 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg text-left"
-                        >
-                          <Copy size={16} className="shrink-0" />
-                          <span>Duplicate</span>
-                        </button>
-                        <button
-                          onClick={() => {
-                            handleTogglePublic();
-                            setShowMoreMenu(false);
-                          }}
-                          className="w-full flex items-center gap-2 px-3 py-2 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg text-left"
-                        >
-                          <Globe
-                            size={16}
-                            className={`shrink-0 ${isPublic ? 'text-accent-500' : ''}`}
-                          />
-                          <span>{isPublic ? 'Make Private' : 'Share to Gallery'}</span>
-                        </button>
-                      </>
-                    )}
-                  </div>
-                )}
-              </div>
-
-              {/* Hardware connection and control buttons */}
-              {engineMode === 'hardware' && (
-                <>
-                  {/* Connect Board — second-highest prominence */}
-                  <Tooltip
-                    content={
-                      hardwarePort
-                        ? 'Disconnect Hardware Board'
-                        : `Connect ${boardLabel} via Web Serial`
-                    }
-                    position="bottom"
-                  >
-                    <button
-                      onClick={handleConnectHardware}
-                      className={`h-11 px-3 sm:px-4 rounded-xl font-sans font-semibold text-sm flex items-center gap-2 transition-all focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:outline-none active:scale-[0.97] ${
-                        hardwarePort
-                          ? 'bg-warning-500 hover:bg-warning-600 text-slate-900'
-                          : 'bg-accent-500 hover:bg-accent-400 text-slate-900'
-                      }`}
-                    >
-                      <Usb size={16} />
                       <span className="hidden sm:inline">
-                        {hardwarePort ? 'Connected' : 'Connect'}
+                        {isFlashing ? `${flashProgress}%` : 'Upload'}
                       </span>
                     </button>
                   </Tooltip>
+                )}
 
-                  {/* Upload firmware — visible only when board connected */}
-                  {hardwarePort && (
-                    <Tooltip
-                      content={`Compile & Upload firmware to ${boardLabel}`}
-                      position="bottom"
+                {/* Serial Monitor toggle — visible when board connected */}
+                {hardwarePort && (
+                  <Tooltip content="Toggle Hardware Serial Monitor Log" position="bottom">
+                    <button
+                      onClick={() => setShowSerialMonitor(!showSerialMonitor)}
+                      className={`w-11 h-11 rounded-xl flex items-center justify-center transition-all focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:outline-none active:scale-[0.97] ${
+                        showSerialMonitor
+                          ? 'bg-primary-500 text-white'
+                          : 'bg-slate-100 dark:bg-dark-border text-slate-500 hover:text-slate-800 dark:hover:text-white'
+                      }`}
                     >
-                      <button
-                        onClick={handleUploadToHardware}
-                        disabled={isFlashing || isCompiling}
-                        className="h-11 px-3 sm:px-4 rounded-xl font-sans font-semibold text-sm flex items-center gap-2 bg-blue-500 hover:bg-blue-600 text-white transition-all focus-visible:ring-2 focus-visible:ring-blue-400 focus-visible:outline-none active:scale-[0.97] disabled:opacity-50"
-                      >
-                        {isFlashing ? (
-                          <Loader2 size={16} className="animate-spin" />
-                        ) : (
-                          <Upload size={16} />
-                        )}
-                        <span className="hidden sm:inline">
-                          {isFlashing ? `${flashProgress}%` : 'Upload'}
-                        </span>
-                      </button>
-                    </Tooltip>
-                  )}
+                      <Terminal size={16} />
+                    </button>
+                  </Tooltip>
+                )}
+              </>
+            )}
 
-                  {/* Serial Monitor toggle — visible when board connected */}
-                  {hardwarePort && (
-                    <Tooltip content="Toggle Hardware Serial Monitor Log" position="bottom">
-                      <button
-                        onClick={() => setShowSerialMonitor(!showSerialMonitor)}
-                        className={`w-11 h-11 rounded-xl flex items-center justify-center transition-all focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:outline-none active:scale-[0.97] ${
-                          showSerialMonitor
-                            ? 'bg-primary-500 text-white'
-                            : 'bg-slate-100 dark:bg-dark-border text-slate-500 hover:text-slate-800 dark:hover:text-white'
-                        }`}
-                      >
-                        <Terminal size={16} />
-                      </button>
-                    </Tooltip>
+            {/* Code Panel Toggle */}
+            {engineMode === 'hardware' && (
+              <Tooltip
+                content={showCodePanel ? 'Hide C++ Code Preview' : 'Show C++ Code Preview'}
+                position="bottom"
+              >
+                <button
+                  onClick={() => {
+                    setShowCodePanel(!showCodePanel);
+                    if (showSimulator && showCodePanel) setShowSimulator(false);
+                  }}
+                  className={`w-11 h-11 rounded-xl flex items-center justify-center transition-all focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:outline-none active:scale-[0.97] hidden sm:flex ${
+                    showCodePanel && !showSimulator
+                      ? 'bg-slate-200 dark:bg-slate-700 text-slate-800 dark:text-white'
+                      : 'bg-slate-100 dark:bg-dark-border text-slate-500 hover:text-slate-800 dark:hover:text-white'
+                  }`}
+                >
+                  <PanelRight size={16} />
+                </button>
+              </Tooltip>
+            )}
+
+            {/* Simulator Panel Toggle */}
+            {engineMode === 'software' && (
+              <Tooltip
+                content={showSimulator ? 'Hide Stage Simulator' : 'Show Stage Simulator'}
+                position="bottom"
+              >
+                <button
+                  onClick={() => {
+                    const nextState = !showSimulator;
+                    setShowSimulator(nextState);
+                    if (nextState) {
+                      setShowCodePanel(true);
+                    } else if (engineMode === 'software') {
+                      setShowCodePanel(false);
+                    }
+                  }}
+                  className={`h-11 px-3 sm:px-4 rounded-xl font-sans font-semibold text-sm items-center gap-2 transition-all focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:outline-none active:scale-[0.97] hidden sm:flex ${
+                    showSimulator
+                      ? 'bg-emerald-500 text-white shadow-md shadow-emerald-500/20'
+                      : 'bg-slate-100 dark:bg-dark-border text-slate-500 hover:text-slate-800 dark:hover:text-white'
+                  }`}
+                >
+                  <Gamepad2 size={16} />
+                  <span className="hidden md:inline">Stage</span>
+                </button>
+              </Tooltip>
+            )}
+
+            {/* ▶ Run — highest prominence, always rightmost */}
+            {engineMode === 'hardware' && (
+              <Tooltip content="Compile & Execute Code (Ctrl+Enter)" position="bottom">
+                <button
+                  onClick={handleCompile}
+                  disabled={isCompiling || isFlashing}
+                  className="h-11 px-4 sm:px-5 rounded-xl font-sans font-bold text-sm flex items-center gap-2 bg-primary-500 hover:bg-primary-600 text-white shadow-md hover:shadow-lg transition-all focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-1 focus-visible:outline-none active:scale-[0.97] disabled:opacity-50"
+                >
+                  {isCompiling ? (
+                    <Loader2 size={16} className="animate-spin" />
+                  ) : (
+                    <Play size={16} fill="currentColor" />
+                  )}
+                  <span>{isCompiling ? 'Running...' : 'Run'}</span>
+                </button>
+              </Tooltip>
+            )}
+          </div>
+
+          {/* Flash progress bar */}
+          {isFlashing && (
+            <div className="absolute left-0 right-0 bottom-0 h-1 bg-slate-100 dark:bg-dark-border">
+              <div
+                className="h-full bg-blue-500 rounded-full transition-all duration-300 ease-out"
+                style={{ width: `${flashProgress}%` }}
+              />
+            </div>
+          )}
+        </div>
+
+        {/* ── Main Area (below toolbar) ────────────────────────────────── */}
+        <div className="flex w-full h-full pt-16">
+          {/* ── Editor Pane ─────────────────────────────────────────────── */}
+
+          <div className="flex-1 relative overflow-hidden">
+            {/* Blockly canvas */}
+            <div
+              className={`absolute inset-0 transition-opacity duration-150 ${mode === 'block' ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}
+            >
+              <BlocklyWorkspace
+                ref={blocklyRef}
+                engineMode={engineMode}
+                onCodeChange={handleBlocklyCodeChange}
+                className="w-full h-full"
+              />
+            </div>
+
+            {/* Monaco editor */}
+            <div
+              className={`absolute inset-0 bg-[#1e1e1e] transition-opacity duration-150 ${mode === 'code' ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}
+            >
+              <MonacoEditor
+                ref={monacoRef}
+                value={manualCode}
+                onChange={setManualCode}
+                errorDecorations={compileResult?.errors ?? []}
+                fontSize={fontSize}
+                className="w-full h-full"
+              />
+            </div>
+          </div>
+
+          {/* ── Resizer ─────────────────────────────────────────────────── */}
+          {showCodePanel && (
+            <div
+              className="w-1.5 bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 cursor-col-resize transition-colors shrink-0 z-10"
+              onMouseDown={() => {
+                isResizing.current = true;
+                document.body.style.cursor = 'col-resize';
+                document.body.style.userSelect = 'none';
+              }}
+            />
+          )}
+
+          {/* ── Output / Compiler Terminal Pane ─────────────────────────── */}
+          {showCodePanel && (
+            <div
+              style={{ width: terminalWidth }}
+              className={`flex flex-col shrink-0 border-l ${
+                showSimulator
+                  ? 'border-slate-100 dark:border-dark-border bg-white dark:bg-dark-bg'
+                  : 'border-slate-800 bg-[#050505]'
+              }`}
+            >
+              {/* Simulator Stage Panel */}
+              {showSimulator ? (
+                <StagePanel />
+              ) : (
+                <>
+                  {/* Serial Monitor (when active and hardware connected) */}
+                  {showSerialMonitor && hardwarePort && !isFlashing ? (
+                    <SerialMonitor
+                      port={hardwarePort}
+                      onDisconnect={() => {
+                        setHardwarePort(null);
+                        setShowSerialMonitor(false);
+                      }}
+                    />
+                  ) : (
+                    <>
+                      {/* C++ preview header (block mode) */}
+                      {mode === 'block' &&
+                        engineMode === 'hardware' &&
+                        !isCompiling &&
+                        !compileResult &&
+                        !isFlashing && (
+                          <div className="border-b border-slate-800 bg-[#0a0a0a] px-4 py-2 flex items-center gap-2 shrink-0">
+                            <Code2 size={12} className="text-slate-500" />
+                            <span className="font-sans text-xs text-slate-500">
+                              Generated C++ Preview
+                            </span>
+                          </div>
+                        )}
+
+                      {/* Stdin input for programs that need cin/scanf */}
+                      {mode === 'code' && !isFlashing && (
+                        <div className="border-b border-slate-800 bg-[#0a0a0a] shrink-0">
+                          <div className="px-3 py-1.5 flex items-center gap-2">
+                            <span className="font-sans text-xs text-slate-500">📥 Stdin input</span>
+                          </div>
+                          <textarea
+                            value={stdinInput}
+                            onChange={(e) => setStdinInput(e.target.value)}
+                            placeholder="Enter input here (for cin/scanf programs)..."
+                            spellCheck={false}
+                            className="w-full bg-[#0a0a0a] text-slate-300 font-mono text-[11px] px-3 py-2 outline-none resize-none border-none h-16 placeholder:text-slate-700"
+                          />
+                        </div>
+                      )}
+
+                      {/* Flash progress overlay */}
+                      {isFlashing && (
+                        <div className="flex-1 flex flex-col items-center justify-center p-6">
+                          <div className="w-16 h-16 rounded-full bg-blue-500/10 flex items-center justify-center mb-4">
+                            <Upload size={24} className="text-blue-400 animate-pulse" />
+                          </div>
+                          <p className="font-sans font-semibold text-sm text-blue-400 mb-3">
+                            Uploading to your {boardLabel}...
+                          </p>
+                          <div className="w-full max-w-[200px] h-2 bg-slate-800 rounded-full overflow-hidden mb-2">
+                            <div
+                              className="h-full bg-blue-500 transition-all duration-300 ease-out rounded-full"
+                              style={{ width: `${flashProgress}%` }}
+                            />
+                          </div>
+                          <p className="font-sans text-xs text-slate-500 text-center">
+                            {flashMessage || 'Getting ready...'}
+                          </p>
+                        </div>
+                      )}
+
+                      {/* Console (has compile result or is compiling) OR code preview */}
+                      {!isFlashing &&
+                        (isCompiling || compileResult ? (
+                          <CompileConsole isCompiling={isCompiling} compileResult={compileResult} />
+                        ) : (
+                          <div className="flex-1 overflow-y-auto p-4">
+                            {mode === 'block' &&
+                              engineMode === 'hardware' &&
+                              (generatedCode ? (
+                                <pre className="font-mono text-xs text-emerald-400 leading-relaxed whitespace-pre-wrap">
+                                  {generatedCode}
+                                </pre>
+                              ) : (
+                                <div className="flex flex-col items-center justify-center h-full text-slate-700">
+                                  <Code2 size={36} className="mb-4 opacity-20" />
+                                  <p className="font-sans text-sm font-semibold text-slate-500 text-center">
+                                    Drag a block to get started
+                                  </p>
+                                  <p className="font-sans text-xs text-slate-600 text-center mt-1">
+                                    Drop blocks on the canvas to preview C++ output
+                                  </p>
+                                </div>
+                              ))}
+                            {mode === 'code' && (
+                              <div className="flex flex-col items-center justify-center h-full text-slate-700">
+                                <Play size={36} className="mb-4 opacity-20" />
+                                <p className="font-sans text-sm font-semibold text-slate-500 text-center">
+                                  Hit Run to compile!
+                                </p>
+                                <p className="font-sans text-xs text-slate-600 text-center mt-1">
+                                  Press Run in the toolbar to compile and run your code
+                                </p>
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                    </>
                   )}
                 </>
               )}
-
-              {/* Code Panel Toggle */}
-              {engineMode === 'hardware' && (
-                <Tooltip
-                  content={showCodePanel ? 'Hide C++ Code Preview' : 'Show C++ Code Preview'}
-                  position="bottom"
-                >
-                  <button
-                    onClick={() => {
-                      setShowCodePanel(!showCodePanel);
-                      if (showSimulator && showCodePanel) setShowSimulator(false);
-                    }}
-                    className={`w-11 h-11 rounded-xl flex items-center justify-center transition-all focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:outline-none active:scale-[0.97] hidden sm:flex ${
-                      showCodePanel && !showSimulator
-                        ? 'bg-slate-200 dark:bg-slate-700 text-slate-800 dark:text-white'
-                        : 'bg-slate-100 dark:bg-dark-border text-slate-500 hover:text-slate-800 dark:hover:text-white'
-                    }`}
-                  >
-                    <PanelRight size={16} />
-                  </button>
-                </Tooltip>
-              )}
-
-              {/* Simulator Panel Toggle */}
-              {engineMode === 'software' && (
-                <Tooltip
-                  content={showSimulator ? 'Hide Stage Simulator' : 'Show Stage Simulator'}
-                  position="bottom"
-                >
-                  <button
-                    onClick={() => {
-                      const nextState = !showSimulator;
-                      setShowSimulator(nextState);
-                      if (nextState) {
-                        setShowCodePanel(true);
-                      } else if (engineMode === 'software') {
-                        setShowCodePanel(false);
-                      }
-                    }}
-                    className={`w-11 h-11 rounded-xl flex items-center justify-center transition-all focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:outline-none active:scale-[0.97] hidden sm:flex ${
-                      showSimulator
-                        ? 'bg-emerald-500 text-white shadow-md shadow-emerald-500/20'
-                        : 'bg-slate-100 dark:bg-dark-border text-slate-500 hover:text-slate-800 dark:hover:text-white'
-                    }`}
-                  >
-                    <Gamepad2 size={16} />
-                  </button>
-                </Tooltip>
-              )}
-
-              {/* ▶ Run — highest prominence, always rightmost */}
-              {engineMode === 'hardware' && (
-                <Tooltip content="Compile & Execute Code (Ctrl+Enter)" position="bottom">
-                  <button
-                    onClick={handleCompile}
-                    disabled={isCompiling || isFlashing}
-                    className="h-11 px-4 sm:px-5 rounded-xl font-sans font-bold text-sm flex items-center gap-2 bg-primary-500 hover:bg-primary-600 text-white shadow-md hover:shadow-lg transition-all focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-1 focus-visible:outline-none active:scale-[0.97] disabled:opacity-50"
-                  >
-                    {isCompiling ? (
-                      <Loader2 size={16} className="animate-spin" />
-                    ) : (
-                      <Play size={16} fill="currentColor" />
-                    )}
-                    <span>{isCompiling ? 'Running...' : 'Run'}</span>
-                  </button>
-                </Tooltip>
-              )}
             </div>
-
-            {/* Flash progress bar */}
-            {isFlashing && (
-              <div className="absolute left-0 right-0 bottom-0 h-1 bg-slate-100 dark:bg-dark-border">
-                <div
-                  className="h-full bg-blue-500 rounded-full transition-all duration-300 ease-out"
-                  style={{ width: `${flashProgress}%` }}
-                />
-              </div>
-            )}
-          </div>
-
-          {/* ── Main Area (below toolbar) ────────────────────────────────── */}
-          <div className="flex w-full h-full pt-16">
-            {/* ── Editor Pane ─────────────────────────────────────────────── */}
-
-            <div className="flex-1 relative overflow-hidden">
-              {/* Blockly canvas */}
-              <div
-                className={`absolute inset-0 transition-opacity duration-150 ${mode === 'block' ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}
-              >
-                <BlocklyWorkspace
-                  ref={blocklyRef}
-                  engineMode={engineMode}
-                  onCodeChange={handleBlocklyCodeChange}
-                  className="w-full h-full"
-                />
-              </div>
-
-              {/* Monaco editor */}
-              <div
-                className={`absolute inset-0 bg-[#1e1e1e] transition-opacity duration-150 ${mode === 'code' ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}
-              >
-                <MonacoEditor
-                  ref={monacoRef}
-                  value={manualCode}
-                  onChange={setManualCode}
-                  errorDecorations={compileResult?.errors ?? []}
-                  fontSize={fontSize}
-                  className="w-full h-full"
-                />
-              </div>
-            </div>
-
-            {/* ── Resizer ─────────────────────────────────────────────────── */}
-            {showCodePanel && (
-              <div
-                className="w-1.5 bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 cursor-col-resize transition-colors shrink-0 z-10"
-                onMouseDown={() => {
-                  isResizing.current = true;
-                  document.body.style.cursor = 'col-resize';
-                  document.body.style.userSelect = 'none';
-                }}
-              />
-            )}
-
-            {/* ── Output / Compiler Terminal Pane ─────────────────────────── */}
-            {showCodePanel && (
-              <div
-                style={{ width: terminalWidth }}
-                className="border-l border-slate-800 bg-[#050505] flex flex-col shrink-0"
-              >
-                {/* Simulator Stage Panel */}
-                {showSimulator ? (
-                  <StagePanel />
-                ) : (
-                  <>
-                    {/* Serial Monitor (when active and hardware connected) */}
-                    {showSerialMonitor && hardwarePort && !isFlashing ? (
-                      <SerialMonitor
-                        port={hardwarePort}
-                        onDisconnect={() => {
-                          setHardwarePort(null);
-                          setShowSerialMonitor(false);
-                        }}
-                      />
-                    ) : (
-                      <>
-                        {/* C++ preview header (block mode) */}
-                        {mode === 'block' &&
-                          engineMode === 'hardware' &&
-                          !isCompiling &&
-                          !compileResult &&
-                          !isFlashing && (
-                            <div className="border-b border-slate-800 bg-[#0a0a0a] px-4 py-2 flex items-center gap-2 shrink-0">
-                              <Code2 size={12} className="text-slate-500" />
-                              <span className="font-sans text-xs text-slate-500">
-                                Generated C++ Preview
-                              </span>
-                            </div>
-                          )}
-
-                        {/* Stdin input for programs that need cin/scanf */}
-                        {mode === 'code' && !isFlashing && (
-                          <div className="border-b border-slate-800 bg-[#0a0a0a] shrink-0">
-                            <div className="px-3 py-1.5 flex items-center gap-2">
-                              <span className="font-sans text-xs text-slate-500">
-                                📥 Stdin input
-                              </span>
-                            </div>
-                            <textarea
-                              value={stdinInput}
-                              onChange={(e) => setStdinInput(e.target.value)}
-                              placeholder="Enter input here (for cin/scanf programs)..."
-                              spellCheck={false}
-                              className="w-full bg-[#0a0a0a] text-slate-300 font-mono text-[11px] px-3 py-2 outline-none resize-none border-none h-16 placeholder:text-slate-700"
-                            />
-                          </div>
-                        )}
-
-                        {/* Flash progress overlay */}
-                        {isFlashing && (
-                          <div className="flex-1 flex flex-col items-center justify-center p-6">
-                            <div className="w-16 h-16 rounded-full bg-blue-500/10 flex items-center justify-center mb-4">
-                              <Upload size={24} className="text-blue-400 animate-pulse" />
-                            </div>
-                            <p className="font-sans font-semibold text-sm text-blue-400 mb-3">
-                              Uploading to your {boardLabel}...
-                            </p>
-                            <div className="w-full max-w-[200px] h-2 bg-slate-800 rounded-full overflow-hidden mb-2">
-                              <div
-                                className="h-full bg-blue-500 transition-all duration-300 ease-out rounded-full"
-                                style={{ width: `${flashProgress}%` }}
-                              />
-                            </div>
-                            <p className="font-sans text-xs text-slate-500 text-center">
-                              {flashMessage || 'Getting ready...'}
-                            </p>
-                          </div>
-                        )}
-
-                        {/* Console (has compile result or is compiling) OR code preview */}
-                        {!isFlashing &&
-                          (isCompiling || compileResult ? (
-                            <CompileConsole
-                              isCompiling={isCompiling}
-                              compileResult={compileResult}
-                            />
-                          ) : (
-                            <div className="flex-1 overflow-y-auto p-4">
-                              {mode === 'block' &&
-                                engineMode === 'hardware' &&
-                                (generatedCode ? (
-                                  <pre className="font-mono text-xs text-emerald-400 leading-relaxed whitespace-pre-wrap">
-                                    {generatedCode}
-                                  </pre>
-                                ) : (
-                                  <div className="flex flex-col items-center justify-center h-full text-slate-700">
-                                    <Code2 size={36} className="mb-4 opacity-20" />
-                                    <p className="font-sans text-sm font-semibold text-slate-500 text-center">
-                                      Drag a block to get started
-                                    </p>
-                                    <p className="font-sans text-xs text-slate-600 text-center mt-1">
-                                      Drop blocks on the canvas to preview C++ output
-                                    </p>
-                                  </div>
-                                ))}
-                              {mode === 'code' && (
-                                <div className="flex flex-col items-center justify-center h-full text-slate-700">
-                                  <Play size={36} className="mb-4 opacity-20" />
-                                  <p className="font-sans text-sm font-semibold text-slate-500 text-center">
-                                    Hit Run to compile!
-                                  </p>
-                                  <p className="font-sans text-xs text-slate-600 text-center mt-1">
-                                    Press Run in the toolbar to compile and run your code
-                                  </p>
-                                </div>
-                              )}
-                            </div>
-                          ))}
-                      </>
-                    )}
-                  </>
-                )}
-              </div>
-            )}
-          </div>
+          )}
         </div>
       </div>
 

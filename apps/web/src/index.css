@@ -167,6 +167,14 @@ html.dark .blocklyTreeRow.blocklyTreeSelected {
   box-shadow: 0 4px 10px rgba(0, 0, 0, 0.15) !important;
 }
 
+/* Category label typography — match the app's Inter font */
+.blocklyTreeLabel {
+  font-family: 'Inter', system-ui, sans-serif !important;
+  font-size: 13px !important;
+  font-weight: 600 !important;
+  letter-spacing: 0.01em !important;
+}
+
 /* Ensure selected label text color is white/light and fully visible */
 .blocklyTreeRow.blocklyTreeSelected .blocklyTreeLabel {
   color: #ffffff !important;

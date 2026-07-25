@@ -21,11 +21,31 @@
   --scratch-text-light: #7b8199;
   --scratch-text-dark: #3d4059;
   --scratch-white: #ffffff;
+  --scratch-surface: #ffffff;
   --scratch-input-border: #e9eef2;
   --scratch-input-bg: #ffffff;
   --scratch-stage-bg: #ffffff;
   --scratch-panel-bg: #e8edf1;
   --scratch-control-bg: #e8edf1;
+  --scratch-hint-bg: rgba(255, 255, 255, 0.7);
+}
+
+/* Dark theme — matches the app's dark palette (dark.bg / dark.surface / dark.border
+   in tailwind.config.ts) so the stage panel no longer clashes with the editor.
+   The stage canvas itself stays white: it is the content the kid draws on. */
+html.dark {
+  --scratch-bg: #1a1b2e;
+  --scratch-surface: #252640;
+  --scratch-border: #2e3055;
+  --scratch-border-light: #2e3055;
+  --scratch-text: #c7cbe0;
+  --scratch-text-light: #8b90ad;
+  --scratch-text-dark: #e2e8f0;
+  --scratch-input-border: #2e3055;
+  --scratch-input-bg: #1a1b2e;
+  --scratch-panel-bg: #1a1b2e;
+  --scratch-control-bg: #1a1b2e;
+  --scratch-hint-bg: rgba(37, 38, 64, 0.8);
 }
 
 /* ── Container ───────────────────────────────────────────────────── */
@@ -33,7 +53,7 @@
   display: flex;
   flex-direction: column;
   height: 100%;
-  background-color: var(--scratch-white);
+  background-color: var(--scratch-surface);
   font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
   color: var(--scratch-text);
   user-select: none;
@@ -43,7 +63,7 @@
 .scratch-stage-area {
   display: flex;
   flex-direction: column;
-  background-color: var(--scratch-white);
+  background-color: var(--scratch-surface);
   padding-bottom: 8px;
 }
 
@@ -52,13 +72,13 @@
   align-items: center;
   justify-content: space-between;
   padding: 8px 16px 8px 16px;
-  background-color: var(--scratch-white);
+  background-color: var(--scratch-surface);
 }
 
 .scratch-flag-stop {
   display: flex;
   align-items: center;
-  background-color: var(--scratch-white);
+  background-color: var(--scratch-surface);
   border: 1px solid var(--scratch-border);
   border-radius: 20px;
   padding: 2px 6px;
@@ -187,7 +207,7 @@
   flex-wrap: wrap;
   gap: 12px;
   padding: 12px;
-  background-color: var(--scratch-white);
+  background-color: var(--scratch-surface);
   border-bottom: 1px solid var(--scratch-border);
 }
 
@@ -208,7 +228,7 @@
   height: 32px;
   border-radius: 16px;
   border: 1px solid var(--scratch-input-border);
-  background-color: var(--scratch-white);
+  background-color: var(--scratch-input-bg);
   padding: 0 12px;
   font-size: 0.75rem;
   font-weight: 500;
@@ -243,7 +263,7 @@
   height: 32px;
   border-radius: 16px;
   border: 1px solid var(--scratch-input-border);
-  background-color: var(--scratch-white);
+  background-color: var(--scratch-surface);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -294,7 +314,7 @@
   height: 84px;
   border-radius: 8px;
   border: 2px solid var(--scratch-border);
-  background-color: var(--scratch-white);
+  background-color: var(--scratch-surface);
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -376,7 +396,7 @@
   height: 42px;
   border-radius: 4px;
   border: 1px solid var(--scratch-border);
-  background-color: var(--scratch-white);
+  background-color: var(--scratch-surface);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -391,7 +411,7 @@
   border-radius: 50%;
   background-color: var(--scratch-purple);
   color: var(--scratch-white);
-  border: 2px solid var(--scratch-white);
+  border: 2px solid var(--scratch-surface);
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
   display: flex;
   align-items: center;
@@ -411,7 +431,7 @@
   font-size: 0.6rem;
   font-weight: bold;
   color: var(--scratch-text-light);
-  background-color: rgba(255, 255, 255, 0.7);
+  background-color: var(--scratch-hint-bg);
   padding: 2px 6px;
   border-radius: 4px;
 }

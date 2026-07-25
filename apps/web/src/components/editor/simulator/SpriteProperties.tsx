@@ -46,7 +46,7 @@ export function SpriteProperties() {
             value={activeSprite.name}
             onChange={handleChange}
             className="scratch-input"
-            style={{ width: '80px' }}
+            style={{ width: '112px' }}
           />
         </div>
       </Tooltip>

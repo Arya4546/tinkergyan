@@ -50,8 +50,12 @@ const BAUD_RATES = [
 Blockly.Blocks['arduino_program'] = {
   init(this: Blockly.Block): void {
     this.appendDummyInput().appendField(new Blockly.FieldLabel('Arduino Program'), 'TITLE');
-    this.appendStatementInput('SETUP').appendField('setup ()  — runs once');
-    this.appendStatementInput('LOOP').appendField('loop ()  — runs forever');
+    // Labels live on their own rows so nested blocks indent BELOW them in a
+    // clean C-shape instead of attaching to the right of the label text.
+    this.appendDummyInput().appendField('setup ()  — runs once');
+    this.appendStatementInput('SETUP');
+    this.appendDummyInput().appendField('loop ()  — runs forever');
+    this.appendStatementInput('LOOP');
     this.setInputsInline(false);
     this.setColour(COLOR_STRUCTURE);
     this.setTooltip('Root block. setup() runs once on boot, loop() runs repeatedly.');
@@ -230,19 +234,3 @@ Blockly.Blocks['arduino_serial_println'] = {
     this.setTooltip('Print data to the serial port, followed by a newline.');
   },
 };
-
-// ─────────────────────────────────────────────────────────────────────────────
-// RENDERER MONKEYPATCHES
-// ─────────────────────────────────────────────────────────────────────────────
-
-// Geras renderer: expand arduino_program block's width to wrap nested statements
-const GerasRenderInfo = (Blockly as any).geras?.RenderInfo;
-if (GerasRenderInfo) {
-  const originalComputeBounds = GerasRenderInfo.prototype.computeBounds_;
-  GerasRenderInfo.prototype.computeBounds_ = function (this: any) {
-    originalComputeBounds.call(this);
-    if (this.block_.type === 'arduino_program') {
-      this.width = Math.max(this.width, this.widthWithChildren);
-    }
-  };
-}

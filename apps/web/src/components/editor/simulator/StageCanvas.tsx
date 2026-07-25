@@ -2,6 +2,12 @@ import React, { useRef, useCallback, useState } from 'react';
 import { useSimulatorStore, type SimulatorSprite } from '../../../stores/simulator.store';
 import { ScratchZoomRail } from './ScratchZoomRail';
 
+// Base render size (px) at 100% sprite scale. Character sprites (like the
+// Stemmantra logo) are portrait SVGs rendered with object-fit: contain, so
+// they need a larger box than the compact hardware components.
+const CHARACTER_BASE_SIZE = 130;
+const HARDWARE_BASE_SIZE = 64;
+
 // ── Sprite Visual Renderers (preserved from original hardware simulation) ─────
 const renderSpriteVisual = (
   sprite: SimulatorSprite,
@@ -326,7 +332,10 @@ export function StageCanvas() {
       const sprite = sprites.find((s) => s.id === dragState.spriteId);
       if (!sprite) return;
 
-      const halfSize = ((sprite.type === 'character' ? 100 : 64) * (sprite.size / 100)) / 2;
+      const halfSize =
+        ((sprite.type === 'character' ? CHARACTER_BASE_SIZE : HARDWARE_BASE_SIZE) *
+          (sprite.size / 100)) /
+        2;
 
       let currentCameraX = cameraX;
       let currentCameraY = cameraY;
@@ -398,9 +407,7 @@ export function StageCanvas() {
         .filter((s) => s.visible)
         .map((sprite) => {
           const { pctX, pctY } = scratchToPercent(sprite.x, sprite.y);
-          // Scratch cat is naturally large, hardware components are smaller.
-          // Set base size to 100px for character, 64px for hardware.
-          const baseSize = sprite.type === 'character' ? 100 : 64;
+          const baseSize = sprite.type === 'character' ? CHARACTER_BASE_SIZE : HARDWARE_BASE_SIZE;
 
           return (
             <div
