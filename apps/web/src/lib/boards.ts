@@ -147,7 +147,7 @@ export const BOARD_DEFINITIONS: readonly BoardDefinition[] = [
   },
   {
     fqbn: 'esp8266:esp8266:nodemcuv2',
-    label: 'NodeMCU (ESP8266)',
+    label: 'ESP',
     digitalPins: ESP8266_DIGITAL,
     pwmPins: ESP8266_PWM,
     analogPins: ESP8266_ANALOG,
@@ -155,7 +155,7 @@ export const BOARD_DEFINITIONS: readonly BoardDefinition[] = [
   },
   {
     fqbn: 'esp32:esp32:esp32',
-    label: 'ESP32 Dev Module',
+    label: 'ESP32',
     digitalPins: ESP32_DIGITAL,
     pwmPins: ESP32_PWM,
     analogPins: ESP32_ANALOG,

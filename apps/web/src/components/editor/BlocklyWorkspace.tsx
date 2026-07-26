@@ -174,6 +174,13 @@ export const BlocklyWorkspace = forwardRef<BlocklyWorkspaceHandle, BlocklyWorksp
           const doc = parser.parseFromString(cleanXml, 'text/xml');
           const dom = doc.documentElement;
           Blockly.Xml.domToWorkspace(dom, workspaceRef.current);
+
+          // Loaded XML may carry a stale board title (e.g. C++→Blocks conversion
+          // always emits "Arduino Program") — re-stamp it with the current board.
+          const boardLabel = getBoardLabel(useEditorStore.getState().board);
+          for (const block of workspaceRef.current.getBlocksByType('arduino_program')) {
+            block.setFieldValue(`${boardLabel} Program`, 'TITLE');
+          }
         } catch (err) {
           console.error('[loadXml error]', err);
         }
