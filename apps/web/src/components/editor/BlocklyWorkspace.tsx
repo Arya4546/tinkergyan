@@ -161,7 +161,6 @@ export const BlocklyWorkspace = forwardRef<BlocklyWorkspaceHandle, BlocklyWorksp
       loadXml(xml: string) {
         if (!workspaceRef.current || !xml) return;
         try {
-          workspaceRef.current.clear();
           appliedFlyoutOffsetRef.current = 0;
           // Remove movable="false", deletable="false", and inline="true" from legacy block saves
           const cleanXml = xml
@@ -173,14 +172,25 @@ export const BlocklyWorkspace = forwardRef<BlocklyWorkspaceHandle, BlocklyWorksp
           const parser = new DOMParser();
           const doc = parser.parseFromString(cleanXml, 'text/xml');
           const dom = doc.documentElement;
-          Blockly.Xml.domToWorkspace(dom, workspaceRef.current);
 
-          // Loaded XML may carry a stale board title (e.g. C++→Blocks conversion
-          // always emits "Arduino Program") — re-stamp it with the current board.
-          const boardLabel = getBoardLabel(useEditorStore.getState().board);
-          for (const block of workspaceRef.current.getBlocksByType('arduino_program')) {
-            block.setFieldValue(`${boardLabel} Program`, 'TITLE');
+          // Bulk-loading a workspace (project open, C++→Blocks conversion) is
+          // not a user edit — suppress the change listener so it doesn't fire
+          // for every block created and falsely mark the project dirty.
+          Blockly.Events.disable();
+          try {
+            workspaceRef.current.clear();
+            Blockly.Xml.domToWorkspace(dom, workspaceRef.current);
+
+            // Loaded XML may carry a stale board title (e.g. C++→Blocks conversion
+            // always emits "Arduino Program") — re-stamp it with the current board.
+            const boardLabel = getBoardLabel(useEditorStore.getState().board);
+            for (const block of workspaceRef.current.getBlocksByType('arduino_program')) {
+              block.setFieldValue(`${boardLabel} Program`, 'TITLE');
+            }
+          } finally {
+            Blockly.Events.enable();
           }
+          setIsEmpty(workspaceRef.current.getAllBlocks(false).length === 0);
         } catch (err) {
           console.error('[loadXml error]', err);
         }
@@ -263,14 +273,10 @@ export const BlocklyWorkspace = forwardRef<BlocklyWorkspaceHandle, BlocklyWorksp
       });
 
       const onChange = (event: Blockly.Events.Abstract) => {
-        const type = event.type;
-        // Skip pure UI events that don't affect code
-        if (
-          type === (Blockly.Events.VIEWPORT_CHANGE as string) ||
-          type === (Blockly.Events.THEME_CHANGE as string) ||
-          type === (Blockly.Events.BUBBLE_OPEN as string) ||
-          type === (Blockly.Events.TRASHCAN_OPEN as string)
-        ) {
+        // Skip pure UI events (clicks, selection, drag start/end, viewport,
+        // toolbox open, etc.) — Blockly flags these via isUiEvent so they
+        // don't falsely mark the project dirty when nothing actually changed.
+        if (event.isUiEvent) {
           return;
         }
         if (!workspaceRef.current) return;
