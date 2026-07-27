@@ -9,10 +9,15 @@ import { ScratchBackdropPanel } from './ScratchBackdropPanel';
 import { ExitFullscreenIcon } from './ScratchIcons';
 import './scratch-stage.css';
 
+interface StagePanelProps {
+  /** Called when the user confirms resetting the project back to a blank slate. */
+  onReset?: () => void;
+}
+
 /**
  * StagePanel — Root container for the Scratch-style Stage & Sprite Management panel.
  */
-export function StagePanel() {
+export function StagePanel({ onReset }: StagePanelProps) {
   const { stageViewMode, setStageViewMode } = useSimulatorStore();
 
   // ESC key to exit fullscreen
@@ -70,7 +75,7 @@ export function StagePanel() {
     <div className="scratch-panel-root">
       {/* Top: Stage Area */}
       <div className="scratch-stage-area">
-        <ScratchControlBar />
+        <ScratchControlBar onReset={onReset} />
         <div className="scratch-stage-canvas-container">
           <div
             className="scratch-stage-canvas"

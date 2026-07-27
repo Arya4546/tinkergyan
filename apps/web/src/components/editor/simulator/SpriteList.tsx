@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useSimulatorStore } from '../../../stores/simulator.store';
 import { AddSpriteModal } from './AddSpriteModal';
 import { DeleteIcon, AddSpriteIcon } from './ScratchIcons';
+import { Tooltip } from '../../ui/Tooltip';
 
 /**
  * SpriteList — Scratch-style grid of sprite thumbnail cards.
@@ -39,22 +40,40 @@ export function SpriteList() {
             <div className="scratch-item-thumb">{getSpriteThumbContent(sprite)}</div>
             <div className="scratch-item-name">{sprite.name}</div>
 
-            <div
-              className="scratch-item-delete"
-              onClick={(e) => {
-                e.stopPropagation();
-                removeSprite(sprite.id);
-              }}
-              title="Delete sprite"
-            >
-              <DeleteIcon size={12} />
-            </div>
+            <Tooltip content="Delete sprite" position="top" className="scratch-item-delete">
+              <div
+                style={{
+                  width: '100%',
+                  height: '100%',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  removeSprite(sprite.id);
+                }}
+              >
+                <DeleteIcon size={12} />
+              </div>
+            </Tooltip>
           </div>
         ))}
 
-        <div className="scratch-fab" onClick={() => setShowAddModal(true)} title="Add Sprite">
-          <AddSpriteIcon size={24} />
-        </div>
+        <Tooltip content="Add Sprite" position="top" className="scratch-fab">
+          <div
+            style={{
+              width: '100%',
+              height: '100%',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+            onClick={() => setShowAddModal(true)}
+          >
+            <AddSpriteIcon size={24} />
+          </div>
+        </Tooltip>
       </div>
 
       {/* Add Sprite Modal */}

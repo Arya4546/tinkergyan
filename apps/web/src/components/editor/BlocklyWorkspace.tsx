@@ -115,6 +115,8 @@ export interface BlocklyWorkspaceHandle {
   undo: () => void;
   /** Redo the last undone action */
   redo: () => void;
+  /** Delete every block on the workspace, leaving it empty (used by "Reset Project"). */
+  clearWorkspace: () => void;
 }
 
 // ─── Props ────────────────────────────────────────────────────────────────────
@@ -206,6 +208,13 @@ export const BlocklyWorkspace = forwardRef<BlocklyWorkspaceHandle, BlocklyWorksp
       redo() {
         if (!workspaceRef.current) return;
         workspaceRef.current.undo(true);
+      },
+      clearWorkspace() {
+        if (!workspaceRef.current) return;
+        // A real, user-initiated change (unlike the bulk-load path in loadXml) —
+        // leave events enabled so the change listener marks the project dirty
+        // and regenerates code/isEmpty state as usual.
+        workspaceRef.current.clear();
       },
     }));
 

@@ -122,6 +122,23 @@ html.dark {
   cursor: not-allowed;
 }
 
+.scratch-reset-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  cursor: pointer;
+  color: var(--scratch-text-light);
+  transition: all 0.15s ease;
+}
+.scratch-reset-btn:hover {
+  background-color: rgba(133, 92, 214, 0.12);
+  color: var(--scratch-purple);
+  transform: scale(1.05);
+}
+
 .scratch-view-toggles {
   display: flex;
   align-items: center;

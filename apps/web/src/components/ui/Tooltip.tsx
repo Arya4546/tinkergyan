@@ -7,6 +7,8 @@ interface TooltipProps {
   position?: 'top' | 'bottom' | 'left' | 'right';
   delay?: number;
   className?: string;
+  /** Inline styles applied to the trigger wrapper (e.g. to preserve a caller's absolute positioning). */
+  style?: React.CSSProperties;
 }
 
 export function Tooltip({
@@ -15,6 +17,7 @@ export function Tooltip({
   position = 'top',
   delay = 100,
   className = '',
+  style,
 }: TooltipProps) {
   const [isVisible, setIsVisible] = useState(false);
   const [shouldRender, setShouldRender] = useState(false);
@@ -144,6 +147,7 @@ export function Tooltip({
       <div
         ref={triggerRef}
         className={`inline-block ${className}`}
+        style={style}
         onMouseEnter={handleMouseEnter}
         onMouseLeave={handleMouseLeave}
         onFocus={handleMouseEnter}

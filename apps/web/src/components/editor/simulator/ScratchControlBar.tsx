@@ -6,19 +6,25 @@ import {
   SmallStageIcon,
   LargeStageIcon,
   FullscreenIcon,
+  ResetIcon,
 } from './ScratchIcons';
 import { Tooltip } from '../../ui/Tooltip';
+
+interface ScratchControlBarProps {
+  /** Called when the user confirms resetting the project back to a blank slate. */
+  onReset?: (() => void) | undefined;
+}
 
 /**
  * ScratchControlBar — Top control bar with green flag, stop button, and stage view toggles.
  */
-export function ScratchControlBar() {
+export function ScratchControlBar({ onReset }: ScratchControlBarProps) {
   const { isRunning, startSimulation, stopSimulation, stageViewMode, setStageViewMode } =
     useSimulatorStore();
 
   return (
     <div className="scratch-control-bar">
-      {/* Left: Flag + Stop */}
+      {/* Left: Flag + Stop + Reset */}
       <div className="scratch-flag-stop">
         <Tooltip content="Go (Run Code)" position="bottom">
           <div
@@ -36,6 +42,13 @@ export function ScratchControlBar() {
             <StopIcon size={20} />
           </div>
         </Tooltip>
+        {onReset && (
+          <Tooltip content="Reset Project (removes all blocks & sprites)" position="bottom">
+            <div onClick={onReset} className="scratch-reset-btn">
+              <ResetIcon size={16} />
+            </div>
+          </Tooltip>
+        )}
       </div>
 
       {/* Right: View mode toggles */}

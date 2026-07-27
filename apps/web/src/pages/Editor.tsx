@@ -526,6 +526,24 @@ export default function Editor() {
     setMode('block');
   }, [mode, manualCode, generatedCode, clearResult, setMode]);
 
+  // ── Reset Project (Software mode) ───────────────────────────────────────
+  // Wipes all blocks/code and sprites back to a blank slate, same as a brand
+  // new project — but keeps the current project id/title, so it still saves
+  // over the existing project instead of creating a new one.
+  const [showResetConfirm, setShowResetConfirm] = useState(false);
+
+  const handleResetProject = useCallback(() => {
+    setShowResetConfirm(true);
+  }, []);
+
+  const confirmResetProject = useCallback(() => {
+    setShowResetConfirm(false);
+    blocklyRef.current?.clearWorkspace();
+    setManualCode('');
+    useSimulatorStore.getState().resetSimulator();
+    clearResult();
+  }, [setManualCode, clearResult]);
+
   const handleConvertCodeToBlocks = useCallback(() => {
     const code = monacoRef.current?.getValue() ?? manualCode;
     setIsConverting(true);
@@ -1319,7 +1337,7 @@ export default function Editor() {
             >
               {/* Simulator Stage Panel */}
               {showSimulator ? (
-                <StagePanel />
+                <StagePanel onReset={handleResetProject} />
               ) : (
                 <>
                   {/* Serial Monitor (when active and hardware connected) */}
@@ -1437,6 +1455,44 @@ export default function Editor() {
       {/* ── Conversion Error Overlay ───────────────────────────────────── */}
       {conversionError && (
         <ConversionErrorModal error={conversionError} onClose={() => setConversionError(null)} />
+      )}
+
+      {/* ── Reset Project Confirmation ───────────────────────────────────── */}
+      {showResetConfirm && (
+        <div
+          className="fixed inset-0 z-[300] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4"
+          onClick={() => setShowResetConfirm(false)}
+        >
+          <div
+            className="bg-white dark:bg-dark-surface rounded-2xl border border-rose-100 dark:border-rose-950/30 shadow-2xl max-w-md w-full animate-pop overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="px-6 py-4 border-b border-rose-50 dark:border-rose-950/20 bg-rose-50/50 dark:bg-rose-950/10 flex items-center gap-2">
+              <AlertTriangle size={18} className="text-rose-500 shrink-0" />
+              <h2 className="font-sans font-bold text-base text-rose-700 dark:text-rose-400">
+                Reset Project
+              </h2>
+            </div>
+            <div className="p-6">
+              <p className="font-sans text-sm text-slate-600 dark:text-slate-300 leading-relaxed mb-6">
+                This will permanently remove all blocks, code, and sprites, and start this project
+                over from a blank slate. This cannot be undone.
+              </p>
+              <div className="flex justify-end gap-2">
+                <Button variant="outline" size="sm" onClick={() => setShowResetConfirm(false)}>
+                  Cancel
+                </Button>
+                <button
+                  type="button"
+                  onClick={confirmResetProject}
+                  className="h-9 px-4 rounded-xl bg-rose-500 hover:bg-rose-600 text-white font-sans font-bold text-sm shadow-md transition-all duration-200 active:scale-[0.98]"
+                >
+                  Reset
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* ── Unsaved Changes Blocker Overlay ──────────────────────────────── */}
