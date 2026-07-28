@@ -53,6 +53,10 @@ const KID_CATEGORY_STYLES = {
   scratch_events_category: { colour: '#FFBF00' },
   scratch_motion_category: { colour: '#4C97FF' },
   scratch_looks_category: { colour: '#9966FF' },
+  scratch_sound_category: { colour: '#D65CD6' },
+  scratch_control_category: { colour: '#FFAB19' },
+  scratch_sensing_category: { colour: '#5CB1D6' },
+  scratch_lists_category: { colour: '#FF8C1A' },
 };
 
 const KID_FONT: Blockly.Theme.FontStyle = {

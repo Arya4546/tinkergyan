@@ -1,5 +1,5 @@
 import React from 'react';
-import { useSimulatorStore } from '../../../stores/simulator.store';
+import { useSimulatorStore, BACKDROP_OPTIONS } from '../../../stores/simulator.store';
 import { AddBackdropIcon } from './ScratchIcons';
 import { Tooltip } from '../../ui/Tooltip';
 
@@ -29,9 +29,8 @@ export function ScratchBackdropPanel() {
         <div
           onClick={() => {
             // Cycle through backdrops on click
-            const options = ['white', 'grid', 'breadboard', 'space'];
-            const idx = options.indexOf(backdrop);
-            setBackdrop(options[(idx + 1) % options.length] ?? 'white');
+            const idx = BACKDROP_OPTIONS.indexOf(backdrop as (typeof BACKDROP_OPTIONS)[number]);
+            setBackdrop(BACKDROP_OPTIONS[(idx + 1) % BACKDROP_OPTIONS.length] ?? 'white');
           }}
           className="scratch-item-card"
           style={{

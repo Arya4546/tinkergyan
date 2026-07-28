@@ -444,6 +444,16 @@ export default function Editor() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [routeProjectId, engineMode]);
 
+  // ── Software projects have no C++ concept — the Blocks/C++ toggle is
+  // hidden entirely in software mode, so guard against ever being stuck in
+  // code mode with no way back (e.g. a project saved while `mode` was 'code'
+  // from a template, or from before this project's engine was software).
+  useEffect(() => {
+    if (engineMode === 'software' && mode === 'code') {
+      setMode('block');
+    }
+  }, [engineMode, mode, setMode]);
+
   // ── Reset editor store when leaving the Editor page ───────────────────
   useEffect(() => {
     return () => {
@@ -871,20 +881,24 @@ export default function Editor() {
         e.preventDefault();
         handleSave();
       }
-      // Ctrl+Enter → Compile & Run
+      // Ctrl+Enter → Compile & Run (hardware) or ▶ Run (software's green flag)
       if (ctrl && e.key === 'Enter') {
         e.preventDefault();
-        handleCompile();
+        if (engineMode === 'hardware') {
+          handleCompile();
+        } else {
+          useSimulatorStore.getState().startSimulation();
+        }
       }
-      // Ctrl+Shift+D → Download
-      if (ctrl && e.shiftKey && (e.key === 'd' || e.key === 'D')) {
+      // Ctrl+Shift+D → Download (hardware .ino download only)
+      if (ctrl && e.shiftKey && (e.key === 'd' || e.key === 'D') && engineMode === 'hardware') {
         e.preventDefault();
         handleDownload();
       }
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [handleSave, handleCompile, handleDownload]);
+  }, [handleSave, handleCompile, handleDownload, engineMode]);
 
   // ── Loading state ──────────────────────────────────────────────────────
   if (isLoading) {
@@ -956,54 +970,57 @@ export default function Editor() {
             )}
           </div>
 
-          {/* Centre: Mode toggle */}
-          <div className="flex items-center gap-2 shrink-0">
-            <div className="flex items-center bg-slate-100 dark:bg-dark-border rounded-xl p-1">
-              <Tooltip content="Visual Block Editor" position="bottom">
-                <button
-                  onClick={switchToBlock}
-                  className={`flex items-center gap-1.5 h-9 px-3 rounded-lg font-sans font-semibold text-sm transition-all focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:outline-none ${
-                    mode === 'block'
-                      ? 'bg-white dark:bg-dark-surface text-slate-800 dark:text-white shadow-sm'
-                      : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-200'
-                  }`}
-                >
-                  <LayoutGrid size={14} /> <span className="hidden sm:inline">Blocks</span>
-                </button>
-              </Tooltip>
-              <Tooltip content="C++ Text Code Editor" position="bottom">
-                <button
-                  onClick={switchToCode}
-                  className={`flex items-center gap-1.5 h-9 px-3 rounded-lg font-sans font-semibold text-sm transition-all focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:outline-none ${
-                    mode === 'code'
-                      ? 'bg-white dark:bg-dark-surface text-slate-800 dark:text-white shadow-sm'
-                      : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-200'
-                  }`}
-                >
-                  <Code2 size={14} /> <span className="hidden sm:inline">C++</span>
-                </button>
-              </Tooltip>
+          {/* Centre: Mode toggle — hardware only. Software projects are Scratch-style
+              blocks-only; there's no C++ concept for the "C++" generator to speak to. */}
+          {engineMode === 'hardware' && (
+            <div className="flex items-center gap-2 shrink-0">
+              <div className="flex items-center bg-slate-100 dark:bg-dark-border rounded-xl p-1">
+                <Tooltip content="Visual Block Editor" position="bottom">
+                  <button
+                    onClick={switchToBlock}
+                    className={`flex items-center gap-1.5 h-9 px-3 rounded-lg font-sans font-semibold text-sm transition-all focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:outline-none ${
+                      mode === 'block'
+                        ? 'bg-white dark:bg-dark-surface text-slate-800 dark:text-white shadow-sm'
+                        : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-200'
+                    }`}
+                  >
+                    <LayoutGrid size={14} /> <span className="hidden sm:inline">Blocks</span>
+                  </button>
+                </Tooltip>
+                <Tooltip content="C++ Text Code Editor" position="bottom">
+                  <button
+                    onClick={switchToCode}
+                    className={`flex items-center gap-1.5 h-9 px-3 rounded-lg font-sans font-semibold text-sm transition-all focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:outline-none ${
+                      mode === 'code'
+                        ? 'bg-white dark:bg-dark-surface text-slate-800 dark:text-white shadow-sm'
+                        : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-200'
+                    }`}
+                  >
+                    <Code2 size={14} /> <span className="hidden sm:inline">C++</span>
+                  </button>
+                </Tooltip>
+              </div>
+              {mode === 'code' && (
+                <Tooltip content="Translate C++ code back to Blockly blocks" position="bottom">
+                  <button
+                    onClick={handleConvertCodeToBlocks}
+                    disabled={isConverting}
+                    className="h-11 px-3 sm:px-4 rounded-xl font-sans font-semibold text-sm flex items-center gap-2 bg-gradient-to-r from-violet-500 to-indigo-600 hover:from-violet-600 hover:to-indigo-700 text-white shadow-md shadow-indigo-500/25 hover:shadow-lg transition-all active:scale-[0.97] disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {isConverting ? (
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    ) : (
+                      <LayoutGrid size={14} />
+                    )}
+                    <span className="hidden md:inline">
+                      {isConverting ? 'Converting...' : 'Convert to Blocks'}
+                    </span>
+                    <span className="inline md:hidden">{isConverting ? '...' : 'Convert'}</span>
+                  </button>
+                </Tooltip>
+              )}
             </div>
-            {mode === 'code' && (
-              <Tooltip content="Translate C++ code back to Blockly blocks" position="bottom">
-                <button
-                  onClick={handleConvertCodeToBlocks}
-                  disabled={isConverting}
-                  className="h-11 px-3 sm:px-4 rounded-xl font-sans font-semibold text-sm flex items-center gap-2 bg-gradient-to-r from-violet-500 to-indigo-600 hover:from-violet-600 hover:to-indigo-700 text-white shadow-md shadow-indigo-500/25 hover:shadow-lg transition-all active:scale-[0.97] disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {isConverting ? (
-                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                  ) : (
-                    <LayoutGrid size={14} />
-                  )}
-                  <span className="hidden md:inline">
-                    {isConverting ? 'Converting...' : 'Convert to Blocks'}
-                  </span>
-                  <span className="inline md:hidden">{isConverting ? '...' : 'Convert'}</span>
-                </button>
-              </Tooltip>
-            )}
-          </div>
+          )}
 
           {/* Right: Board + controls + primary actions */}
           <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">

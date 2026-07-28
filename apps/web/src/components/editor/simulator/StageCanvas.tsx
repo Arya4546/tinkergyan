@@ -1,6 +1,37 @@
-import React, { useRef, useCallback, useState } from 'react';
+import React, { useRef, useCallback, useState, useEffect } from 'react';
 import { useSimulatorStore, type SimulatorSprite } from '../../../stores/simulator.store';
 import { ScratchZoomRail } from './ScratchZoomRail';
+import { scratchEngine, normalizeKeyName } from './ScratchEngine';
+
+/** Effects (0-200 color hue units, 0-100 ghost/brightness) rendered as a CSS filter. */
+const spriteEffectsStyle = (effects: SimulatorSprite['effects']): React.CSSProperties => {
+  if (!effects.color && !effects.ghost && !effects.brightness) return {};
+  return {
+    filter: `hue-rotate(${effects.color * 1.8}deg) brightness(${100 + effects.brightness}%)`,
+    opacity: Math.max(0, 1 - effects.ghost / 100),
+  };
+};
+
+/** All-around rotates freely; left-right mirrors instead of rotating; don't-rotate stays fixed. */
+const spriteRotationTransform = (sprite: SimulatorSprite): string => {
+  if (sprite.rotationStyle === "don't rotate") return 'rotate(0deg)';
+  if (sprite.rotationStyle === 'left-right') {
+    const normalized = ((sprite.direction + 180) % 360) - 180;
+    return normalized < 0 ? 'scaleX(-1)' : 'scaleX(1)';
+  }
+  return `rotate(${sprite.direction - 90}deg)`;
+};
+
+/** Inverse of spriteRotationTransform, so the speech/thought bubble stays upright and unscaled. */
+const spriteCounterTransform = (sprite: SimulatorSprite): string => {
+  const unscale = `scale(${1 / (sprite.size / 100)})`;
+  if (sprite.rotationStyle === "don't rotate") return unscale;
+  if (sprite.rotationStyle === 'left-right') {
+    const normalized = ((sprite.direction + 180) % 360) - 180;
+    return normalized < 0 ? `${unscale} scaleX(-1)` : unscale;
+  }
+  return `${unscale} rotate(${-(sprite.direction - 90)}deg)`;
+};
 
 // Base render size (px) at 100% sprite scale. Character sprites (like the
 // Stemmantra logo) are portrait SVGs rendered with object-fit: contain, so
@@ -235,6 +266,11 @@ export function StageCanvas() {
     cameraX,
     cameraY,
     setCamera,
+    setMouse,
+    setMouseDown,
+    setKeyDown,
+    askPrompt,
+    submitAnswer,
   } = useSimulatorStore();
 
   const stageRef = useRef<HTMLDivElement>(null);
@@ -246,6 +282,25 @@ export function StageCanvas() {
     startSpriteY: number;
   } | null>(null);
   const [mouseCoords, setMouseCoords] = useState<{ x: number; y: number } | null>(null);
+  const answerInputRef = useRef<HTMLInputElement>(null);
+
+  // Global keyboard tracking for "key pressed?" sensing + "when key pressed" events.
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const key = normalizeKeyName(e.key);
+      setKeyDown(key, true);
+      if (!e.repeat) scratchEngine.notifyKeyPressed(key);
+    };
+    const handleKeyUp = (e: KeyboardEvent) => {
+      setKeyDown(normalizeKeyName(e.key), false);
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('keyup', handleKeyUp);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('keyup', handleKeyUp);
+    };
+  }, [setKeyDown]);
 
   // Background styles
   const getBackgroundStyle = () => {
@@ -298,6 +353,7 @@ export function StageCanvas() {
       e.preventDefault();
       (e.target as HTMLElement).setPointerCapture(e.pointerId);
       setActiveSprite(sprite.id);
+      setMouseDown(true);
       setDragState({
         spriteId: sprite.id,
         startX: e.clientX,
@@ -306,7 +362,7 @@ export function StageCanvas() {
         startSpriteY: sprite.y,
       });
     },
-    [setActiveSprite],
+    [setActiveSprite, setMouseDown],
   );
 
   const handlePointerMove = useCallback(
@@ -318,6 +374,7 @@ export function StageCanvas() {
         const scratchX = Math.round((relX / rect.width) * 480 - 240 + cameraX);
         const scratchY = Math.round(180 - (relY / rect.height) * 360 + cameraY);
         setMouseCoords({ x: scratchX, y: scratchY });
+        setMouse(scratchX, scratchY);
       }
 
       if (!dragState) return;
@@ -372,12 +429,24 @@ export function StageCanvas() {
 
       updateSprite(dragState.spriteId, { x: newX, y: newY });
     },
-    [dragState, pixelDeltaToScratch, updateSprite, sprites, cameraX, cameraY, setCamera],
+    [dragState, pixelDeltaToScratch, updateSprite, sprites, cameraX, cameraY, setCamera, setMouse],
   );
 
-  const handlePointerUp = useCallback(() => {
-    setDragState(null);
-  }, []);
+  const CLICK_DRAG_THRESHOLD_PX = 4;
+
+  const handlePointerUp = useCallback(
+    (e?: React.PointerEvent) => {
+      setMouseDown(false);
+      if (dragState && e) {
+        const movedPx = Math.hypot(e.clientX - dragState.startX, e.clientY - dragState.startY);
+        if (movedPx < CLICK_DRAG_THRESHOLD_PX) {
+          scratchEngine.notifySpriteClicked();
+        }
+      }
+      setDragState(null);
+    },
+    [dragState, setMouseDown],
+  );
 
   const handleStageClick = useCallback(() => {
     if (!dragState) {
@@ -395,6 +464,7 @@ export function StageCanvas() {
         inset: 0,
         ...getBackgroundStyle(),
       }}
+      onPointerDown={() => setMouseDown(true)}
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}
       onPointerLeave={() => {
@@ -405,7 +475,7 @@ export function StageCanvas() {
     >
       {sprites
         .filter((s) => s.visible)
-        .map((sprite) => {
+        .map((sprite, index) => {
           const { pctX, pctY } = scratchToPercent(sprite.x, sprite.y);
           const baseSize = sprite.type === 'character' ? CHARACTER_BASE_SIZE : HARDWARE_BASE_SIZE;
 
@@ -418,10 +488,14 @@ export function StageCanvas() {
                 height: `${baseSize}px`,
                 left: `${pctX}%`,
                 top: `${pctY}%`,
-                transform: `translate(-50%, -50%) scale(${sprite.size / 100}) rotate(${sprite.direction - 90}deg)`,
+                transform: `translate(-50%, -50%) scale(${sprite.size / 100}) ${spriteRotationTransform(sprite)}`,
                 cursor: dragState?.spriteId === sprite.id ? 'grabbing' : 'grab',
-                zIndex: activeSpriteId === sprite.id ? 10 : 1,
+                zIndex:
+                  dragState?.spriteId === sprite.id || activeSpriteId === sprite.id
+                    ? 1000
+                    : index + 1,
                 touchAction: 'none',
+                ...spriteEffectsStyle(sprite.effects),
               }}
               onPointerDown={(e) => handleSpritePointerDown(e, sprite)}
             >
@@ -431,10 +505,10 @@ export function StageCanvas() {
                     position: 'absolute',
                     bottom: '100%',
                     left: '50%',
-                    transform: `translateX(-50%) scale(${1 / (sprite.size / 100)}) rotate(${-(sprite.direction - 90)}deg)`,
+                    transform: `translateX(-50%) ${spriteCounterTransform(sprite)}`,
                     backgroundColor: 'white',
                     border: '2px solid #D9D9D9',
-                    borderRadius: '16px',
+                    borderRadius: sprite.speechIsThought ? '24px' : '16px',
                     padding: '8px 12px',
                     fontSize: '14px',
                     color: '#575E75',
@@ -446,20 +520,50 @@ export function StageCanvas() {
                   }}
                 >
                   {sprite.speech}
-                  {/* Speech bubble tail */}
-                  <div
-                    style={{
-                      position: 'absolute',
-                      bottom: '-8px',
-                      left: '20px',
-                      width: '12px',
-                      height: '12px',
-                      backgroundColor: 'white',
-                      borderRight: '2px solid #D9D9D9',
-                      borderBottom: '2px solid #D9D9D9',
-                      transform: 'rotate(45deg)',
-                    }}
-                  />
+                  {sprite.speechIsThought ? (
+                    // Thought bubble: trailing circles instead of a pointed tail
+                    <>
+                      <div
+                        style={{
+                          position: 'absolute',
+                          bottom: '-10px',
+                          left: '18px',
+                          width: '8px',
+                          height: '8px',
+                          borderRadius: '50%',
+                          backgroundColor: 'white',
+                          border: '2px solid #D9D9D9',
+                        }}
+                      />
+                      <div
+                        style={{
+                          position: 'absolute',
+                          bottom: '-16px',
+                          left: '10px',
+                          width: '5px',
+                          height: '5px',
+                          borderRadius: '50%',
+                          backgroundColor: 'white',
+                          border: '2px solid #D9D9D9',
+                        }}
+                      />
+                    </>
+                  ) : (
+                    // Speech bubble tail
+                    <div
+                      style={{
+                        position: 'absolute',
+                        bottom: '-8px',
+                        left: '20px',
+                        width: '12px',
+                        height: '12px',
+                        backgroundColor: 'white',
+                        borderRight: '2px solid #D9D9D9',
+                        borderBottom: '2px solid #D9D9D9',
+                        transform: 'rotate(45deg)',
+                      }}
+                    />
+                  )}
                 </div>
               )}
               {renderSpriteVisual(sprite, updateSprite, isRunning)}
@@ -474,6 +578,54 @@ export function StageCanvas() {
       <div style={{ position: 'absolute', bottom: '8px', right: '8px' }}>
         <ScratchZoomRail />
       </div>
+
+      {/* "ask and wait" prompt bar — mirrors Scratch's bottom-docked question input */}
+      {askPrompt !== null && (
+        <div
+          style={{
+            position: 'absolute',
+            left: 0,
+            right: 0,
+            bottom: 0,
+            padding: '8px 12px',
+            backgroundColor: 'rgba(255,255,255,0.95)',
+            borderTop: '1px solid var(--scratch-border)',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+            zIndex: 50,
+          }}
+          onPointerDown={(e) => e.stopPropagation()}
+        >
+          <span style={{ fontSize: '13px', color: 'var(--scratch-text-dark)', fontWeight: 600 }}>
+            {askPrompt}
+          </span>
+          <input
+            key={askPrompt}
+            ref={answerInputRef}
+            autoFocus
+            type="text"
+            defaultValue=""
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') submitAnswer(answerInputRef.current?.value ?? '');
+            }}
+            className="scratch-input"
+            style={{ flex: 1 }}
+          />
+          <button
+            type="button"
+            onClick={() => submitAnswer(answerInputRef.current?.value ?? '')}
+            className="scratch-flag-btn"
+            style={{
+              backgroundColor: 'var(--scratch-purple)',
+              color: 'white',
+              borderRadius: '50%',
+            }}
+          >
+            ➤
+          </button>
+        </div>
+      )}
     </div>
   );
 }

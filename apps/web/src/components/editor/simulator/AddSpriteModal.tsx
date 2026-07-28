@@ -33,6 +33,10 @@ export function AddSpriteModal({ onClose }: { onClose: () => void }) {
       size: 100,
       direction: 90,
       visible: true,
+      costumes: preset.image ? [preset.image] : [],
+      costumeIndex: 0,
+      rotationStyle: 'all around',
+      effects: { color: 0, ghost: 0, brightness: 0 },
       state: {},
     });
     onClose();

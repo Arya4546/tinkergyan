@@ -383,6 +383,30 @@ arduinoGenerator.forBlock['math_modulo'] = function (block, generator) {
   return [`fmod(${lhs}, ${rhs})`, Order.ATOMIC] as [string, Order];
 };
 
+arduinoGenerator.forBlock['math_round'] = function (block, generator) {
+  const op = block.getFieldValue('OP') as string;
+  const value = generator.valueToCode(block, 'NUM', Order.NONE) || '0';
+  const fn = op === 'ROUNDUP' ? 'ceil' : op === 'ROUNDDOWN' ? 'floor' : 'round';
+  return [`${fn}(${value})`, Order.ATOMIC] as [string, Order];
+};
+
+arduinoGenerator.forBlock['math_single'] = function (block, generator) {
+  const op = block.getFieldValue('OP') as string;
+  const value = generator.valueToCode(block, 'NUM', Order.NONE) || '0';
+  const FUNCS: Record<string, string> = {
+    ROOT: 'sqrt',
+    ABS: 'abs',
+    LN: 'log',
+    LOG10: 'log10',
+    EXP: 'exp',
+    POW10: '', // handled separately
+  };
+  if (op === 'NEG') return [`-(${value})`, Order.UNARY] as [string, Order];
+  if (op === 'POW10') return [`pow(10, ${value})`, Order.ATOMIC] as [string, Order];
+  const fn = FUNCS[op] || 'abs';
+  return [`${fn}(${value})`, Order.ATOMIC] as [string, Order];
+};
+
 // ─────────────────────────────────────────────────────────────────────────────
 // STANDARD BLOCKLY — VARIABLES
 // All variables are declared as `int` for beginner-friendliness on Arduino.

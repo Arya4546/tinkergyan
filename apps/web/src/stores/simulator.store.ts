@@ -30,12 +30,27 @@ export interface SimulatorSprite {
   direction: number; // Rotation in degrees (0-360)
   visible: boolean;
   speech?: string; // Optional speech bubble text
+  speechIsThought?: boolean; // true = "think" bubble, false/undefined = "say" bubble
   pin?: string; // e.g. "13", "A0"
   costume?: string; // Current costume name
+  costumes: string[]; // Costume image paths this sprite can cycle through
+  costumeIndex: number;
+  rotationStyle: RotationStyle;
+  effects: SpriteEffects;
   state: SpriteState;
 }
 
 export type StageViewMode = 'small' | 'large' | 'fullscreen';
+export type RotationStyle = 'all around' | 'left-right' | "don't rotate";
+
+export interface SpriteEffects {
+  color: number;
+  ghost: number;
+  brightness: number;
+}
+
+/** Cyclable backdrop names, shared between the backdrop panel UI and Scratch "switch/next backdrop" blocks. */
+export const BACKDROP_OPTIONS = ['white', 'grid', 'breadboard', 'space'] as const;
 
 interface SimulatorStore {
   sprites: SimulatorSprite[];
@@ -47,6 +62,16 @@ interface SimulatorStore {
   stageViewMode: StageViewMode;
   cameraX: number;
   cameraY: number;
+
+  // Sensing state
+  mouseX: number;
+  mouseY: number;
+  mouseDown: boolean;
+  keysDown: Record<string, boolean>;
+  timerStartedAt: number;
+  answer: string;
+  askPrompt: string | null;
+  pendingAskResolve: ((text: string) => void) | null;
 
   // Actions
   addSprite: (sprite: Omit<SimulatorSprite, 'id'> & { id?: string }) => void;
@@ -61,6 +86,17 @@ interface SimulatorStore {
   stopSimulation: () => void;
   resetSimulator: () => void;
   setCamera: (x: number, y: number) => void;
+  sendToFront: (id: string) => void;
+  sendToBack: (id: string) => void;
+  moveLayers: (id: string, delta: number) => void;
+
+  // Sensing actions
+  setMouse: (x: number, y: number) => void;
+  setMouseDown: (down: boolean) => void;
+  setKeyDown: (key: string, down: boolean) => void;
+  resetTimer: () => void;
+  askQuestion: (prompt: string) => Promise<string>;
+  submitAnswer: (text: string) => void;
 }
 
 // Generate a random ID for new sprites
@@ -73,6 +109,10 @@ const defaultCatSprite: SimulatorSprite = {
   type: 'character',
   image: '/sprites/svg.svg',
   costume: 'Stemmantra (New)',
+  costumes: ['/sprites/scratch_games.svg', '/sprites/svg.svg'],
+  costumeIndex: 1,
+  rotationStyle: 'all around',
+  effects: { color: 0, ghost: 0, brightness: 0 },
   x: 0,
   y: 0,
   size: 100,
@@ -93,6 +133,14 @@ export const useSimulatorStore = create<SimulatorStore>()(
       stageViewMode: 'large',
       cameraX: 0,
       cameraY: 0,
+      mouseX: 0,
+      mouseY: 0,
+      mouseDown: false,
+      keysDown: {},
+      timerStartedAt: Date.now(),
+      answer: '',
+      askPrompt: null,
+      pendingAskResolve: null,
 
       addSprite: (spriteInput) => {
         const id = spriteInput.id || generateId();
@@ -180,11 +228,77 @@ export const useSimulatorStore = create<SimulatorStore>()(
           stageViewMode: 'large',
           cameraX: 0,
           cameraY: 0,
+          mouseX: 0,
+          mouseY: 0,
+          mouseDown: false,
+          keysDown: {},
+          timerStartedAt: Date.now(),
+          answer: '',
+          askPrompt: null,
+          pendingAskResolve: null,
         });
       },
 
       setCamera: (x, y) => {
         set({ cameraX: x, cameraY: y });
+      },
+
+      sendToFront: (id) => {
+        set((state) => {
+          const sprite = state.sprites.find((s) => s.id === id);
+          if (!sprite) return state;
+          return { sprites: [...state.sprites.filter((s) => s.id !== id), sprite] };
+        });
+      },
+
+      sendToBack: (id) => {
+        set((state) => {
+          const sprite = state.sprites.find((s) => s.id === id);
+          if (!sprite) return state;
+          return { sprites: [sprite, ...state.sprites.filter((s) => s.id !== id)] };
+        });
+      },
+
+      moveLayers: (id, delta) => {
+        set((state) => {
+          const idx = state.sprites.findIndex((s) => s.id === id);
+          if (idx === -1) return state;
+          const newIdx = Math.max(0, Math.min(state.sprites.length - 1, idx + delta));
+          if (newIdx === idx) return state;
+          const next = [...state.sprites];
+          const [sprite] = next.splice(idx, 1);
+          next.splice(newIdx, 0, sprite!);
+          return { sprites: next };
+        });
+      },
+
+      setMouse: (x, y) => {
+        set({ mouseX: x, mouseY: y });
+      },
+
+      setMouseDown: (down) => {
+        set({ mouseDown: down });
+      },
+
+      setKeyDown: (key, down) => {
+        set((state) => ({ keysDown: { ...state.keysDown, [key]: down } }));
+      },
+
+      resetTimer: () => {
+        set({ timerStartedAt: Date.now() });
+      },
+
+      askQuestion: (prompt) => {
+        return new Promise<string>((resolve) => {
+          set({ askPrompt: prompt, pendingAskResolve: resolve });
+        });
+      },
+
+      submitAnswer: (text) => {
+        set((state) => {
+          state.pendingAskResolve?.(text);
+          return { answer: text, askPrompt: null, pendingAskResolve: null };
+        });
       },
     }),
     {
@@ -197,6 +311,25 @@ export const useSimulatorStore = create<SimulatorStore>()(
         backdropCount: state.backdropCount,
         stageViewMode: state.stageViewMode,
       }),
+      // Sprites saved to localStorage before costumes/costumeIndex/rotationStyle/effects
+      // existed are missing those fields — backfill defaults so old projects don't crash
+      // (e.g. StageCanvas reading sprite.effects.color on an undefined `effects`).
+      merge: (persistedState, currentState) => {
+        const persisted = (persistedState ?? {}) as Partial<SimulatorStore>;
+        const sprites: SimulatorSprite[] = (persisted.sprites ?? currentState.sprites).map(
+          (rawSprite) => {
+            const s = rawSprite as Partial<SimulatorSprite>;
+            return {
+              costumes: [],
+              costumeIndex: 0,
+              rotationStyle: 'all around',
+              effects: { color: 0, ghost: 0, brightness: 0 },
+              ...s,
+            } as SimulatorSprite;
+          },
+        );
+        return { ...currentState, ...persisted, sprites };
+      },
     },
   ),
 );
