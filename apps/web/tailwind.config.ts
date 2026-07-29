@@ -40,6 +40,36 @@ export default {
           400: '#FFE033',
           600: '#E6C200',
         },
+        // Editor surface ramp. These read the CSS custom properties written by
+        // `applyEditorTokens()` (src/lib/editor-tokens.ts), which is the same
+        // palette Blockly's workspace theme is built from — so the canvas and
+        // every panel around it are guaranteed to agree. Prefer these over
+        // literal hex values anywhere on the editor page.
+        ed: {
+          well: 'var(--ed-well)',
+          chrome: 'var(--ed-chrome)',
+          panel: 'var(--ed-panel)',
+          raised: 'var(--ed-raised)',
+          line: 'var(--ed-line)',
+          'line-soft': 'var(--ed-line-soft)',
+          hi: 'var(--ed-text-hi)',
+          mid: 'var(--ed-text-mid)',
+          lo: 'var(--ed-text-lo)',
+          accent: 'var(--ed-accent)',
+          'accent-soft': 'var(--ed-accent-soft)',
+          go: 'var(--ed-go)',
+          warn: 'var(--ed-warn)',
+          err: 'var(--ed-err)',
+          // Terminal surfaces — dark in BOTH themes by design. The compile
+          // console and serial monitor read as terminals because they're dark;
+          // inverting them in light mode would make output harder to scan.
+          'term-bg': 'var(--ed-term-bg)',
+          'term-surface': 'var(--ed-term-surface)',
+          'term-line': 'var(--ed-term-line)',
+          'term-text': 'var(--ed-term-text)',
+          'term-dim': 'var(--ed-term-dim)',
+        },
+
         surface: '#FFFFFF',
         background: '#F7F8FC',
         dark: {

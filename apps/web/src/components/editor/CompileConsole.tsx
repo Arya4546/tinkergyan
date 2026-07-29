@@ -94,7 +94,7 @@ export function CompileConsole({ isCompiling, compileResult }: CompileConsolePro
   return (
     <div className="flex flex-col h-full">
       {/* Tab bar */}
-      <div className="h-10 border-b border-slate-800 bg-[#111111] flex items-center px-2 gap-1 shrink-0">
+      <div className="h-10 border-b border-ed-term-line bg-ed-term-surface flex items-center px-2 gap-1 shrink-0">
         {tabs.map((t) => {
           const Icon = t.icon;
           const active = tab === t.key;
@@ -131,7 +131,7 @@ export function CompileConsole({ isCompiling, compileResult }: CompileConsolePro
                     key={i}
                     className={`flex items-center gap-3 px-4 py-3 rounded-sm font-mono text-xs transition-all duration-300 ${
                       i <= compileStep
-                        ? 'bg-[#111111] border border-slate-800 opacity-100 translate-x-0'
+                        ? 'bg-ed-term-surface border border-ed-term-line opacity-100 translate-x-0'
                         : 'opacity-0 translate-x-4'
                     }`}
                   >
@@ -201,7 +201,7 @@ export function CompileConsole({ isCompiling, compileResult }: CompileConsolePro
               history.map((h, i) => (
                 <div
                   key={i}
-                  className="flex items-center gap-3 px-3 py-2 font-mono text-[11px] bg-[#0a0a0a] border border-slate-800/50"
+                  className="flex items-center gap-3 px-3 py-2 font-mono text-[11px] bg-ed-term-bg border border-ed-term-line"
                 >
                   <span
                     className={
@@ -371,14 +371,14 @@ function ResultCard({ result }: { result: CompileResult }) {
 
       {/* Stdout */}
       {result.stdout && (
-        <pre className="font-mono text-xs text-emerald-400 leading-relaxed whitespace-pre-wrap opacity-80 bg-[#0a0a0a] p-3 border border-slate-800/50">
+        <pre className="font-mono text-xs text-emerald-400 leading-relaxed whitespace-pre-wrap opacity-80 bg-ed-term-bg p-3 border border-ed-term-line">
           {result.stdout}
         </pre>
       )}
 
       {/* Stderr (if no structured errors) */}
       {result.stderr && !hasErrors && (
-        <pre className="font-mono text-xs text-red-400 leading-relaxed whitespace-pre-wrap opacity-80 bg-[#0a0a0a] p-3 border border-slate-800/50">
+        <pre className="font-mono text-xs text-red-400 leading-relaxed whitespace-pre-wrap opacity-80 bg-ed-term-bg p-3 border border-ed-term-line">
           {result.stderr}
         </pre>
       )}

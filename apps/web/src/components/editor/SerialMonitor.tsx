@@ -180,9 +180,9 @@ export function SerialMonitor({ port }: SerialMonitorProps) {
   };
 
   return (
-    <div className="flex flex-col h-full bg-[#050505]">
+    <div className="flex flex-col h-full bg-ed-term-bg">
       {/* Header toolbar */}
-      <div className="h-10 hw-border-b bg-[#111111] flex items-center px-2 gap-1 shrink-0">
+      <div className="h-10 hw-border-b bg-ed-term-surface flex items-center px-2 gap-1 shrink-0">
         {/* Status indicator */}
         <div className="flex items-center gap-2 px-2">
           <div
@@ -207,7 +207,7 @@ export function SerialMonitor({ port }: SerialMonitorProps) {
           </button>
 
           {showBaudDropdown && (
-            <div className="absolute right-0 top-8 z-50 bg-[#111111] border border-slate-800 shadow-xl min-w-[120px]">
+            <div className="absolute right-0 top-8 z-50 bg-ed-term-surface border border-ed-term-line shadow-xl min-w-[120px]">
               {BAUD_RATES.map((rate) => (
                 <button
                   key={rate}
@@ -304,7 +304,7 @@ export function SerialMonitor({ port }: SerialMonitorProps) {
       </div>
 
       {/* Send input bar */}
-      <div className="hw-border-t bg-[#0a0a0a] flex items-center shrink-0">
+      <div className="hw-border-t bg-ed-term-bg flex items-center shrink-0">
         <input
           type="text"
           value={inputValue}

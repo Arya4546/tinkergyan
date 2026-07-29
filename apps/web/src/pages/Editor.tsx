@@ -916,11 +916,11 @@ export default function Editor() {
 
   // ─────────────────────────────────────────────────────────────────────────
   return (
-    <div className="flex h-screen bg-background dark:bg-dark-bg font-sans overflow-hidden">
+    <div className="flex h-screen bg-ed-chrome font-sans overflow-hidden">
       {/* Full-bleed editor — the top bar and toolbox reach the screen edges */}
-      <div className="flex w-full h-full bg-white dark:bg-dark-surface overflow-hidden relative">
+      <div className="flex w-full h-full bg-ed-chrome overflow-hidden relative">
         {/* ── Top Control Bar ─────────────────────────────────────── */}
-        <div className="absolute top-0 left-0 w-full h-16 border-b border-slate-100 dark:border-dark-border bg-white dark:bg-dark-surface flex justify-between items-center z-30 px-3 sm:px-4 gap-2">
+        <div className="absolute top-0 left-0 w-full h-16 border-b border-ed-line bg-ed-chrome flex justify-between items-center z-30 px-3 sm:px-4 gap-2">
           {/* Left: Back + project title + dirty indicator */}
           <div className="flex items-center gap-2 min-w-0">
             <Tooltip content="Dashboard" position="bottom">
@@ -959,7 +959,7 @@ export default function Editor() {
                     <span className="font-sans font-bold text-xs">{user.streak}</span>
                   </div>
                 </Tooltip>
-                <div className="w-px h-3 bg-slate-300 dark:bg-[#1A1D24]" />
+                <div className="w-px h-3 bg-slate-300 dark:bg-ed-line" />
                 <Tooltip content={`Level ${user.level}`} position="bottom">
                   <div className="flex items-center gap-1.5 text-celebrate">
                     <Star size={14} fill="currentColor" />
@@ -1317,7 +1317,7 @@ export default function Editor() {
 
             {/* Monaco editor */}
             <div
-              className={`absolute inset-0 bg-[#1e1e1e] transition-opacity duration-150 ${mode === 'code' ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}
+              className={`absolute inset-0 bg-ed-well transition-opacity duration-150 ${mode === 'code' ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}
             >
               <MonacoEditor
                 ref={monacoRef}
@@ -1349,7 +1349,7 @@ export default function Editor() {
               className={`flex flex-col shrink-0 border-l ${
                 showSimulator
                   ? 'border-slate-100 dark:border-dark-border bg-white dark:bg-dark-bg'
-                  : 'border-slate-800 bg-[#050505]'
+                  : 'border-ed-term-line bg-ed-term-bg'
               }`}
             >
               {/* Simulator Stage Panel */}
@@ -1374,7 +1374,7 @@ export default function Editor() {
                         !isCompiling &&
                         !compileResult &&
                         !isFlashing && (
-                          <div className="border-b border-slate-800 bg-[#0a0a0a] px-4 py-2 flex items-center gap-2 shrink-0">
+                          <div className="border-b border-ed-term-line bg-ed-term-surface px-4 py-2 flex items-center gap-2 shrink-0">
                             <Code2 size={12} className="text-slate-500" />
                             <span className="font-sans text-xs text-slate-500">
                               Generated C++ Preview
@@ -1384,7 +1384,7 @@ export default function Editor() {
 
                       {/* Stdin input for programs that need cin/scanf */}
                       {mode === 'code' && !isFlashing && (
-                        <div className="border-b border-slate-800 bg-[#0a0a0a] shrink-0">
+                        <div className="border-b border-ed-term-line bg-ed-term-surface shrink-0">
                           <div className="px-3 py-1.5 flex items-center gap-2">
                             <span className="font-sans text-xs text-slate-500">📥 Stdin input</span>
                           </div>
@@ -1393,7 +1393,7 @@ export default function Editor() {
                             onChange={(e) => setStdinInput(e.target.value)}
                             placeholder="Enter input here (for cin/scanf programs)..."
                             spellCheck={false}
-                            className="w-full bg-[#0a0a0a] text-slate-300 font-mono text-[11px] px-3 py-2 outline-none resize-none border-none h-16 placeholder:text-slate-700"
+                            className="w-full bg-ed-term-surface text-ed-term-text font-mono text-[11px] px-3 py-2 outline-none resize-none border-none h-16 placeholder:text-slate-700"
                           />
                         </div>
                       )}

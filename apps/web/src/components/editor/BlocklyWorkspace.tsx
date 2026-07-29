@@ -22,6 +22,13 @@ import { getToolbox } from './toolbox';
 import { useUIStore } from '../../stores/ui.store';
 import { useEditorStore } from '../../stores/editor.store';
 import { getBoardLabel } from '../../lib/boards';
+import {
+  LIGHT,
+  DARK,
+  applyEditorTokens,
+  paletteFor,
+  type EditorPalette,
+} from '../../lib/editor-tokens';
 
 declare global {
   interface Window {
@@ -65,47 +72,42 @@ const KID_FONT: Blockly.Theme.FontStyle = {
   size: 13,
 };
 
-const kidTheme = Blockly.Theme.defineTheme('kidFriendly', {
-  name: 'kidFriendly',
-  base: Blockly.Themes.Classic,
-  categoryStyles: KID_CATEGORY_STYLES,
-  componentStyles: {
-    workspaceBackgroundColour: '#F7F8FC',
-    toolboxBackgroundColour: '#FFFFFF',
-    toolboxForegroundColour: '#1A1B2E',
-    flyoutBackgroundColour: '#F1F5F9',
-    flyoutForegroundColour: '#1A1B2E',
-    flyoutOpacity: 1.0,
-    scrollbarColour: '#CBD5E1',
-    scrollbarOpacity: 0.4,
-    insertionMarkerColour: '#6C63FF',
-    insertionMarkerOpacity: 0.5,
-    markerColour: '#6C63FF',
-    cursorColour: '#6C63FF',
-  },
-  fontStyle: KID_FONT,
-});
+/**
+ * Build a Blockly theme from the shared editor palette.
+ *
+ * Blockly bakes these colours into SVG attributes at definition time and cannot
+ * read CSS custom properties, which is exactly why the palette lives in
+ * `editor-tokens.ts` as TypeScript — this is the one consumer that forces it.
+ *
+ * `workspaceBackgroundColour` is the token `well` and must stay the *lightest*
+ * surface in both themes. Saturated Scratch block colours vibrate against a
+ * near-black canvas; Scratch itself uses #F9F9F9 and Blockly's own dark themes
+ * use mid-tones for the same reason.
+ */
+const buildTheme = (name: string, p: EditorPalette) =>
+  Blockly.Theme.defineTheme(name, {
+    name,
+    base: Blockly.Themes.Classic,
+    categoryStyles: KID_CATEGORY_STYLES,
+    componentStyles: {
+      workspaceBackgroundColour: p.well,
+      toolboxBackgroundColour: p.panel,
+      toolboxForegroundColour: p.textMid,
+      flyoutBackgroundColour: p.panel,
+      flyoutForegroundColour: p.textMid,
+      flyoutOpacity: 1.0,
+      scrollbarColour: p.scrollbar,
+      scrollbarOpacity: 0.5,
+      insertionMarkerColour: p.accent,
+      insertionMarkerOpacity: 0.5,
+      markerColour: p.accent,
+      cursorColour: p.accent,
+    },
+    fontStyle: KID_FONT,
+  });
 
-const darkKidTheme = Blockly.Theme.defineTheme('darkKidFriendly', {
-  name: 'darkKidFriendly',
-  base: Blockly.Themes.Classic,
-  categoryStyles: KID_CATEGORY_STYLES,
-  componentStyles: {
-    workspaceBackgroundColour: '#1A1B2E',
-    toolboxBackgroundColour: '#252640',
-    toolboxForegroundColour: '#E2E8F0',
-    flyoutBackgroundColour: '#252640',
-    flyoutForegroundColour: '#E2E8F0',
-    flyoutOpacity: 1.0,
-    scrollbarColour: '#2E3055',
-    scrollbarOpacity: 0.4,
-    insertionMarkerColour: '#7B72FF',
-    insertionMarkerOpacity: 0.5,
-    markerColour: '#7B72FF',
-    cursorColour: '#7B72FF',
-  },
-  fontStyle: KID_FONT,
-});
+const kidTheme = buildTheme('kidFriendly', LIGHT);
+const darkKidTheme = buildTheme('darkKidFriendly', DARK);
 
 // ─── Public ref handle ────────────────────────────────────────────────────────
 export interface BlocklyWorkspaceHandle {
@@ -225,14 +227,18 @@ export const BlocklyWorkspace = forwardRef<BlocklyWorkspaceHandle, BlocklyWorksp
     const isInit = useRef(false);
     const appliedFlyoutOffsetRef = useRef<number>(0);
 
-    // Resolve which Blockly theme to use based on current UI theme setting
-    const resolveBlocklyTheme = (currentTheme: string) => {
-      if (currentTheme === 'dark') return darkKidTheme;
+    // Resolve the UI theme setting (which may be 'system') to a concrete mode.
+    const resolveMode = (currentTheme: string): 'light' | 'dark' => {
+      if (currentTheme === 'dark') return 'dark';
       if (currentTheme === 'system') {
-        return window.matchMedia('(prefers-color-scheme: dark)').matches ? darkKidTheme : kidTheme;
+        return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
       }
-      return kidTheme;
+      return 'light';
     };
+
+    // Resolve which Blockly theme to use based on current UI theme setting
+    const resolveBlocklyTheme = (currentTheme: string) =>
+      resolveMode(currentTheme) === 'dark' ? darkKidTheme : kidTheme;
 
     // Initialize Blockly once the container div is mounted
     useEffect(() => {
@@ -245,14 +251,15 @@ export const BlocklyWorkspace = forwardRef<BlocklyWorkspaceHandle, BlocklyWorksp
 
       // ── Ensure html.dark class matches the resolved Blockly theme BEFORE inject ──
       // Navbar's useEffect may not have fired yet on first render, so we sync it here.
-      const initialTheme = useUIStore.getState().theme;
-      const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-      const shouldBeDark = initialTheme === 'dark' || (initialTheme === 'system' && prefersDark);
-      if (shouldBeDark) {
+      const initialMode = resolveMode(useUIStore.getState().theme);
+      if (initialMode === 'dark') {
         document.documentElement.classList.add('dark');
       } else {
         document.documentElement.classList.remove('dark');
       }
+      // Mirror the same palette Blockly is about to be handed onto :root, so the
+      // panels around the canvas render from identical values.
+      applyEditorTokens(initialMode);
 
       // Set instant tooltip delay (100ms) for Blockly blocks
       (Blockly.Tooltip as any).HOVER_MS = 100;
@@ -271,7 +278,7 @@ export const BlocklyWorkspace = forwardRef<BlocklyWorkspaceHandle, BlocklyWorksp
         grid: {
           spacing: 24,
           length: 3,
-          colour: shouldBeDark ? '#2E3055' : '#e2e8f0',
+          colour: paletteFor(initialMode).gridDot,
           snap: true,
         },
         zoom: {
@@ -402,8 +409,11 @@ export const BlocklyWorkspace = forwardRef<BlocklyWorkspaceHandle, BlocklyWorksp
       }
     }, [board, onCodeChange]);
 
-    // Sync theme changes — swap between kidTheme and darkKidTheme
+    // Sync theme changes — swap the Blockly theme and the :root CSS variables
+    // together, from the same palette, so the canvas and the panels around it
+    // can never disagree about what a surface looks like.
     useEffect(() => {
+      applyEditorTokens(resolveMode(theme));
       if (!workspaceRef.current) return;
       workspaceRef.current.setTheme(resolveBlocklyTheme(theme));
     }, [theme]);
@@ -458,7 +468,7 @@ export const BlocklyWorkspace = forwardRef<BlocklyWorkspaceHandle, BlocklyWorksp
         {/* Custom dialog prompt modal for variable creation */}
         {promptData && (
           <div className="absolute inset-0 z-[100] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
-            <div className="bg-white dark:bg-[#1e1f38] border border-slate-200 dark:border-slate-800 rounded-2xl p-6 w-full max-w-sm shadow-xl animate-in fade-in zoom-in-95 duration-150">
+            <div className="bg-white dark:bg-ed-panel border border-slate-200 dark:border-slate-800 rounded-2xl p-6 w-full max-w-sm shadow-xl animate-in fade-in zoom-in-95 duration-150">
               <h3 className="text-base font-semibold text-slate-900 dark:text-slate-100 font-sans mb-3">
                 {promptData.message}
               </h3>
@@ -476,7 +486,7 @@ export const BlocklyWorkspace = forwardRef<BlocklyWorkspaceHandle, BlocklyWorksp
                     setPromptData(null);
                   }
                 }}
-                className="w-full bg-slate-50 dark:bg-[#131424] border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-2.5 text-sm text-slate-800 dark:text-slate-100 font-sans outline-none focus:ring-2 focus:ring-indigo-500/50 dark:focus:ring-indigo-500/30 transition-all mb-4"
+                className="w-full bg-slate-50 dark:bg-ed-well border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-2.5 text-sm text-slate-800 dark:text-slate-100 font-sans outline-none focus:ring-2 focus:ring-indigo-500/50 dark:focus:ring-indigo-500/30 transition-all mb-4"
               />
               <div className="flex justify-end gap-2.5">
                 <button

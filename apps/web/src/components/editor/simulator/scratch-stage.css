@@ -4,6 +4,24 @@
    ═══════════════════════════════════════════════════════════════════ */
 
 /* ── Color Tokens ─────────────────────────────────────────────────── */
+/*
+   Surfaces, borders and text now alias the shared editor palette
+   (`--ed-*`, set on :root from src/lib/editor-tokens.ts — the same values
+   Blockly's theme is built from). This panel used to carry its own 20-value
+   palette, which is why the stage never looked like it belonged to the rest
+   of the editor.
+
+   Both themes come through the same aliases: `applyEditorTokens()` rewrites
+   the `--ed-*` values on theme change, so there is no `html.dark` block here
+   any more and no second set of values to keep in sync.
+
+   The literal fallbacks are only reached if the Stage is ever rendered outside
+   the editor page, before applyEditorTokens() has run.
+
+   Scratch's own accent hues (purple/blue/green/red) stay literal on purpose:
+   they are the flag/stop/control affordances students already recognise, and
+   they are not ours to re-theme.
+*/
 :root {
   --scratch-purple: #855cd6;
   --scratch-purple-light: #9b7ee0;
@@ -14,38 +32,24 @@
   --scratch-green-dark: #3aa845;
   --scratch-red: #ec5959;
   --scratch-red-dark: #d44040;
-  --scratch-bg: #f9f9f9;
-  --scratch-border: #d9d9d9;
-  --scratch-border-light: #e9eef2;
-  --scratch-text: #575e75;
-  --scratch-text-light: #7b8199;
-  --scratch-text-dark: #3d4059;
   --scratch-white: #ffffff;
-  --scratch-surface: #ffffff;
-  --scratch-input-border: #e9eef2;
-  --scratch-input-bg: #ffffff;
-  --scratch-stage-bg: #ffffff;
-  --scratch-panel-bg: #e8edf1;
-  --scratch-control-bg: #e8edf1;
-  --scratch-hint-bg: rgba(255, 255, 255, 0.7);
-}
 
-/* Dark theme — matches the app's dark palette (dark.bg / dark.surface / dark.border
-   in tailwind.config.ts) so the stage panel no longer clashes with the editor.
-   The stage canvas itself stays white: it is the content the kid draws on. */
-html.dark {
-  --scratch-bg: #1a1b2e;
-  --scratch-surface: #252640;
-  --scratch-border: #2e3055;
-  --scratch-border-light: #2e3055;
-  --scratch-text: #c7cbe0;
-  --scratch-text-light: #8b90ad;
-  --scratch-text-dark: #e2e8f0;
-  --scratch-input-border: #2e3055;
-  --scratch-input-bg: #1a1b2e;
-  --scratch-panel-bg: #1a1b2e;
-  --scratch-control-bg: #1a1b2e;
-  --scratch-hint-bg: rgba(37, 38, 64, 0.8);
+  /* The stage canvas stays white in both themes — it is the content the
+     student draws on, not chrome. */
+  --scratch-stage-bg: #ffffff;
+
+  --scratch-bg: var(--ed-panel, #f6f6f3);
+  --scratch-surface: var(--ed-chrome, #ffffff);
+  --scratch-border: var(--ed-line, #e5e4de);
+  --scratch-border-light: var(--ed-line-soft, #efeee9);
+  --scratch-text: var(--ed-text-mid, #5b5b6d);
+  --scratch-text-light: var(--ed-text-lo, #92929f);
+  --scratch-text-dark: var(--ed-text-hi, #1a1a22);
+  --scratch-input-border: var(--ed-line, #e5e4de);
+  --scratch-input-bg: var(--ed-raised, #ffffff);
+  --scratch-panel-bg: var(--ed-panel, #f6f6f3);
+  --scratch-control-bg: var(--ed-panel, #f6f6f3);
+  --scratch-hint-bg: var(--ed-raised, rgba(255, 255, 255, 0.7));
 }
 
 /* ── Container ───────────────────────────────────────────────────── */
@@ -54,7 +58,9 @@ html.dark {
   flex-direction: column;
   height: 100%;
   background-color: var(--scratch-surface);
-  font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+  /* Was 'Helvetica Neue' — a Scratch-ism that made this panel read as a
+     different application from the rest of the editor. */
+  font-family: 'Outfit', 'Inter', system-ui, sans-serif;
   color: var(--scratch-text);
   user-select: none;
 }
