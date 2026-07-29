@@ -28,9 +28,35 @@ const BACKDROP_DROPDOWN_OPTIONS: [string, string][] = BACKDROP_OPTIONS.map((b) =
 
 // ─── EVENTS ─────────────────────────────────────────────────────────────────
 
+/**
+ * The green flag, drawn rather than typed.
+ *
+ * This used to be the 🏁 emoji inside a text label, which rendered as a
+ * black-and-white *chequered* flag — the racing flag, not Scratch's green one —
+ * and changed shape on every OS because it resolved to whatever emoji font
+ * happened to be installed. Students match this icon against the green flag
+ * button above the stage, so it has to actually be green and identical everywhere.
+ *
+ * Inlined as a data URI rather than served from /public so it cannot 404 and
+ * costs no extra request; kept as readable SVG source rather than base64 so the
+ * shape stays editable.
+ */
+const GREEN_FLAG_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24">
+  <path d="M5 3.2v17.6" stroke="#3E9E36" stroke-width="2.1" stroke-linecap="round" fill="none"/>
+  <path d="M6.6 4.3c3.1-1.8 6.2 1.5 9.3-.1.8-.4 1.7.2 1.7 1.1v6.5c0 .4-.2.8-.6 1-3.1 1.6-6.2-1.7-9.3.1-.5.3-1.1-.1-1.1-.6V5.2c0-.4.2-.7.5-.9z"
+        fill="#4CBF56" stroke="#3E9E36" stroke-width="1.1" stroke-linejoin="round"/>
+</svg>`;
+
+const GREEN_FLAG_URI = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(GREEN_FLAG_SVG)}`;
+
 Blockly.Blocks['scratch_event_when_flag_clicked'] = {
   init(this: Blockly.Block): void {
-    this.appendDummyInput().appendField('when 🏁 clicked');
+    // Three fields rather than one label: Blockly measures the image and lays the
+    // block out around it, so the block grows to fit the icon instead of clipping it.
+    this.appendDummyInput()
+      .appendField('when')
+      .appendField(new Blockly.FieldImage(GREEN_FLAG_URI, 24, 24, 'green flag'))
+      .appendField('clicked');
     this.setNextStatement(true, null);
     this.setColour(COLOR_EVENTS);
     this.setTooltip('Starts the script when the green flag is clicked.');

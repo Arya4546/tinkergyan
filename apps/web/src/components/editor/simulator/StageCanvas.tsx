@@ -209,7 +209,7 @@ const renderSpriteVisual = (
         </div>
         <div className="w-11 h-16 bg-gradient-to-b from-indigo-600 to-indigo-800 rounded-2xl relative flex flex-col items-center border border-indigo-400 shadow-inner overflow-hidden">
           <div className="absolute top-0 inset-x-0 h-4 bg-indigo-500/30 border-b border-indigo-400/50" />
-          <div className="mt-2 flex gap-1 bg-[#1e293b] px-1 py-0.5 rounded border border-slate-600 shadow-sm z-10">
+          <div className="mt-2 flex gap-1 bg-slate-800 px-1 py-0.5 rounded border border-slate-600 shadow-sm z-10">
             <div className="w-4 h-4 rounded-full bg-slate-700 border border-slate-500 flex items-center justify-center relative overflow-hidden">
               <div className="w-3 h-3 rounded-full bg-zinc-900 flex items-center justify-center">
                 <div

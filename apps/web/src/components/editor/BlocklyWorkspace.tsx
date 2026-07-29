@@ -104,6 +104,12 @@ const buildTheme = (name: string, p: EditorPalette) =>
       cursorColour: p.accent,
     },
     fontStyle: KID_FONT,
+    // Scratch's domed "hat" on top of every event block. Without this the hat
+    // blocks render as plain rounded rectangles and read as ordinary stackable
+    // blocks, when their whole point is to say "a script starts here".
+    // Blockly applies it to blocks with no previous *and* no output connection,
+    // which is exactly the 4 scratch_event_* blocks plus arduino_program.
+    startHats: true,
   });
 
 const kidTheme = buildTheme('kidFriendly', LIGHT);
@@ -455,10 +461,8 @@ export const BlocklyWorkspace = forwardRef<BlocklyWorkspaceHandle, BlocklyWorksp
                 className="w-24 h-28 mb-2 opacity-90 drop-shadow-lg animate-bounce"
                 style={{ animationDuration: '2.5s' }}
               />
-              <p className="font-sans font-bold text-lg text-slate-500 dark:text-slate-300">
-                Let&apos;s build something!
-              </p>
-              <p className="font-sans text-sm text-slate-400 dark:text-slate-500 max-w-xs">
+              <p className="font-sans font-bold text-lg text-ed-mid">Let&apos;s build something!</p>
+              <p className="font-sans text-sm text-ed-mid max-w-xs">
                 Pick a category on the left, then drag blocks onto this canvas to start coding.
               </p>
             </div>
@@ -468,8 +472,8 @@ export const BlocklyWorkspace = forwardRef<BlocklyWorkspaceHandle, BlocklyWorksp
         {/* Custom dialog prompt modal for variable creation */}
         {promptData && (
           <div className="absolute inset-0 z-[100] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
-            <div className="bg-white dark:bg-ed-panel border border-slate-200 dark:border-slate-800 rounded-2xl p-6 w-full max-w-sm shadow-xl animate-in fade-in zoom-in-95 duration-150">
-              <h3 className="text-base font-semibold text-slate-900 dark:text-slate-100 font-sans mb-3">
+            <div className="bg-ed-raised border border-ed-line rounded-2xl p-6 w-full max-w-sm shadow-xl animate-in fade-in zoom-in-95 duration-150">
+              <h3 className="text-base font-semibold text-ed-hi font-sans mb-3">
                 {promptData.message}
               </h3>
               <input
@@ -486,7 +490,7 @@ export const BlocklyWorkspace = forwardRef<BlocklyWorkspaceHandle, BlocklyWorksp
                     setPromptData(null);
                   }
                 }}
-                className="w-full bg-slate-50 dark:bg-ed-well border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-2.5 text-sm text-slate-800 dark:text-slate-100 font-sans outline-none focus:ring-2 focus:ring-indigo-500/50 dark:focus:ring-indigo-500/30 transition-all mb-4"
+                className="w-full bg-ed-well border border-ed-line rounded-xl px-4 py-2.5 text-sm text-ed-hi font-sans outline-none focus:ring-2 focus:ring-indigo-500/50 dark:focus:ring-indigo-500/30 transition-all mb-4"
               />
               <div className="flex justify-end gap-2.5">
                 <button
@@ -494,7 +498,7 @@ export const BlocklyWorkspace = forwardRef<BlocklyWorkspaceHandle, BlocklyWorksp
                     promptData.callback(null);
                     setPromptData(null);
                   }}
-                  className="px-4 py-2 text-xs font-semibold text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 font-sans rounded-xl transition-all"
+                  className="px-4 py-2 text-xs font-semibold text-ed-mid hover:text-ed-hi font-sans rounded-xl transition-all"
                 >
                   Cancel
                 </button>
@@ -503,7 +507,7 @@ export const BlocklyWorkspace = forwardRef<BlocklyWorkspaceHandle, BlocklyWorksp
                     promptData.callback(promptValue);
                     setPromptData(null);
                   }}
-                  className="px-4 py-2 text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-700 active:scale-95 font-sans rounded-xl shadow-md shadow-indigo-600/10 transition-all"
+                  className="px-4 py-2 text-xs font-semibold text-white bg-primary-500 hover:bg-primary-600 active:scale-95 font-sans rounded-xl shadow-md shadow-primary-500/20 transition-all"
                 >
                   Create
                 </button>

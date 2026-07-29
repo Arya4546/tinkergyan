@@ -35,7 +35,14 @@ export interface EditorPalette {
   accent: string;
   /** Tinted accent background for active nav items. */
   accentSoft: string;
-  /** "Go" — run, success, connected. Semantic only, never decorative. */
+  /**
+   * "Go" — run, success, connected. Semantic only, never decorative.
+   *
+   * These three and `accent` are brand hues and are fixed, which means on the
+   * LIGHT surfaces they only reach 2.4–4.2:1 — below AA. Use them as *fills*
+   * (with white text on top) or as icon/indicator colour, never as body text on
+   * a light background. In dark mode they clear AA and the restriction relaxes.
+   */
   go: string;
   warn: string;
   err: string;
@@ -65,8 +72,13 @@ const TERMINAL = {
   termBg: '#08080B',
   termSurface: '#101014',
   termLine: '#24242E',
+  // 11.9:1 on termBg — comfortably AAA for the 10-11px monospace output runs at.
   termText: '#C7C7D2',
-  termDim: '#71717F',
+  // 5.9:1 on termBg. Timestamps, counts and empty-state captions render at 9-10px,
+  // so this cannot be as dim as it looks like it wants to be: the previous #71717F
+  // measured 4.2:1 and the slate-600 it replaced measured 2.6:1, which was simply
+  // unreadable. Still ~2x darker than termText, so the hierarchy survives.
+  termDim: '#8A8A99',
 } as const;
 
 export const LIGHT: EditorPalette = {
@@ -78,7 +90,10 @@ export const LIGHT: EditorPalette = {
   lineSoft: '#EFEEE9',
   textHi: '#1A1A22',
   textMid: '#5B5B6D',
-  textLo: '#92929F',
+  // 4.9:1 on well. textLo reads as "supplementary", but its consumers are all
+  // real text someone parses — Monaco line numbers, Scratch sprite captions — so
+  // it has to clear AA. The #92929F it replaces measured 3.0:1.
+  textLo: '#6E6E7A',
   accent: '#6C63FF',
   accentSoft: '#F0EFFF',
   go: '#00B48F',
@@ -102,7 +117,8 @@ export const DARK: EditorPalette = {
   lineSoft: '#242430',
   textHi: '#F0F0F5',
   textMid: '#9E9EB2',
-  textLo: '#6E6E82',
+  // 5.0:1 on well — see the LIGHT note. Was #6E6E82 at 3.1:1.
+  textLo: '#9090A4',
   accent: '#8B84FF',
   accentSoft: '#26243D',
   go: '#14D3AC',

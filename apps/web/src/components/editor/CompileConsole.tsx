@@ -105,13 +105,13 @@ export function CompileConsole({ isCompiling, compileResult }: CompileConsolePro
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-sans font-semibold text-xs transition-colors focus-visible:ring-1 focus-visible:ring-primary-500 focus-visible:outline-none ${
                 active
                   ? 'text-emerald-400 bg-emerald-500/10 border border-emerald-500/30'
-                  : 'text-slate-500 hover:text-slate-300'
+                  : 'text-ed-term-dim hover:text-ed-term-text'
               }`}
             >
               <Icon size={12} />
               {t.label}
               {t.key === 'history' && history.length > 0 && (
-                <span className="text-[9px] text-slate-600 ml-1">({history.length})</span>
+                <span className="text-[9px] text-ed-term-dim ml-1">({history.length})</span>
               )}
             </button>
           );
@@ -136,7 +136,7 @@ export function CompileConsole({ isCompiling, compileResult }: CompileConsolePro
                     }`}
                   >
                     <span className="text-lg">{step.icon}</span>
-                    <span className="flex-1 text-slate-300 uppercase tracking-widest">
+                    <span className="flex-1 text-ed-term-text uppercase tracking-widest">
                       {step.label}
                     </span>
                     {i < compileStep ? (
@@ -158,10 +158,10 @@ export function CompileConsole({ isCompiling, compileResult }: CompileConsolePro
                 <div className="w-16 h-16 rounded-full bg-violet-500/10 flex items-center justify-center mb-4">
                   <span className="text-2xl">🚀</span>
                 </div>
-                <p className="font-mono text-xs font-bold uppercase tracking-widest text-slate-400 mb-2">
+                <p className="font-mono text-xs font-bold uppercase tracking-widest text-ed-term-text mb-2">
                   Ready to launch your code!
                 </p>
-                <p className="font-mono text-[10px] text-slate-600 max-w-[280px] leading-relaxed">
+                <p className="font-mono text-[10px] text-ed-term-dim max-w-[280px] leading-relaxed">
                   Click the Run button above and let's see what your Arduino does. Every great
                   inventor starts with that first click!
                 </p>
@@ -181,10 +181,10 @@ export function CompileConsole({ isCompiling, compileResult }: CompileConsolePro
             </div>
             {QUICK_HINTS.map((h, i) => (
               <div key={i} className="border-l-2 border-violet-500/30 pl-3 py-2">
-                <p className="font-mono text-[11px] font-bold text-slate-300 uppercase tracking-wide">
+                <p className="font-mono text-[11px] font-bold text-ed-term-text uppercase tracking-wide">
                   {h.title}
                 </p>
-                <p className="font-mono text-[10px] text-slate-500 mt-1">{h.tip}</p>
+                <p className="font-mono text-[10px] text-ed-term-dim mt-1">{h.tip}</p>
               </div>
             ))}
           </div>
@@ -194,7 +194,7 @@ export function CompileConsole({ isCompiling, compileResult }: CompileConsolePro
         {tab === 'history' && (
           <div className="space-y-1">
             {history.length === 0 ? (
-              <p className="font-mono text-[10px] text-slate-600 text-center py-8 uppercase tracking-widest">
+              <p className="font-mono text-[10px] text-ed-term-dim text-center py-8 uppercase tracking-widest">
                 No runs yet this session
               </p>
             ) : (
@@ -214,7 +214,7 @@ export function CompileConsole({ isCompiling, compileResult }: CompileConsolePro
                   >
                     {h.success ? '✓' : h.isTimeout ? '⏱' : '✗'}
                   </span>
-                  <span className="text-slate-400 flex-1">Run #{h.run}</span>
+                  <span className="text-ed-term-text flex-1">Run #{h.run}</span>
                   <span
                     className={`uppercase tracking-widest text-[10px] ${
                       h.success
@@ -232,7 +232,7 @@ export function CompileConsole({ isCompiling, compileResult }: CompileConsolePro
                         ? 'Timeout'
                         : 'Error'}
                   </span>
-                  <span className="text-slate-600 text-[10px]">{h.time}</span>
+                  <span className="text-ed-term-dim text-[10px]">{h.time}</span>
                 </div>
               ))
             )}
@@ -291,7 +291,7 @@ function ResultCard({ result }: { result: CompileResult }) {
             <h3 className={`font-mono text-sm font-bold uppercase tracking-wide ${titleColor}`}>
               {msg.title}
             </h3>
-            <p className="font-mono text-[11px] text-slate-400 mt-2 leading-relaxed">
+            <p className="font-mono text-[11px] text-ed-term-text mt-2 leading-relaxed">
               {msg.message}
             </p>
           </div>
@@ -299,11 +299,11 @@ function ResultCard({ result }: { result: CompileResult }) {
 
         {/* Stats row for success */}
         {result.success && !isTimeout && (
-          <div className="flex items-center gap-4 mt-4 pt-3 border-t border-slate-800/50">
-            <span className="font-mono text-[10px] text-slate-500 flex items-center gap-1">
+          <div className="flex items-center gap-4 mt-4 pt-3 border-t border-ed-term-line/50">
+            <span className="font-mono text-[10px] text-ed-term-dim flex items-center gap-1">
               <Clock size={10} /> {result.durationMs}ms
             </span>
-            <span className="font-mono text-[10px] text-slate-500">
+            <span className="font-mono text-[10px] text-ed-term-dim">
               ⚡ {result.engine ?? 'wandbox'}
             </span>
           </div>
@@ -321,7 +321,7 @@ function ResultCard({ result }: { result: CompileResult }) {
                 <div key={i}>
                   <div className="text-[11px] font-mono p-3 border-l-2 border-orange-500 bg-orange-500/5 text-orange-300">
                     {e.line > 0 && (
-                      <span className="text-slate-500 mr-2">
+                      <span className="text-ed-term-dim mr-2">
                         Line {e.line}:{e.column}
                       </span>
                     )}
@@ -351,7 +351,7 @@ function ResultCard({ result }: { result: CompileResult }) {
                 key={i}
                 className="text-[11px] font-mono p-3 border-l-2 border-amber-500 bg-amber-500/5 text-amber-300"
               >
-                {e.line > 0 && <span className="text-slate-500 mr-2">Line {e.line}</span>}
+                {e.line > 0 && <span className="text-ed-term-dim mr-2">Line {e.line}</span>}
                 {e.message}
               </div>
             ))}
@@ -385,7 +385,7 @@ function ResultCard({ result }: { result: CompileResult }) {
 
       {/* Footnote */}
       {'footnote' in msg && (
-        <p className="font-mono text-[10px] text-slate-600 italic text-center mt-4">
+        <p className="font-mono text-[10px] text-ed-term-dim italic text-center mt-4">
           {(msg as { footnote: string }).footnote}
         </p>
       )}

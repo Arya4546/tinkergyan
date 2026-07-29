@@ -9,6 +9,12 @@ import { Tooltip } from '../../ui/Tooltip';
 export function ScratchBackdropPanel() {
   const { backdrop, backdropCount, setBackdrop } = useSimulatorStore();
 
+  // Shared by the thumbnail and the FAB so they can't drift apart.
+  const cycleBackdrop = () => {
+    const idx = BACKDROP_OPTIONS.indexOf(backdrop as (typeof BACKDROP_OPTIONS)[number]);
+    setBackdrop(BACKDROP_OPTIONS[(idx + 1) % BACKDROP_OPTIONS.length] ?? 'white');
+  };
+
   return (
     <div className="scratch-backdrop-panel">
       {/* Label */}
@@ -27,11 +33,7 @@ export function ScratchBackdropPanel() {
       {/* Backdrop Thumbnail */}
       <Tooltip content="Click to change backdrop" position="left">
         <div
-          onClick={() => {
-            // Cycle through backdrops on click
-            const idx = BACKDROP_OPTIONS.indexOf(backdrop as (typeof BACKDROP_OPTIONS)[number]);
-            setBackdrop(BACKDROP_OPTIONS[(idx + 1) % BACKDROP_OPTIONS.length] ?? 'white');
-          }}
+          onClick={cycleBackdrop}
           className="scratch-item-card"
           style={{
             width: '64px',
@@ -84,14 +86,19 @@ export function ScratchBackdropPanel() {
         </span>
       </div>
 
-      {/* Add Backdrop FAB */}
+      {/* Change Backdrop FAB.
+          Was labelled "Add Backdrop" and had no click handler at all — a dead
+          button. Backdrops come from a fixed BACKDROP_OPTIONS list and there is
+          no addBackdrop action, so "add" was never the right word: it cycles,
+          exactly like clicking the thumbnail above. */}
       <Tooltip
-        content="Add Backdrop"
+        content="Change Backdrop"
         position="left"
         className="scratch-fab"
         style={{ width: '40px', height: '40px', bottom: '12px', right: '12px' }}
       >
         <div
+          onClick={cycleBackdrop}
           style={{
             width: '100%',
             height: '100%',

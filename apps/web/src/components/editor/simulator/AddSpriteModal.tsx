@@ -10,26 +10,78 @@ interface PresetSprite {
   image?: string;
 }
 
+/**
+ * Sprites offered by "Choose a Sprite".
+ *
+ * These must be sprites, not costumes. This list used to contain a single entry
+ * — "Stemmantra Logo", /sprites/scratch_games.svg — which is *costume 0 of the
+ * default Stemmantra sprite*. Picking it added a second sprite that was really
+ * another view of the one already on stage, and because new sprites also spawned
+ * at 0,0 it landed directly on top of the original. That is the "both appear at
+ * once" report: not two sprites too many, but one sprite offered twice and
+ * stacked on itself. To change how the existing sprite looks, switch its costume
+ * — that is what costumes are for.
+ */
 const PRESETS: PresetSprite[] = [
   {
-    name: 'Stemmantra Logo',
+    name: 'Cat',
     type: 'character',
     icon: <User size={24} className="text-indigo-500" />,
-    desc: 'Default Logo Sprite',
-    image: '/sprites/scratch_games.svg',
+    desc: 'The classic Scratch cat',
+    image: '/sprites/cat.png',
+  },
+  {
+    name: 'Stemmantra',
+    type: 'character',
+    icon: <User size={24} className="text-indigo-500" />,
+    desc: 'Robot mascot',
+    image: '/sprites/svg.svg',
   },
 ];
 
+/**
+ * A spot on the stage that isn't already occupied.
+ *
+ * Scratch drops new sprites at a random position rather than dead centre, so two
+ * sprites never hide each other. We do the same, then take the best of a handful
+ * of candidates by distance to the nearest existing sprite — cheap, and it
+ * guarantees the new sprite is visibly separate rather than merely usually so.
+ */
+function findFreeSpot(taken: { x: number; y: number }[]): { x: number; y: number } {
+  // Stage is 480x360 with 0,0 at centre. Inset so sprites never straddle an edge.
+  const RX = 170;
+  const RY = 120;
+  let best = { x: 0, y: 0 };
+  let bestDist = -1;
+  for (let i = 0; i < 12; i++) {
+    const cand = {
+      x: Math.round((Math.random() * 2 - 1) * RX),
+      y: Math.round((Math.random() * 2 - 1) * RY),
+    };
+    const dist = taken.length
+      ? Math.min(...taken.map((t) => Math.hypot(t.x - cand.x, t.y - cand.y)))
+      : Infinity;
+    if (dist > bestDist) {
+      bestDist = dist;
+      best = cand;
+    }
+    if (dist > 110) break; // comfortably clear — no need to keep looking
+  }
+  return best;
+}
+
 export function AddSpriteModal({ onClose }: { onClose: () => void }) {
   const addSprite = useSimulatorStore((s) => s.addSprite);
+  const sprites = useSimulatorStore((s) => s.sprites);
 
   const handleSelect = (preset: PresetSprite) => {
+    const { x, y } = findFreeSpot(sprites.map((s) => ({ x: s.x, y: s.y })));
     addSprite({
       name: preset.name,
       type: preset.type,
       ...(preset.image ? { image: preset.image } : {}),
-      x: 0, // Center of stage (Scratch coordinate system: 0,0 = center)
-      y: 0,
+      x,
+      y,
       size: 100,
       direction: 90,
       visible: true,

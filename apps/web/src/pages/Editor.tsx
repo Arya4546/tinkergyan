@@ -926,7 +926,7 @@ export default function Editor() {
             <Tooltip content="Dashboard" position="bottom">
               <Link
                 to="/dashboard"
-                className="w-11 h-11 shrink-0 flex items-center justify-center rounded-xl bg-slate-100 dark:bg-dark-border text-slate-500 hover:text-slate-800 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:outline-none"
+                className="w-11 h-11 shrink-0 flex items-center justify-center rounded-xl bg-ed-panel text-ed-mid hover:text-ed-hi hover:bg-ed-line transition-colors focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:outline-none"
               >
                 <Home size={18} strokeWidth={2.5} />
               </Link>
@@ -941,7 +941,7 @@ export default function Editor() {
                   e.currentTarget.blur();
                 }
               }}
-              className="font-sans font-semibold text-sm text-slate-800 dark:text-white bg-transparent border-none outline-none w-32 sm:w-44 truncate focus-visible:ring-2 focus-visible:ring-primary-500 rounded px-1"
+              className="font-sans font-semibold text-sm text-ed-hi bg-transparent border-none outline-none w-32 sm:w-44 truncate focus-visible:ring-2 focus-visible:ring-primary-500 rounded px-1"
               spellCheck={false}
             />
             {isDirty && (
@@ -952,14 +952,14 @@ export default function Editor() {
 
             {/* Gamification surface */}
             {user && (
-              <div className="hidden lg:flex items-center gap-3 px-3 py-1.5 bg-slate-100 dark:bg-dark-surface rounded-full border border-slate-200 dark:border-dark-border ml-2">
+              <div className="hidden lg:flex items-center gap-3 px-3 py-1.5 bg-ed-panel rounded-full border border-ed-line ml-2">
                 <Tooltip content={`${user.streak} day streak!`} position="bottom">
                   <div className="flex items-center gap-1.5 text-warning-500">
                     <Zap size={14} fill="currentColor" />
                     <span className="font-sans font-bold text-xs">{user.streak}</span>
                   </div>
                 </Tooltip>
-                <div className="w-px h-3 bg-slate-300 dark:bg-ed-line" />
+                <div className="w-px h-3 bg-ed-line" />
                 <Tooltip content={`Level ${user.level}`} position="bottom">
                   <div className="flex items-center gap-1.5 text-celebrate">
                     <Star size={14} fill="currentColor" />
@@ -974,14 +974,14 @@ export default function Editor() {
               blocks-only; there's no C++ concept for the "C++" generator to speak to. */}
           {engineMode === 'hardware' && (
             <div className="flex items-center gap-2 shrink-0">
-              <div className="flex items-center bg-slate-100 dark:bg-dark-border rounded-xl p-1">
+              <div className="flex items-center bg-ed-panel rounded-xl p-1">
                 <Tooltip content="Visual Block Editor" position="bottom">
                   <button
                     onClick={switchToBlock}
                     className={`flex items-center gap-1.5 h-9 px-3 rounded-lg font-sans font-semibold text-sm transition-all focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:outline-none ${
                       mode === 'block'
-                        ? 'bg-white dark:bg-dark-surface text-slate-800 dark:text-white shadow-sm'
-                        : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-200'
+                        ? 'bg-ed-raised text-ed-hi shadow-sm'
+                        : 'text-ed-mid hover:text-ed-hi'
                     }`}
                   >
                     <LayoutGrid size={14} /> <span className="hidden sm:inline">Blocks</span>
@@ -992,8 +992,8 @@ export default function Editor() {
                     onClick={switchToCode}
                     className={`flex items-center gap-1.5 h-9 px-3 rounded-lg font-sans font-semibold text-sm transition-all focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:outline-none ${
                       mode === 'code'
-                        ? 'bg-white dark:bg-dark-surface text-slate-800 dark:text-white shadow-sm'
-                        : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-200'
+                        ? 'bg-ed-raised text-ed-hi shadow-sm'
+                        : 'text-ed-mid hover:text-ed-hi'
                     }`}
                   >
                     <Code2 size={14} /> <span className="hidden sm:inline">C++</span>
@@ -1028,22 +1028,22 @@ export default function Editor() {
 
             {/* Font size controls (code mode only) */}
             {mode === 'code' && (
-              <div className="flex items-center bg-slate-100 dark:bg-dark-border rounded-lg overflow-hidden">
+              <div className="flex items-center bg-ed-panel rounded-lg overflow-hidden">
                 <Tooltip content="Decrease Font Size" position="bottom">
                   <button
                     onClick={decreaseFontSize}
-                    className="w-11 h-11 flex items-center justify-center text-slate-500 hover:text-slate-800 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:outline-none"
+                    className="w-11 h-11 flex items-center justify-center text-ed-mid hover:text-ed-hi hover:bg-ed-line transition-colors focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:outline-none"
                   >
                     <Minus size={14} />
                   </button>
                 </Tooltip>
-                <span className="w-8 h-11 flex items-center justify-center font-sans text-xs font-semibold text-slate-500">
+                <span className="w-8 h-11 flex items-center justify-center font-sans text-xs font-semibold text-ed-mid">
                   {fontSize}
                 </span>
                 <Tooltip content="Increase Font Size" position="bottom">
                   <button
                     onClick={increaseFontSize}
-                    className="w-11 h-11 flex items-center justify-center text-slate-500 hover:text-slate-800 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:outline-none"
+                    className="w-11 h-11 flex items-center justify-center text-ed-mid hover:text-ed-hi hover:bg-ed-line transition-colors focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:outline-none"
                   >
                     <Plus size={14} />
                   </button>
@@ -1057,7 +1057,7 @@ export default function Editor() {
                 <Tooltip content="Undo (Ctrl+Z)" position="bottom">
                   <button
                     onClick={() => blocklyRef.current?.undo()}
-                    className="w-11 h-11 flex items-center justify-center rounded-lg text-slate-500 hover:text-slate-800 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-dark-border transition-colors focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:outline-none"
+                    className="w-11 h-11 flex items-center justify-center rounded-xl text-ed-mid hover:text-ed-hi hover:bg-ed-panel transition-colors focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:outline-none"
                   >
                     <Undo size={16} />
                   </button>
@@ -1065,7 +1065,7 @@ export default function Editor() {
                 <Tooltip content="Redo (Ctrl+Y)" position="bottom">
                   <button
                     onClick={() => blocklyRef.current?.redo()}
-                    className="w-11 h-11 flex items-center justify-center rounded-lg text-slate-500 hover:text-slate-800 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-dark-border transition-colors focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:outline-none"
+                    className="w-11 h-11 flex items-center justify-center rounded-xl text-ed-mid hover:text-ed-hi hover:bg-ed-panel transition-colors focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:outline-none"
                   >
                     <Redo size={16} />
                   </button>
@@ -1078,20 +1078,20 @@ export default function Editor() {
               <Tooltip content="More Options" position="bottom">
                 <button
                   onClick={() => setShowMoreMenu(!showMoreMenu)}
-                  className="w-11 h-11 flex items-center justify-center rounded-xl text-slate-500 hover:text-slate-800 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-dark-border transition-colors focus-visible:ring-2 focus-visible:ring-primary-500"
+                  className="w-11 h-11 flex items-center justify-center rounded-xl text-ed-mid hover:text-ed-hi hover:bg-ed-panel transition-colors focus-visible:ring-2 focus-visible:ring-primary-500"
                 >
                   <MoreVertical size={20} />
                 </button>
               </Tooltip>
 
               {showMoreMenu && (
-                <div className="absolute right-0 top-full mt-2 w-48 bg-white dark:bg-dark-surface border border-slate-200 dark:border-dark-border rounded-xl shadow-lg flex flex-col p-1 z-50">
+                <div className="absolute right-0 top-full mt-2 w-48 bg-ed-raised border border-ed-line rounded-xl shadow-lg flex flex-col p-1 z-50">
                   <button
                     onClick={() => {
                       setShowTemplates(true);
                       setShowMoreMenu(false);
                     }}
-                    className="w-full flex items-center gap-2 px-3 py-2 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg text-left"
+                    className="w-full flex items-center gap-2 px-3 py-2 text-sm text-ed-hi hover:bg-ed-panel rounded-lg text-left"
                   >
                     <FileCode size={16} className="shrink-0" />
                     <span>Templates</span>
@@ -1101,7 +1101,7 @@ export default function Editor() {
                       handleDownload();
                       setShowMoreMenu(false);
                     }}
-                    className="w-full flex items-center gap-2 px-3 py-2 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg text-left"
+                    className="w-full flex items-center gap-2 px-3 py-2 text-sm text-ed-hi hover:bg-ed-panel rounded-lg text-left"
                   >
                     <Download size={16} className="shrink-0" />
                     <span>Download .ino</span>
@@ -1112,7 +1112,7 @@ export default function Editor() {
                       setShowMoreMenu(false);
                     }}
                     disabled={isSaving}
-                    className="w-full flex items-center gap-2 px-3 py-2 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg text-left disabled:opacity-50"
+                    className="w-full flex items-center gap-2 px-3 py-2 text-sm text-ed-hi hover:bg-ed-panel rounded-lg text-left disabled:opacity-50"
                   >
                     {isSaving ? (
                       <Loader2 size={16} className="animate-spin shrink-0" />
@@ -1123,13 +1123,13 @@ export default function Editor() {
                   </button>
                   {projectId && (
                     <>
-                      <div className="h-px bg-slate-200 dark:bg-dark-border my-1" />
+                      <div className="h-px bg-ed-line my-1" />
                       <button
                         onClick={() => {
                           handleDuplicate();
                           setShowMoreMenu(false);
                         }}
-                        className="w-full flex items-center gap-2 px-3 py-2 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg text-left"
+                        className="w-full flex items-center gap-2 px-3 py-2 text-sm text-ed-hi hover:bg-ed-panel rounded-lg text-left"
                       >
                         <Copy size={16} className="shrink-0" />
                         <span>Duplicate</span>
@@ -1139,7 +1139,7 @@ export default function Editor() {
                           handleTogglePublic();
                           setShowMoreMenu(false);
                         }}
-                        className="w-full flex items-center gap-2 px-3 py-2 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg text-left"
+                        className="w-full flex items-center gap-2 px-3 py-2 text-sm text-ed-hi hover:bg-ed-panel rounded-lg text-left"
                       >
                         <Globe
                           size={16}
@@ -1208,7 +1208,7 @@ export default function Editor() {
                       className={`w-11 h-11 rounded-xl flex items-center justify-center transition-all focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:outline-none active:scale-[0.97] ${
                         showSerialMonitor
                           ? 'bg-primary-500 text-white'
-                          : 'bg-slate-100 dark:bg-dark-border text-slate-500 hover:text-slate-800 dark:hover:text-white'
+                          : 'bg-ed-panel text-ed-mid hover:text-ed-hi'
                       }`}
                     >
                       <Terminal size={16} />
@@ -1231,8 +1231,8 @@ export default function Editor() {
                   }}
                   className={`w-11 h-11 rounded-xl flex items-center justify-center transition-all focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:outline-none active:scale-[0.97] hidden sm:flex ${
                     showCodePanel && !showSimulator
-                      ? 'bg-slate-200 dark:bg-slate-700 text-slate-800 dark:text-white'
-                      : 'bg-slate-100 dark:bg-dark-border text-slate-500 hover:text-slate-800 dark:hover:text-white'
+                      ? 'bg-ed-line text-ed-hi'
+                      : 'bg-ed-panel text-ed-mid hover:text-ed-hi'
                   }`}
                 >
                   <PanelRight size={16} />
@@ -1259,7 +1259,7 @@ export default function Editor() {
                   className={`h-11 px-3 sm:px-4 rounded-xl font-sans font-semibold text-sm items-center gap-2 transition-all focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:outline-none active:scale-[0.97] hidden sm:flex ${
                     showSimulator
                       ? 'bg-emerald-500 text-white shadow-md shadow-emerald-500/20'
-                      : 'bg-slate-100 dark:bg-dark-border text-slate-500 hover:text-slate-800 dark:hover:text-white'
+                      : 'bg-ed-panel text-ed-mid hover:text-ed-hi'
                   }`}
                 >
                   <Gamepad2 size={16} />
@@ -1289,7 +1289,7 @@ export default function Editor() {
 
           {/* Flash progress bar */}
           {isFlashing && (
-            <div className="absolute left-0 right-0 bottom-0 h-1 bg-slate-100 dark:bg-dark-border">
+            <div className="absolute left-0 right-0 bottom-0 h-1 bg-ed-panel">
               <div
                 className="h-full bg-blue-500 rounded-full transition-all duration-300 ease-out"
                 style={{ width: `${flashProgress}%` }}
@@ -1333,7 +1333,7 @@ export default function Editor() {
           {/* ── Resizer ─────────────────────────────────────────────────── */}
           {showCodePanel && (
             <div
-              className="w-1.5 bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 cursor-col-resize transition-colors shrink-0 z-10"
+              className="w-1.5 bg-ed-line hover:bg-ed-accent cursor-col-resize transition-colors shrink-0 z-10"
               onMouseDown={() => {
                 isResizing.current = true;
                 document.body.style.cursor = 'col-resize';
@@ -1347,9 +1347,7 @@ export default function Editor() {
             <div
               style={{ width: terminalWidth }}
               className={`flex flex-col shrink-0 border-l ${
-                showSimulator
-                  ? 'border-slate-100 dark:border-dark-border bg-white dark:bg-dark-bg'
-                  : 'border-ed-term-line bg-ed-term-bg'
+                showSimulator ? 'border-ed-line bg-ed-panel' : 'border-ed-term-line bg-ed-term-bg'
               }`}
             >
               {/* Simulator Stage Panel */}
@@ -1375,8 +1373,8 @@ export default function Editor() {
                         !compileResult &&
                         !isFlashing && (
                           <div className="border-b border-ed-term-line bg-ed-term-surface px-4 py-2 flex items-center gap-2 shrink-0">
-                            <Code2 size={12} className="text-slate-500" />
-                            <span className="font-sans text-xs text-slate-500">
+                            <Code2 size={12} className="text-ed-mid" />
+                            <span className="font-sans text-xs text-ed-mid">
                               Generated C++ Preview
                             </span>
                           </div>
@@ -1386,14 +1384,14 @@ export default function Editor() {
                       {mode === 'code' && !isFlashing && (
                         <div className="border-b border-ed-term-line bg-ed-term-surface shrink-0">
                           <div className="px-3 py-1.5 flex items-center gap-2">
-                            <span className="font-sans text-xs text-slate-500">📥 Stdin input</span>
+                            <span className="font-sans text-xs text-ed-mid">📥 Stdin input</span>
                           </div>
                           <textarea
                             value={stdinInput}
                             onChange={(e) => setStdinInput(e.target.value)}
                             placeholder="Enter input here (for cin/scanf programs)..."
                             spellCheck={false}
-                            className="w-full bg-ed-term-surface text-ed-term-text font-mono text-[11px] px-3 py-2 outline-none resize-none border-none h-16 placeholder:text-slate-700"
+                            className="w-full bg-ed-term-surface text-ed-term-text font-mono text-[11px] px-3 py-2 outline-none resize-none border-none h-16 placeholder:text-ed-hi"
                           />
                         </div>
                       )}
@@ -1519,7 +1517,7 @@ export default function Editor() {
           onClick={() => blocker.reset()}
         >
           <div
-            className="bg-white dark:bg-[#111111] border border-slate-200 dark:border-slate-800 rounded-3xl max-w-md w-full shadow-2xl p-6 relative flex flex-col gap-6"
+            className="bg-white dark:bg-dark-surface border border-slate-200 dark:border-dark-border rounded-2xl max-w-md w-full shadow-2xl animate-pop p-6 relative flex flex-col gap-6"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="text-center">

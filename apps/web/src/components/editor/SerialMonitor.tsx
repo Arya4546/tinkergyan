@@ -186,9 +186,9 @@ export function SerialMonitor({ port }: SerialMonitorProps) {
         {/* Status indicator */}
         <div className="flex items-center gap-2 px-2">
           <div
-            className={`w-2 h-2 rounded-full ${isReading ? 'bg-emerald-500 animate-pulse' : 'bg-slate-600'}`}
+            className={`w-2 h-2 rounded-full ${isReading ? 'bg-emerald-500 animate-pulse' : 'bg-ed-term-dim'}`}
           />
-          <span className="font-mono text-[10px] font-bold uppercase tracking-widest text-slate-400">
+          <span className="font-mono text-[10px] font-bold uppercase tracking-widest text-ed-term-text">
             Serial Monitor
           </span>
         </div>
@@ -215,7 +215,7 @@ export function SerialMonitor({ port }: SerialMonitorProps) {
                   className={`w-full text-left px-3 py-2 font-mono text-[10px] font-bold uppercase tracking-widest transition-colors ${
                     rate === baudRate
                       ? 'bg-amber-500/20 text-amber-400'
-                      : 'text-slate-400 hover:bg-slate-800 hover:text-white'
+                      : 'text-ed-term-text hover:bg-ed-term-line hover:text-white'
                   }`}
                 >
                   {rate}
@@ -232,7 +232,7 @@ export function SerialMonitor({ port }: SerialMonitorProps) {
         >
           <button
             onClick={() => setIsPaused(!isPaused)}
-            className={`p-1.5 transition-colors ${isPaused ? 'text-amber-400 hover:bg-amber-500/10' : 'text-slate-500 hover:text-slate-300'}`}
+            className={`p-1.5 transition-colors ${isPaused ? 'text-amber-400 hover:bg-amber-500/10' : 'text-ed-term-dim hover:text-ed-term-text'}`}
           >
             {isPaused ? <Play size={12} /> : <Pause size={12} />}
           </button>
@@ -242,7 +242,7 @@ export function SerialMonitor({ port }: SerialMonitorProps) {
         <Tooltip content="Export Logs to File" position="bottom">
           <button
             onClick={handleExport}
-            className="p-1.5 text-slate-500 hover:text-slate-300 transition-colors"
+            className="p-1.5 text-ed-term-dim hover:text-ed-term-text transition-colors"
             disabled={lines.length === 0}
           >
             <Download size={12} />
@@ -253,7 +253,7 @@ export function SerialMonitor({ port }: SerialMonitorProps) {
         <Tooltip content="Clear Output Logs" position="bottom">
           <button
             onClick={handleClear}
-            className="p-1.5 text-slate-500 hover:text-red-400 transition-colors"
+            className="p-1.5 text-ed-term-dim hover:text-red-400 transition-colors"
           >
             <Trash2 size={12} />
           </button>
@@ -270,10 +270,10 @@ export function SerialMonitor({ port }: SerialMonitorProps) {
             <div className="w-12 h-12 rounded-full bg-amber-500/10 flex items-center justify-center mb-3">
               <Radio size={20} className="text-amber-500/50" />
             </div>
-            <p className="font-mono text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-1">
+            <p className="font-mono text-[10px] font-bold uppercase tracking-widest text-ed-term-dim mb-1">
               Listening for serial data...
             </p>
-            <p className="font-mono text-[9px] text-slate-700 max-w-[220px]">
+            <p className="font-mono text-[9px] text-ed-term-dim max-w-[220px]">
               Make sure your code uses Serial.begin({baudRate}) and Serial.println()
             </p>
           </div>
@@ -311,13 +311,13 @@ export function SerialMonitor({ port }: SerialMonitorProps) {
           onChange={(e) => setInputValue(e.target.value)}
           onKeyDown={handleKeyDown}
           placeholder="Type message to send..."
-          className="flex-1 bg-transparent font-mono text-[11px] text-slate-300 px-3 py-2.5 outline-none placeholder:text-slate-700"
+          className="flex-1 bg-transparent font-mono text-[11px] text-ed-term-text px-3 py-2.5 outline-none placeholder:text-ed-term-dim"
         />
         <Tooltip content="Send Message (Enter)" position="left">
           <button
             onClick={handleSend}
             disabled={!inputValue.trim()}
-            className="px-3 py-2.5 text-emerald-500 hover:text-emerald-400 disabled:text-slate-700 transition-colors"
+            className="px-3 py-2.5 text-emerald-500 hover:text-emerald-400 disabled:text-ed-term-dim transition-colors"
           >
             <Send size={14} />
           </button>
