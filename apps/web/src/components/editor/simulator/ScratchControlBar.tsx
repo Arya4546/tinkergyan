@@ -10,6 +10,9 @@ import {
 } from './ScratchIcons';
 import { Tooltip } from '../../ui/Tooltip';
 import { scratchEngine } from './ScratchEngine';
+import { arduinoSimEngine, runArduinoSketchFromWorkspace } from './ArduinoSimEngine';
+import { useArduinoSimStore } from '../../../stores/arduino-sim.store';
+import { useEditorStore } from '../../../stores/editor.store';
 
 interface ScratchControlBarProps {
   /** Called when the user confirms resetting the project back to a blank slate. */
@@ -24,6 +27,27 @@ export function ScratchControlBar({ onReset }: ScratchControlBarProps) {
     useSimulatorStore();
 
   /**
+   * In hardware mode these buttons drive the Arduino simulator, not Scratch.
+   *
+   * The stage is now shown for Arduino projects too, which put this Scratch
+   * control bar on screen next to the toolbar's Run button. Left as-is the
+   * green flag would start a Scratch script that does not exist — a second,
+   * dead Run button right above the stage. `board` is the literal 'software'
+   * for the Scratch engine, so it doubles as the mode signal.
+   */
+  const isHardware = useEditorStore((s) => s.board) !== 'software';
+  const arduinoRunning = useArduinoSimStore((s) => s.isRunning);
+  const running = isHardware ? arduinoRunning : isRunning;
+
+  const handleStart = () => {
+    if (isHardware) {
+      runArduinoSketchFromWorkspace();
+      return;
+    }
+    startSimulation();
+  };
+
+  /**
    * Stop the engine directly, then clear the flag state.
    *
    * Going through `isRunning` alone is not enough any more: "when key pressed"
@@ -33,6 +57,10 @@ export function ScratchControlBar({ onReset }: ScratchControlBarProps) {
    * and Stop would do nothing at all for those scripts.
    */
   const handleStop = () => {
+    if (isHardware) {
+      arduinoSimEngine.stop();
+      return;
+    }
     scratchEngine.stop();
     stopSimulation();
   };
@@ -42,15 +70,12 @@ export function ScratchControlBar({ onReset }: ScratchControlBarProps) {
       {/* Left: Flag + Stop + Reset */}
       <div className="scratch-flag-stop">
         <Tooltip content="Go (Run Code)" position="bottom">
-          <div
-            onClick={startSimulation}
-            className={`scratch-flag-btn ${isRunning ? 'running' : ''}`}
-          >
+          <div onClick={handleStart} className={`scratch-flag-btn ${running ? 'running' : ''}`}>
             <GreenFlagIcon size={20} />
           </div>
         </Tooltip>
         <Tooltip content="Stop Code Execution" position="bottom">
-          <div onClick={handleStop} className={`scratch-stop-btn ${isRunning ? 'running' : ''}`}>
+          <div onClick={handleStop} className={`scratch-stop-btn ${running ? 'running' : ''}`}>
             <StopIcon size={20} />
           </div>
         </Tooltip>

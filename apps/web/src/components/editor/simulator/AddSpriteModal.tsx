@@ -1,6 +1,7 @@
 import React from 'react';
-import { X, User } from 'lucide-react';
+import { X, User, Lightbulb, CircleDot, RotateCw, Gauge, Car } from 'lucide-react';
 import { useSimulatorStore, type SpriteType } from '../../../stores/simulator.store';
+import { useEditorStore } from '../../../stores/editor.store';
 
 interface PresetSprite {
   name: string;
@@ -8,6 +9,8 @@ interface PresetSprite {
   icon: React.ReactNode;
   desc: string;
   image?: string;
+  /** Pin this component starts wired to, so it works without configuration. */
+  defaultPin?: string;
 }
 
 /**
@@ -36,6 +39,57 @@ const PRESETS: PresetSprite[] = [
     icon: <User size={24} className="text-indigo-500" />,
     desc: 'Robot mascot',
     image: '/sprites/svg.svg',
+  },
+];
+
+/**
+ * Components offered in hardware mode.
+ *
+ * StageCanvas could already draw every one of these — an LED that lights, a
+ * servo that rotates, a pot with a working knob — but nothing in the app ever
+ * created one, so the artwork was unreachable. These are the parts a beginner
+ * Arduino kit actually contains.
+ *
+ * Each ships pre-wired to the pin its lesson conventionally uses, so "add an
+ * LED, press Run" lights up immediately instead of requiring a student to
+ * discover the pin dropdown first. Pin 13 for the LED because that is
+ * LED_BUILTIN on every AVR board and what every blink tutorial writes to.
+ */
+const HARDWARE_PRESETS: PresetSprite[] = [
+  {
+    name: 'LED',
+    type: 'led',
+    icon: <Lightbulb size={24} className="text-red-500" />,
+    desc: 'Lights up on pin 13',
+    defaultPin: '13',
+  },
+  {
+    name: 'Push Button',
+    type: 'button',
+    icon: <CircleDot size={24} className="text-red-500" />,
+    desc: 'Press it — your code can read pin 2',
+    defaultPin: '2',
+  },
+  {
+    name: 'Servo',
+    type: 'servo',
+    icon: <RotateCw size={24} className="text-blue-500" />,
+    desc: 'Rotates with analogWrite on pin 9',
+    defaultPin: '9',
+  },
+  {
+    name: 'Potentiometer',
+    type: 'potentiometer',
+    icon: <Gauge size={24} className="text-emerald-500" />,
+    desc: 'Turn the knob — analogRead on A0',
+    defaultPin: 'A0',
+  },
+  {
+    name: 'Robot Car',
+    type: 'robot_car',
+    icon: <Car size={24} className="text-amber-500" />,
+    desc: 'Drives when pin 8 goes HIGH',
+    defaultPin: '8',
   },
 ];
 
@@ -73,6 +127,10 @@ function findFreeSpot(taken: { x: number; y: number }[]): { x: number; y: number
 export function AddSpriteModal({ onClose }: { onClose: () => void }) {
   const addSprite = useSimulatorStore((s) => s.addSprite);
   const sprites = useSimulatorStore((s) => s.sprites);
+  // `board` is set to the literal 'software' for the Scratch engine, so it
+  // doubles as the mode signal without threading a prop through the stage.
+  const isHardware = useEditorStore((s) => s.board) !== 'software';
+  const presets = isHardware ? HARDWARE_PRESETS : PRESETS;
 
   const handleSelect = (preset: PresetSprite) => {
     const { x, y } = findFreeSpot(sprites.map((s) => ({ x: s.x, y: s.y })));
@@ -89,7 +147,7 @@ export function AddSpriteModal({ onClose }: { onClose: () => void }) {
       costumeIndex: 0,
       rotationStyle: 'all around',
       effects: { color: 0, ghost: 0, brightness: 0 },
-      state: {},
+      state: preset.defaultPin ? { pin: preset.defaultPin } : {},
     });
     onClose();
   };
@@ -99,7 +157,7 @@ export function AddSpriteModal({ onClose }: { onClose: () => void }) {
       <div className="bg-white dark:bg-dark-surface border border-slate-100 dark:border-dark-border rounded-2xl w-full max-w-lg shadow-2xl animate-pop overflow-hidden flex flex-col max-h-[80vh]">
         <div className="px-5 py-4 border-b border-slate-100 dark:border-dark-border flex justify-between items-center bg-slate-50 dark:bg-dark-bg shrink-0">
           <h2 className="font-sans font-bold text-base text-slate-800 dark:text-white">
-            Choose a Sprite
+            {isHardware ? 'Add a Component' : 'Choose a Sprite'}
           </h2>
           <button
             onClick={onClose}
@@ -111,7 +169,7 @@ export function AddSpriteModal({ onClose }: { onClose: () => void }) {
 
         <div className="p-4 overflow-y-auto">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            {PRESETS.map((preset) => (
+            {presets.map((preset) => (
               <button
                 key={preset.name}
                 onClick={() => handleSelect(preset)}

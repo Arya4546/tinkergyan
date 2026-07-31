@@ -19,11 +19,16 @@ ESP32_URL=https://raw.githubusercontent.com/espressif/arduino-esp32/gh-pages/pac
 # because the esp8266 directory already exists and short-circuits the whole
 # block. Per-core checks mean a new core lands on the next restart.
 install_core() {
-  name="$1"      # package dir under ~/.arduino15/packages
+  name="$1"      # package dir under ~/.arduino15/packages (unused, kept for clarity)
   spec="$2"      # arduino-cli core id
   url="$3"       # additional package index, empty for built-ins
 
-  if [ -d "$PKGS/$name" ]; then
+  # Ask arduino-cli whether the core is actually usable, rather than checking
+  # that a directory exists. The ESP32 core is a 1.6GB download; if it dies
+  # part-way (disk full, dropped connection) the package directory is still
+  # there, so a directory check would report "already installed" on every
+  # future restart and the board would stay silently broken forever.
+  if "$CLI" core list 2>/dev/null | grep -q "^$spec "; then
     echo "Core $spec already installed."
     return 0
   fi
@@ -36,18 +41,30 @@ install_core() {
   fi
 }
 
-echo "Updating core index..."
-# `|| true` throughout: a core that fails to install must not stop the API from
-# booting. Compiles for that one board will fail with a clear arduino-cli error,
-# which is far better than the whole service refusing to start.
-"$CLI" core update-index --additional-urls "$ESP8266_URL,$ESP32_URL" || true
+# Cores install in the BACKGROUND, so the API comes up immediately.
+#
+# The ESP32 core alone is a 1.6GB download (~3.5GB unpacked) and can take 20+
+# minutes on a slow link. Installing before `exec node` meant the entire
+# service — login, projects, uploads for boards whose cores were already
+# present — stayed down for that whole window. Nothing here is needed to serve
+# a request; a compile for a not-yet-installed board fails with a clear
+# arduino-cli error, which beats the site being unreachable.
+#
+# `|| true` throughout for the same reason: a core that cannot install must
+# never take the API down with it.
+install_cores() {
+  echo "Updating core index..."
+  "$CLI" core update-index --additional-urls "$ESP8266_URL,$ESP32_URL" || true
 
-install_core arduino  arduino:avr      ""             || echo "AVR core install failed — Uno/Nano/Mega compiles will not work"
-install_core esp8266  esp8266:esp8266  "$ESP8266_URL" || echo "ESP8266 core install failed — ESP8266 compiles will not work"
-install_core esp32    esp32:esp32      "$ESP32_URL"   || echo "ESP32 core install failed — ESP32 compiles will not work"
+  install_core arduino  arduino:avr      ""             || echo "AVR core install failed — Uno/Nano/Mega compiles will not work"
+  install_core esp8266  esp8266:esp8266  "$ESP8266_URL" || echo "ESP8266 core install failed — ESP8266 compiles will not work"
+  install_core esp32    esp32:esp32      "$ESP32_URL"   || echo "ESP32 core install failed — ESP32 compiles will not work"
 
-echo "Installed cores:"
-"$CLI" core list || true
+  echo "Core setup finished. Installed cores:"
+  "$CLI" core list || true
+}
+
+install_cores &
 
 echo "Starting server..."
 exec node dist/server.cjs

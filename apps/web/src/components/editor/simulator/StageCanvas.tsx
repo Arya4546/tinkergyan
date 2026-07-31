@@ -77,13 +77,22 @@ const renderSpriteVisual = (
   // Preserve existing hardware renderers but using inline styles for isolation where possible
   // Using Tailwind classes here is okay for the *inner* hardware components, as they are specific to Tinkergyan
   if (sprite.type === 'led') {
+    // 0-1, written by hardware-binding from the pin's PWM duty. Defaults to
+    // full so a plain digitalWrite (and any Scratch-side LED) looks unchanged.
+    const brightness = Math.max(0, Math.min(1, (sprite.state?.brightness as number) ?? 1));
     return (
       <div className="relative w-12 h-16 flex flex-col items-center justify-center select-none pointer-events-none">
         {sprite.state?.on && (
-          <div className="absolute top-0 w-12 h-12 bg-red-500 rounded-full blur-md opacity-70 animate-pulse" />
+          <div
+            className="absolute top-0 w-12 h-12 bg-red-500 rounded-full blur-md animate-pulse"
+            style={{ opacity: 0.7 * brightness }}
+          />
         )}
         <div
           className={`w-8 h-8 rounded-t-full border border-red-400 relative flex items-center justify-center shadow-lg transition-colors duration-100 ${sprite.state?.on ? 'bg-gradient-to-b from-red-400 to-red-500' : 'bg-gradient-to-b from-red-950 to-red-900 opacity-90'}`}
+          // Dim the lens itself as well as the glow, so a low duty reads as a
+          // faint LED rather than a bright one with a weak halo.
+          style={sprite.state?.on ? { filter: `brightness(${0.35 + 0.65 * brightness})` } : {}}
         >
           <div className="w-2 h-4 border-l border-t border-red-300/40 absolute bottom-0 left-2.5" />
           <div className="w-1.5 h-3 border-r border-t border-red-300/40 absolute bottom-0 right-2.5" />
@@ -194,17 +203,28 @@ const renderSpriteVisual = (
     );
   }
   if (sprite.type === 'robot_car') {
+    /**
+     * Driven by its own pin when one is wired, otherwise by the global
+     * running flag.
+     *
+     * The wheels used to animate purely off `isRunning`, which is the Scratch
+     * green-flag state and is never set in hardware mode — so a car wired to a
+     * pin sat motionless no matter what the sketch did. Preferring `state.moving`
+     * (written by hardware-binding) makes `digitalWrite(8, HIGH)` actually drive
+     * it, while an unwired car in a Scratch project behaves exactly as before.
+     */
+    const driving = sprite.state?.pin !== undefined ? Boolean(sprite.state?.moving) : isRunning;
     return (
       <div className="relative w-16 h-20 flex items-center justify-center select-none pointer-events-none">
         <div className="absolute w-12 h-16 bg-black/30 rounded-2xl blur-sm top-3" />
         <div className="absolute left-0 top-4 w-3.5 h-12 bg-zinc-900 rounded-md border-r-2 border-zinc-700 overflow-hidden flex flex-col justify-between py-1">
           {Array.from({ length: 4 }).map((_, i) => (
-            <div key={i} className={`h-1 bg-zinc-800 w-full ${isRunning ? 'animate-pulse' : ''}`} />
+            <div key={i} className={`h-1 bg-zinc-800 w-full ${driving ? 'animate-pulse' : ''}`} />
           ))}
         </div>
         <div className="absolute right-0 top-4 w-3.5 h-12 bg-zinc-900 rounded-md border-l-2 border-zinc-700 overflow-hidden flex flex-col justify-between py-1">
           {Array.from({ length: 4 }).map((_, i) => (
-            <div key={i} className={`h-1 bg-zinc-800 w-full ${isRunning ? 'animate-pulse' : ''}`} />
+            <div key={i} className={`h-1 bg-zinc-800 w-full ${driving ? 'animate-pulse' : ''}`} />
           ))}
         </div>
         <div className="w-11 h-16 bg-gradient-to-b from-indigo-600 to-indigo-800 rounded-2xl relative flex flex-col items-center border border-indigo-400 shadow-inner overflow-hidden">
@@ -213,14 +233,14 @@ const renderSpriteVisual = (
             <div className="w-4 h-4 rounded-full bg-slate-700 border border-slate-500 flex items-center justify-center relative overflow-hidden">
               <div className="w-3 h-3 rounded-full bg-zinc-900 flex items-center justify-center">
                 <div
-                  className={`w-1 h-1 rounded-full bg-cyan-400 ${isRunning ? 'animate-ping' : ''}`}
+                  className={`w-1 h-1 rounded-full bg-cyan-400 ${driving ? 'animate-ping' : ''}`}
                 />
               </div>
             </div>
             <div className="w-4 h-4 rounded-full bg-slate-700 border border-slate-500 flex items-center justify-center relative overflow-hidden">
               <div className="w-3 h-3 rounded-full bg-zinc-900 flex items-center justify-center">
                 <div
-                  className={`w-1 h-1 rounded-full bg-cyan-400 ${isRunning ? 'animate-ping' : ''}`}
+                  className={`w-1 h-1 rounded-full bg-cyan-400 ${driving ? 'animate-ping' : ''}`}
                 />
               </div>
             </div>
@@ -239,7 +259,7 @@ const renderSpriteVisual = (
           </div>
           <div className="absolute bottom-1 right-2 flex items-center gap-1">
             <div
-              className={`w-1.5 h-1.5 rounded-full ${isRunning ? 'bg-emerald-400 animate-pulse shadow-emerald-400 shadow' : 'bg-red-500'}`}
+              className={`w-1.5 h-1.5 rounded-full ${driving ? 'bg-emerald-400 animate-pulse shadow-emerald-400 shadow' : 'bg-red-500'}`}
             />
           </div>
         </div>

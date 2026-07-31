@@ -2,6 +2,8 @@ import React from 'react';
 import { useSimulatorStore } from '../../../stores/simulator.store';
 import { XArrowIcon, YArrowIcon, EyeOpenIcon, EyeClosedIcon } from './ScratchIcons';
 import { Tooltip } from '../../ui/Tooltip';
+import { Plug as PlugIcon } from 'lucide-react';
+import { availablePins, pinKindFor } from './hardware-binding';
 
 /**
  * SpriteProperties — Scratch-style horizontal info bar.
@@ -35,6 +37,8 @@ export function SpriteProperties() {
     updateSprite(activeSprite.id, { visible });
   };
 
+  const pinKind = pinKindFor(activeSprite.type);
+
   return (
     <div className="scratch-info-bar">
       {/* Sprite Name */}
@@ -50,6 +54,39 @@ export function SpriteProperties() {
           />
         </div>
       </Tooltip>
+
+      {/* Pin wiring — only for components that physically connect to one.
+          This is the link between a component on the stage and the code: an
+          LED wired to 13 lights when the sketch writes HIGH to 13. Without it
+          the stage is decoration. */}
+      {pinKind && (
+        <Tooltip
+          content={`Which pin this ${activeSprite.type.replace('_', ' ')} is wired to`}
+          position="top"
+        >
+          <div className="scratch-info-group">
+            <PlugIcon size={14} style={{ color: 'var(--scratch-purple, #9966FF)' }} />
+            <span className="scratch-info-label">pin</span>
+            <select
+              value={(activeSprite.state?.pin as string | undefined) ?? ''}
+              onChange={(e) =>
+                updateSprite(activeSprite.id, {
+                  state: { ...activeSprite.state, pin: e.target.value || undefined },
+                })
+              }
+              className="scratch-input"
+              style={{ width: '96px' }}
+            >
+              <option value="">not wired</option>
+              {availablePins(pinKind).map((p) => (
+                <option key={p} value={p}>
+                  {p}
+                </option>
+              ))}
+            </select>
+          </div>
+        </Tooltip>
+      )}
 
       {/* X Coordinate */}
       <Tooltip content="Horizontal X Position (-240 to 240)" position="top">

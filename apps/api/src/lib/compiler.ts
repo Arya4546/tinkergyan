@@ -328,6 +328,29 @@ function pickFirmwareFile(files: string[]): string | undefined {
   );
 }
 
+/**
+ * Removes arduino-cli's complaints about *our* command line from output shown
+ * to students.
+ *
+ * A child saw "The flag --build-cache-path has been deprecated" in their
+ * console, highlighted it, and reported it as the reason their LED would not
+ * light. They were right to: it is the only red-looking text on the screen and
+ * it is completely unactionable, because the flag is one we pass, not anything
+ * they wrote. Deliberately narrow — this strips notices about the invocation
+ * itself and nothing else, so real compiler warnings about their code still
+ * reach them.
+ */
+function stripToolchainNotices(stderr: string): string {
+  const NOTICE = /^.*\bflag\b.*\bhas been deprecated\b.*$/gim;
+  return stderr
+    .replace(NOTICE, '')
+    .replace(/^\s*Please use just --build-path alone.*$/gim, '')
+    .replace(/^\s*the build cache path in the Arduino CLI\s*$/gim, '')
+    .replace(/^\s*settings\.\s*$/gim, '')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
 async function compileArduino(
   code: string,
   board: string,
@@ -360,7 +383,8 @@ async function compileArduino(
       '1',
       sketchDir,
     ];
-    const { stdout, stderr } = await spawnWithTimeout(cliPath, args, timeoutMs);
+    const { stdout, stderr: rawStderr } = await spawnWithTimeout(cliPath, args, timeoutMs);
+    const stderr = stripToolchainNotices(rawStderr);
     const errors = parseArduinoErrors(stderr, sketchFile);
     const hasError =
       errors.some((e) => e.severity === 'error') || stderr.toLowerCase().includes('error:');

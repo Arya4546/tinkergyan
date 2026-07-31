@@ -20,6 +20,7 @@ import {
   Terminal,
   Save,
   Play,
+  Square,
   LayoutGrid,
   Code2,
   Loader2,
@@ -46,6 +47,13 @@ import {
 
 import { CompileConsole } from '../components/editor/CompileConsole';
 import { SerialMonitor } from '../components/editor/SerialMonitor';
+import { SimulatorOutput } from '../components/editor/simulator/SimulatorOutput';
+import {
+  arduinoSimEngine,
+  runArduinoSketchFromWorkspace,
+} from '../components/editor/simulator/ArduinoSimEngine';
+import { useArduinoSimStore } from '../stores/arduino-sim.store';
+import { startHardwareBinding } from '../components/editor/simulator/hardware-binding';
 import { StagePanel } from '../components/editor/simulator/StagePanel';
 import { WebSerialFlasher } from '../lib/web-serial-flasher';
 import type { FlashBoard } from '../lib/web-serial-flasher';
@@ -569,6 +577,13 @@ export default function Editor() {
     // the compiled scripts registered either way. The result was a wiped
     // workspace with a sprite still moving.
     scratchEngine.reset();
+    // Same treatment for the hardware simulator, for exactly the same reason.
+    // Without it, resetting a hardware project wiped the canvas while the
+    // sketch carried on running — LED still blinking, stale Serial output still
+    // on screen — which is the "blocks reset but it's still going" report all
+    // over again, just on the other engine.
+    arduinoSimEngine.stop();
+    useArduinoSimStore.getState().reset();
     blocklyRef.current?.clearWorkspace();
     setManualCode('');
     useSimulatorStore.getState().resetSimulator();
@@ -831,7 +846,9 @@ export default function Editor() {
     }
   }, [hardwarePort, board, boardLabel, mode, generatedCode, manualCode, addToast]);
 
-  // ── Compile ────────────────────────────────────────────────────────────
+  // ── Run ────────────────────────────────────────────────────────────────
+  const isSimRunning = useArduinoSimStore((s) => s.isRunning);
+
   const handleCompile = useCallback(async () => {
     const code =
       mode === 'block'
@@ -847,9 +864,54 @@ export default function Editor() {
       return;
     }
 
-    // Always simulate on Execute — firmware build only happens on Upload
+    /**
+     * Block mode runs entirely in the browser — no server, no wait.
+     *
+     * We know what every block means, so we can execute it directly instead of
+     * shipping C++ to a compiler to find out. That makes Run instant, correct
+     * (real delays, real `loop()`, board-accurate ADC), and immune to the
+     * compile service being down — which is what broke this feature for a full
+     * day. The server round-trip stays for the C++ tab, where we genuinely do
+     * need a compiler.
+     */
+    if (engineMode === 'hardware' && mode === 'block') {
+      clearResult(); // Drop any stale compile output so panels don't disagree.
+      // Shared with the green flag above the stage so the two Run affordances
+      // cannot diverge.
+      runArduinoSketchFromWorkspace();
+      return;
+    }
+
     await compile(code, 'simulate');
-  }, [mode, generatedCode, manualCode, compile, addToast]);
+  }, [mode, engineMode, generatedCode, manualCode, compile, clearResult, addToast]);
+
+  const handleStopSim = useCallback(() => {
+    arduinoSimEngine.stop();
+  }, []);
+
+  // Show the simulator panel once a sketch has actually run, and keep it up
+  // after Stop so students can read the output they just produced.
+  const simHasOutput = useArduinoSimStore(
+    (s) => s.serial.length > 0 || Object.keys(s.pins).length > 0 || s.error !== null,
+  );
+  const showSimOutput =
+    engineMode === 'hardware' && mode === 'block' && (isSimRunning || simHasOutput);
+
+  // Leaving block mode or switching boards must not leave a sketch running
+  // against state it no longer matches.
+  useEffect(() => {
+    if (!(engineMode === 'hardware' && mode === 'block')) arduinoSimEngine.stop();
+  }, [engineMode, mode]);
+
+  // Connect the stage components to the running sketch — an LED wired to pin 13
+  // lights when the code writes HIGH to 13, and pressing a button on the stage
+  // is visible to digitalRead. Live for the whole hardware session, not just
+  // while running, so wiring a component updates the sketch's view of its
+  // inputs even before Run is pressed.
+  useEffect(() => {
+    if (engineMode !== 'hardware') return;
+    return startHardwareBinding();
+  }, [engineMode]);
 
   // ── Blockly code change → also schedule auto-save ──────────────────────
   const handleBlocklyCodeChange = useCallback(
@@ -859,6 +921,14 @@ export default function Editor() {
       // key/sprite-click hats fire against what is actually on the canvas.
       // Cheap: this only re-registers callbacks, it never starts anything.
       syncScratchProgram();
+      // Editing the blocks makes the last run's output stale, so drop it —
+      // which also hands the panel back to the C++ preview. Without this the
+      // simulator claimed the panel permanently after the first Run and there
+      // was no way to see the generated code again. Skipped while a sketch is
+      // running so tweaking blocks mid-run doesn't wipe live output.
+      if (!useArduinoSimStore.getState().isRunning) {
+        useArduinoSimStore.getState().reset();
+      }
       // Note: Do NOT call setBlockXml here. Updating the store's blockXml on every change
       // triggers the loadXml effect which forcefully recreates blocks and interrupts dragging.
       // Auto-save and manual save fetch the XML on-demand via blocklyRef.current.getXml().
@@ -1265,8 +1335,13 @@ export default function Editor() {
               </Tooltip>
             )}
 
-            {/* Simulator Panel Toggle */}
-            {engineMode === 'software' && (
+            {/* Simulator Panel Toggle.
+                Now offered in hardware mode too: that is where the LED, button,
+                servo and potentiometer components live, and until the stage can
+                be opened here there is nowhere to see a sketch actually do
+                anything. Stays off by default so the C++ preview keeps the
+                panel for anyone who was not looking for a stage. */}
+            {(engineMode === 'software' || (engineMode === 'hardware' && mode === 'block')) && (
               <Tooltip
                 content={showSimulator ? 'Hide Stage Simulator' : 'Show Stage Simulator'}
                 position="bottom"
@@ -1293,20 +1368,32 @@ export default function Editor() {
               </Tooltip>
             )}
 
-            {/* ▶ Run — highest prominence, always rightmost */}
+            {/* ▶ Run / ■ Stop — highest prominence, always rightmost.
+                Becomes Stop while a simulated sketch is running: loop() runs
+                forever now, exactly like the chip, so there has to be a way to
+                end it that isn't "reload the page". */}
             {engineMode === 'hardware' && (
-              <Tooltip content="Compile & Execute Code (Ctrl+Enter)" position="bottom">
+              <Tooltip
+                content={isSimRunning ? 'Stop the running program' : 'Run Code (Ctrl+Enter)'}
+                position="bottom"
+              >
                 <button
-                  onClick={handleCompile}
+                  onClick={isSimRunning ? handleStopSim : handleCompile}
                   disabled={isCompiling || isFlashing}
-                  className="h-11 px-4 sm:px-5 rounded-xl font-sans font-bold text-sm flex items-center gap-2 bg-primary-500 hover:bg-primary-600 text-white shadow-md hover:shadow-lg transition-all focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-1 focus-visible:outline-none active:scale-[0.97] disabled:opacity-50"
+                  className={`h-11 px-4 sm:px-5 rounded-xl font-sans font-bold text-sm flex items-center gap-2 text-white shadow-md hover:shadow-lg transition-all focus-visible:ring-2 focus-visible:ring-offset-1 focus-visible:outline-none active:scale-[0.97] disabled:opacity-50 ${
+                    isSimRunning
+                      ? 'bg-ed-err hover:brightness-110 focus-visible:ring-ed-err'
+                      : 'bg-primary-500 hover:bg-primary-600 focus-visible:ring-primary-500'
+                  }`}
                 >
                   {isCompiling ? (
                     <Loader2 size={16} className="animate-spin" />
+                  ) : isSimRunning ? (
+                    <Square size={16} fill="currentColor" />
                   ) : (
                     <Play size={16} fill="currentColor" />
                   )}
-                  <span>{isCompiling ? 'Running...' : 'Run'}</span>
+                  <span>{isCompiling ? 'Running...' : isSimRunning ? 'Stop' : 'Run'}</span>
                 </button>
               </Tooltip>
             )}
@@ -1442,8 +1529,14 @@ export default function Editor() {
                         </div>
                       )}
 
+                      {/* Simulator output wins the panel whenever a sketch has
+                          run locally — it is live state, so it must not be
+                          hidden behind a stale compile result. */}
+                      {!isFlashing && showSimOutput ? <SimulatorOutput /> : null}
+
                       {/* Console (has compile result or is compiling) OR code preview */}
                       {!isFlashing &&
+                        !showSimOutput &&
                         (isCompiling || compileResult ? (
                           <CompileConsole isCompiling={isCompiling} compileResult={compileResult} />
                         ) : (

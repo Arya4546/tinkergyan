@@ -1,5 +1,12 @@
 import { javascriptGenerator, Order } from 'blockly/javascript';
 import type { Block, Workspace } from 'blockly/core';
+import {
+  PROCEDURE_DEF_TYPES,
+  installAsyncProcedureCalls,
+  markProcedureDefinitionsAsync,
+} from './blockly-async-procedures';
+
+installAsyncProcedureCalls();
 
 // ─── EVENTS ─────────────────────────────────────────────────────────────────
 
@@ -333,17 +340,23 @@ export function workspaceToScratchCode(workspace: Workspace): string {
   const topBlocks = workspace.getTopBlocks(true);
 
   for (const block of topBlocks) {
-    if (HAT_BLOCK_TYPES.has(block.type)) {
-      try {
-        const blockCode = javascriptGenerator.blockToCode(block);
-        if (typeof blockCode === 'string') {
-          code += blockCode;
-        }
-      } catch (e) {
-        console.error('Failed to generate Scratch code for block:', e);
+    const isHat = HAT_BLOCK_TYPES.has(block.type);
+    // Custom-block definitions sit on their own top-level block. Walking only
+    // hats meant a "My Blocks" definition was never emitted while its call site
+    // still was, so any script using one died on "<name> is not defined".
+    if (!isHat && !PROCEDURE_DEF_TYPES.has(block.type)) continue;
+    try {
+      const blockCode = javascriptGenerator.blockToCode(block);
+      // Definitions return null and register themselves for finish() below.
+      if (isHat && typeof blockCode === 'string') {
+        code += blockCode;
       }
+    } catch (e) {
+      console.error('Failed to generate Scratch code for block:', e);
     }
   }
+
+  markProcedureDefinitionsAsync();
 
   return javascriptGenerator.finish(code);
 }
