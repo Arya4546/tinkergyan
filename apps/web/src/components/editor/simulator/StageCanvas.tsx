@@ -286,11 +286,29 @@ export function StageCanvas() {
 
   // Global keyboard tracking for "key pressed?" sensing + "when key pressed" events.
   useEffect(() => {
+    /**
+     * True while the user is typing somewhere that isn't the stage.
+     *
+     * "when key pressed" hats now fire without the green flag, which makes this
+     * mandatory rather than merely tidy: without it, renaming a sprite or
+     * editing a number in a block would run the project one keystroke at a time.
+     */
+    const isTyping = (target: EventTarget | null): boolean => {
+      const el = target as HTMLElement | null;
+      if (!el || typeof el.closest !== 'function') return false;
+      return Boolean(
+        el.closest('input, textarea, select, [contenteditable="true"], .blocklyHtmlInput'),
+      );
+    };
+
     const handleKeyDown = (e: KeyboardEvent) => {
+      if (isTyping(e.target)) return;
       const key = normalizeKeyName(e.key);
       setKeyDown(key, true);
       if (!e.repeat) scratchEngine.notifyKeyPressed(key);
     };
+    // Deliberately unguarded: releasing a key must always clear it, or focus
+    // moving into a field mid-press would leave the key stuck down forever.
     const handleKeyUp = (e: KeyboardEvent) => {
       setKeyDown(normalizeKeyName(e.key), false);
     };

@@ -105,10 +105,14 @@ const wait = (ms: number, signal?: AbortSignal) => {
   return new Promise<void>((resolve, reject) => {
     if (signal?.aborted) return reject(new Error('Aborted'));
     const timeout = setTimeout(() => resolve(), ms);
-    signal?.addEventListener('abort', () => {
-      clearTimeout(timeout);
-      reject(new Error('Aborted'));
-    });
+    signal?.addEventListener(
+      'abort',
+      () => {
+        clearTimeout(timeout);
+        reject(new Error('Aborted'));
+      },
+      { once: true },
+    );
   });
 };
 
@@ -126,6 +130,40 @@ export class ScratchEngine {
   private receiveCallbacks: Map<string, Array<() => Promise<void>>> = new Map();
   private audioCtx: AudioContext | null = null;
   private activeAudioNodes: Set<OscillatorNode> = new Set();
+
+  /**
+   * One yield point inside a running script.
+   *
+   * Every `await` a script performs goes through here, and this is what makes
+   * Stop actually stop. It used to be written inline as
+   * `wait(ms, this.abortController?.signal)`, but `stop()` nulls the controller
+   * — so the *next* await after a stop received `undefined` for its signal,
+   * resolved normally, and a `forever` loop just carried on running. That is the
+   * "sprite keeps spinning after Stop" report: the abort only ever killed the
+   * one await that happened to be in flight at the moment Stop was pressed, and
+   * a loop whose body was mid-`play sound until done` had none.
+   *
+   * Reading the controller here — and treating "no controller" as aborted —
+   * closes the hole permanently, because a stopped script cannot get past its
+   * next await no matter where the abort landed.
+   */
+  private async tick(ms: number): Promise<void> {
+    const ctrl = this.abortController;
+    if (!ctrl || ctrl.signal.aborted) throw new Error('Aborted');
+    await wait(ms, ctrl.signal);
+  }
+
+  /**
+   * Makes sure there is a live abort context so a script can run.
+   *
+   * Non-flag hats ("when key pressed", "when this sprite clicked") are allowed
+   * to start a run on their own — see notifyKeyPressed — so they need a
+   * controller even when the green flag was never pressed.
+   */
+  private ensureRunContext(): AbortSignal {
+    this.abortController ??= new AbortController();
+    return this.abortController.signal;
+  }
 
   private getAudioContext(): AudioContext {
     if (!this.audioCtx) {
@@ -212,13 +250,22 @@ export class ScratchEngine {
       osc.start();
       this.activeAudioNodes.add(osc);
       osc.stop(ctx.currentTime + preset.duration);
-      const done = new Promise<void>((resolve) => {
+      osc.onended = () => this.activeAudioNodes.delete(osc);
+      if (!waitForEnd) return Promise.resolve();
+
+      // "until done" has to lose the race to Stop. Without the abort branch this
+      // was the one await in the whole API with no signal attached, so a
+      // `forever [play sound until done]` loop survived Stop: the oscillator was
+      // silenced but its onended still resolved, and the loop went round again.
+      const signal = this.abortController?.signal;
+      return new Promise<void>((resolve, reject) => {
+        if (signal?.aborted) return reject(new Error('Aborted'));
         osc.onended = () => {
           this.activeAudioNodes.delete(osc);
           resolve();
         };
+        signal?.addEventListener('abort', () => reject(new Error('Aborted')), { once: true });
       });
-      return waitForEnd ? done : Promise.resolve();
     };
 
     // The API object exposed to the blocks
@@ -264,7 +311,7 @@ export class ScratchEngine {
         const proposedY = sprite.y - dy;
 
         updatePositionWithCamera(sprite.id, proposedX, proposedY, sprite.size, sprite.type);
-        await wait(10, this.abortController?.signal);
+        await this.tick(10);
       },
 
       turn: async (degrees) => {
@@ -274,14 +321,14 @@ export class ScratchEngine {
 
         const newDir = (((sprite.direction + degrees) % 360) + 360) % 360;
         store.updateSprite(sprite.id, { direction: newDir });
-        await wait(10, this.abortController?.signal);
+        await this.tick(10);
       },
 
       goTo: async (x, y) => {
         const sprite = getTargetSprite();
         if (!sprite) return;
         updatePositionWithCamera(sprite.id, x, y, sprite.size, sprite.type);
-        await wait(10, this.abortController?.signal);
+        await this.tick(10);
       },
 
       glideTo: async (secs, x, y) => {
@@ -298,7 +345,7 @@ export class ScratchEngine {
           const curX = startX + (x - startX) * t;
           const curY = startY + (y - startY) * t;
           updatePositionWithCamera(sprite.id, curX, curY, sprite.size, sprite.type);
-          await wait(stepMs, this.abortController?.signal);
+          await this.tick(stepMs);
         }
       },
 
@@ -307,7 +354,7 @@ export class ScratchEngine {
         const sprite = getTargetSprite();
         if (!sprite) return;
         store.updateSprite(sprite.id, { direction: ((degrees % 360) + 360) % 360 });
-        await wait(10, this.abortController?.signal);
+        await this.tick(10);
       },
 
       pointTowardsMouse: async () => {
@@ -318,35 +365,35 @@ export class ScratchEngine {
         const dy = store.mouseY - sprite.y;
         const direction = (Math.atan2(dx, dy) * 180) / Math.PI;
         store.updateSprite(sprite.id, { direction: ((direction % 360) + 360) % 360 });
-        await wait(10, this.abortController?.signal);
+        await this.tick(10);
       },
 
       changeXBy: async (dx) => {
         const sprite = getTargetSprite();
         if (!sprite) return;
         updatePositionWithCamera(sprite.id, sprite.x + dx, sprite.y, sprite.size, sprite.type);
-        await wait(10, this.abortController?.signal);
+        await this.tick(10);
       },
 
       setX: async (x) => {
         const sprite = getTargetSprite();
         if (!sprite) return;
         updatePositionWithCamera(sprite.id, x, sprite.y, sprite.size, sprite.type);
-        await wait(10, this.abortController?.signal);
+        await this.tick(10);
       },
 
       changeYBy: async (dy) => {
         const sprite = getTargetSprite();
         if (!sprite) return;
         updatePositionWithCamera(sprite.id, sprite.x, sprite.y + dy, sprite.size, sprite.type);
-        await wait(10, this.abortController?.signal);
+        await this.tick(10);
       },
 
       setY: async (y) => {
         const sprite = getTargetSprite();
         if (!sprite) return;
         updatePositionWithCamera(sprite.id, sprite.x, y, sprite.size, sprite.type);
-        await wait(10, this.abortController?.signal);
+        await this.tick(10);
       },
 
       ifOnEdgeBounce: async () => {
@@ -383,7 +430,7 @@ export class ScratchEngine {
         if (bounced) {
           store.updateSprite(sprite.id, { x, y, direction: dir });
         }
-        await wait(10, this.abortController?.signal);
+        await this.tick(10);
       },
 
       setRotationStyle: (style) => {
@@ -404,12 +451,14 @@ export class ScratchEngine {
         if (!sprite) return;
 
         store.updateSprite(sprite.id, { speech: String(text), speechIsThought: false });
+        // `finally`, not `catch`: the bubble must be cleared on abort, but the
+        // abort itself has to keep propagating. Swallowing it let the enclosing
+        // `forever` loop take one more lap after Stop was pressed.
         try {
-          await wait(secs * 1000, this.abortController?.signal);
-        } catch {
-          // If aborted, still clear speech bubble
+          await this.tick(secs * 1000);
+        } finally {
+          store.setSpriteSpeech(sprite.id, undefined);
         }
-        store.setSpriteSpeech(sprite.id, undefined);
       },
 
       say: (text) => {
@@ -424,12 +473,12 @@ export class ScratchEngine {
         const sprite = getTargetSprite();
         if (!sprite) return;
         store.updateSprite(sprite.id, { speech: String(text), speechIsThought: true });
+        // See sayFor — `finally` so Stop is not swallowed.
         try {
-          await wait(secs * 1000, this.abortController?.signal);
-        } catch {
-          // If aborted, still clear speech bubble
+          await this.tick(secs * 1000);
+        } finally {
+          store.setSpriteSpeech(sprite.id, undefined);
         }
-        store.setSpriteSpeech(sprite.id, undefined);
       },
 
       think: (text) => {
@@ -469,7 +518,7 @@ export class ScratchEngine {
               costume === '/sprites/scratch_games.svg' ? 'Stemmantra (Old)' : 'Stemmantra (New)',
           });
         }
-        await wait(10, this.abortController?.signal);
+        await this.tick(10);
       },
 
       nextCostume: async () => {
@@ -482,12 +531,12 @@ export class ScratchEngine {
             store.updateSprite(sprite.id, { costumeIndex: nextIndex, image: nextImage });
           }
         }
-        await wait(10, this.abortController?.signal);
+        await this.tick(10);
       },
 
       switchBackdropTo: async (name) => {
         useSimulatorStore.getState().setBackdrop(name);
-        await wait(10, this.abortController?.signal);
+        await this.tick(10);
       },
 
       nextBackdrop: async () => {
@@ -496,7 +545,7 @@ export class ScratchEngine {
         const next =
           BACKDROP_OPTIONS[(idx + 1 + BACKDROP_OPTIONS.length) % BACKDROP_OPTIONS.length];
         store.setBackdrop(next ?? BACKDROP_OPTIONS[0]);
-        await wait(10, this.abortController?.signal);
+        await this.tick(10);
       },
 
       changeSizeBy: async (delta) => {
@@ -504,7 +553,7 @@ export class ScratchEngine {
         const sprite = getTargetSprite();
         if (!sprite) return;
         store.updateSprite(sprite.id, { size: Math.max(0, sprite.size + delta) });
-        await wait(10, this.abortController?.signal);
+        await this.tick(10);
       },
 
       setSizeTo: async (pct) => {
@@ -512,7 +561,7 @@ export class ScratchEngine {
         const sprite = getTargetSprite();
         if (!sprite) return;
         store.updateSprite(sprite.id, { size: Math.max(0, pct) });
-        await wait(10, this.abortController?.signal);
+        await this.tick(10);
       },
 
       changeEffectBy: async (effect, delta) => {
@@ -522,7 +571,7 @@ export class ScratchEngine {
         store.updateSprite(sprite.id, {
           effects: { ...sprite.effects, [effect]: sprite.effects[effect] + delta },
         });
-        await wait(10, this.abortController?.signal);
+        await this.tick(10);
       },
 
       setEffectTo: async (effect, value) => {
@@ -530,7 +579,7 @@ export class ScratchEngine {
         const sprite = getTargetSprite();
         if (!sprite) return;
         store.updateSprite(sprite.id, { effects: { ...sprite.effects, [effect]: value } });
-        await wait(10, this.abortController?.signal);
+        await this.tick(10);
       },
 
       clearGraphicEffects: async () => {
@@ -538,7 +587,7 @@ export class ScratchEngine {
         const sprite = getTargetSprite();
         if (!sprite) return;
         store.updateSprite(sprite.id, { effects: { color: 0, ghost: 0, brightness: 0 } });
-        await wait(10, this.abortController?.signal);
+        await this.tick(10);
       },
 
       goToLayer: (layer) => {
@@ -612,15 +661,21 @@ export class ScratchEngine {
 
       // ── Control ─────────────────────────────────────────────────────
       wait: async (secs) => {
-        await wait(Math.max(0, secs * 1000), this.abortController?.signal);
+        await this.tick(Math.max(0, secs * 1000));
       },
 
       yield: async () => {
-        await wait(1, this.abortController?.signal);
+        await this.tick(1);
       },
 
       stopAll: () => {
         this.stop();
+        // A script stopping itself has to un-light the toolbar too, or the flag
+        // button stays in its "running" state with nothing left running behind
+        // it. (stop() deliberately does not do this — triggerGreenFlag calls
+        // stop() first, and clearing isRunning there would cancel the very run
+        // that is starting.)
+        useSimulatorStore.getState().stopSimulation();
         // Reject so the calling script's promise chain unwinds too.
         return Promise.reject(new Error('Aborted'));
       },
@@ -650,7 +705,11 @@ export class ScratchEngine {
       },
       askAndWait: async (prompt) => {
         const store = useSimulatorStore.getState();
-        const signal = this.abortController?.signal;
+        const ctrl = this.abortController;
+        // Same rule as tick(): no controller means the script is not running,
+        // so don't open a question box nobody can dismiss.
+        if (!ctrl || ctrl.signal.aborted) throw new Error('Aborted');
+        const signal = ctrl.signal;
         await new Promise<void>((resolve, reject) => {
           if (signal?.aborted) return reject(new Error('Aborted'));
           store
@@ -693,26 +752,56 @@ export class ScratchEngine {
     await Promise.all(promises);
   }
 
-  /** Called by the stage's global keydown listener to fire "when key pressed" hats. */
+  /**
+   * Called by the stage's global keydown listener to fire "when key pressed" hats.
+   *
+   * These start a run on their own. The old guard here was
+   * `if (!this.abortController) return`, which made every key hat dead until the
+   * green flag had been pressed — but in Scratch a key hat is live as soon as
+   * the script exists, and requiring Go first is exactly what the client
+   * reported ("we need not to click flag option to run"). The same goes for
+   * "when this sprite clicked" below.
+   */
   public notifyKeyPressed(key: string) {
-    if (!this.abortController) return;
-    for (const { key: watchKey, cb } of this.keyPressedCallbacks) {
-      if (watchKey === 'any' || watchKey === key) {
-        void cb().catch((e) => {
-          if (e instanceof Error && e.message !== 'Aborted') console.error('Script Error:', e);
-        });
-      }
+    const matches = this.keyPressedCallbacks.filter(
+      ({ key: watchKey }) => watchKey === 'any' || watchKey === key,
+    );
+    if (matches.length === 0) return;
+    this.ensureRunContext();
+    for (const { cb } of matches) {
+      void cb().catch((e) => {
+        if (e instanceof Error && e.message !== 'Aborted') console.error('Script Error:', e);
+      });
     }
   }
 
   /** Called by the stage when a sprite is clicked (not dragged) to fire "when this sprite clicked" hats. */
   public notifySpriteClicked() {
-    if (!this.abortController) return;
+    if (this.spriteClickedCallbacks.length === 0) return;
+    this.ensureRunContext();
     for (const cb of this.spriteClickedCallbacks) {
       void cb().catch((e) => {
         if (e instanceof Error && e.message !== 'Aborted') console.error('Script Error:', e);
       });
     }
+  }
+
+  /**
+   * Forgets every registered hat and stops whatever is running.
+   *
+   * Reset wipes the workspace, so the scripts that were compiled from it have to
+   * go too. Stop alone is not enough now that key and sprite-click hats can
+   * start themselves: the blocks were gone from the canvas but the compiled
+   * copies were still sitting in the engine, so one keypress brought the sprite
+   * back to life. That is the "coding block getting reset but sprite is working"
+   * half of the report.
+   */
+  public reset() {
+    this.stop();
+    this.greenFlagCallbacks = [];
+    this.keyPressedCallbacks = [];
+    this.spriteClickedCallbacks = [];
+    this.receiveCallbacks = new Map();
   }
 
   /**

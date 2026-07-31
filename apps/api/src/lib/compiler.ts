@@ -121,6 +121,19 @@ interface WandboxResponse {
   program_message?: string;
 }
 
+/**
+ * Wandbox could not run the code at all — the service is down, overloaded, or
+ * unreachable. Distinct from "your code failed to compile", which is a normal
+ * result. Thrown so compile() can fall back to the local toolchain instead of
+ * handing the student a server error they can do nothing about.
+ */
+class WandboxUnavailableError extends Error {
+  constructor(readonly reason: string) {
+    super(reason);
+    this.name = 'WandboxUnavailableError';
+  }
+}
+
 async function compileWandbox(code: string, stdin?: string): Promise<CompileResult> {
   const start = Date.now();
 
@@ -170,22 +183,9 @@ async function compileWandbox(code: string, stdin?: string): Promise<CompileResu
           logger.warn({ attempt }, 'wandbox.oci_error.retry');
           continue;
         }
-        return {
-          success: false,
-          stdout: '',
-          stderr:
-            'The compile server is temporarily overloaded. Please try again in a few seconds.',
-          errors: [
-            {
-              line: 0,
-              column: 0,
-              severity: 'error',
-              message: 'Server busy — please retry in a moment',
-            },
-          ],
-          durationMs: Date.now() - start,
-          engine: 'wandbox',
-        };
+        // Not a compile failure — Wandbox's sandbox never started. Hand it to
+        // the caller so the local toolchain can pick it up.
+        throw new WandboxUnavailableError('Wandbox sandbox unavailable (OCI runtime error)');
       }
 
       const compilerStderr = [data.compiler_error, data.compiler_message]
@@ -228,6 +228,9 @@ async function compileWandbox(code: string, stdin?: string): Promise<CompileResu
         engine: 'wandbox',
       };
     } catch (err) {
+      // Our own "service is down" signal — must not be mistaken for a network
+      // blip and retried, and must not be flattened into a compile result.
+      if (err instanceof WandboxUnavailableError) throw err;
       const error = err instanceof Error ? err : new Error(String(err));
       lastError = error;
       if (attempt < WANDBOX_MAX_RETRIES) {
@@ -258,17 +261,11 @@ async function compileWandbox(code: string, stdin?: string): Promise<CompileResu
     };
   }
 
+  // Unreachable, 5xx, DNS failure, TLS error — every retry is spent and none of
+  // it is the student's fault. Same treatment as the OCI case above. (The
+  // timeout branch stays a real result: that one *is* about their code.)
   logger.error({ err: lastError }, 'wandbox.request.failed');
-  return {
-    success: false,
-    stdout: '',
-    stderr: `Compiler service error: ${lastError?.message ?? 'Unknown'}`,
-    errors: [
-      { line: 0, column: 0, severity: 'error', message: lastError?.message ?? 'Unknown error' },
-    ],
-    durationMs: Date.now() - start,
-    engine: 'wandbox',
-  };
+  throw new WandboxUnavailableError(lastError?.message ?? 'Wandbox unreachable');
 }
 
 // ─── Friendly exit/signal messages ────────────────────────────────────────────
@@ -481,6 +478,15 @@ async function compileMock(code: string): Promise<CompileResult> {
 
 export type CompilerMode = 'wandbox' | 'arduino' | 'mock';
 
+/**
+ * Note the deliberate asymmetry with resolveArduinoCliPath(): that function
+ * searches half a dozen install locations, this one only honours an explicit
+ * ARDUINO_CLI_PATH. So a box with arduino-cli installed but no env var — which
+ * is what production is — uploads through arduino-cli while Run still goes to
+ * Wandbox. That is on purpose: Wandbox *executes* the sketch, and arduino-cli
+ * cannot, so silently preferring the local toolchain would quietly delete the
+ * Serial output that Run exists to show. Set COMPILER_MODE=arduino to force it.
+ */
 export function getCompilerMode(): CompilerMode {
   if (env.COMPILER_MODE === 'mock') return 'mock';
   if (env.COMPILER_MODE === 'arduino') return 'arduino';
@@ -507,9 +513,136 @@ export async function compile(
     case 'mock':
       return compileMock(code);
     case 'wandbox':
-    default:
-      return compileWandbox(code, stdin);
+    default: {
+      // Don't re-dial a service we already know is down — see the circuit
+      // breaker below. Only skip if we actually have somewhere else to go.
+      if (isWandboxCircuitOpen() && (await isArduinoCliAvailable(timeoutMs))) {
+        logger.info({ openForMs: wandboxRetryAt - Date.now() }, 'wandbox.circuit_open.skipped');
+        return compileWithoutWandbox(
+          new WandboxUnavailableError('circuit open — Wandbox failed recently'),
+          code,
+          board,
+          timeoutMs,
+        );
+      }
+      try {
+        const result = await compileWandbox(code, stdin);
+        noteWandboxOutcome(true);
+        return result;
+      } catch (err) {
+        if (!(err instanceof WandboxUnavailableError)) throw err;
+        noteWandboxOutcome(false);
+        return compileWithoutWandbox(err, code, board, timeoutMs);
+      }
+    }
   }
+}
+
+/**
+ * Circuit breaker around Wandbox.
+ *
+ * The fallback alone is correct but slow: every Run would still burn ~6.5s on
+ * three doomed round-trips before giving up. During a class that is 6.5s of
+ * dead air per click, per student — and worse, thirty students clicking Run
+ * sends ninety requests into a host that is failing *because* it is out of
+ * capacity. We would be feeding the outage we are stuck in.
+ *
+ * So after a failure we stop calling Wandbox for a while and go straight to
+ * arduino-cli. The window backs off as failures repeat (a blip costs one
+ * student one slow compile; a multi-hour outage costs almost nobody) and
+ * resets the moment a compile succeeds, so recovery needs no intervention.
+ */
+const WANDBOX_COOLDOWN_MS = 60_000;
+const WANDBOX_COOLDOWN_MAX_MS = 15 * 60_000;
+let wandboxRetryAt = 0;
+let wandboxFailureStreak = 0;
+
+function isWandboxCircuitOpen(): boolean {
+  return Date.now() < wandboxRetryAt;
+}
+
+function noteWandboxOutcome(ok: boolean): void {
+  if (ok) {
+    if (wandboxFailureStreak > 0) logger.info('wandbox.circuit_closed');
+    wandboxFailureStreak = 0;
+    wandboxRetryAt = 0;
+    return;
+  }
+  wandboxFailureStreak++;
+  const cooldown = Math.min(
+    WANDBOX_COOLDOWN_MS * 2 ** (wandboxFailureStreak - 1),
+    WANDBOX_COOLDOWN_MAX_MS,
+  );
+  wandboxRetryAt = Date.now() + cooldown;
+  logger.warn({ streak: wandboxFailureStreak, cooldownMs: cooldown }, 'wandbox.circuit_opened');
+}
+
+/**
+ * What to do when Wandbox is down.
+ *
+ * Wandbox both compiles *and runs* the sketch, which is how Run shows Serial
+ * output. arduino-cli can only do the first half — but "your code compiles" is
+ * most of what Run is for, and the box already has a working arduino-cli
+ * (that's what every Upload uses). Checking the code is strictly better than
+ * showing a student "Server busy" and leaving them stuck, so fall back and say
+ * plainly which half they got.
+ */
+async function compileWithoutWandbox(
+  cause: WandboxUnavailableError,
+  code: string,
+  board: string,
+  timeoutMs: number,
+): Promise<CompileResult> {
+  if (!(await isArduinoCliAvailable(timeoutMs))) {
+    logger.error({ reason: cause.reason }, 'wandbox.unavailable.no_fallback');
+    return {
+      success: false,
+      stdout: '',
+      stderr:
+        'The online compile service is temporarily unavailable. Your code has not been checked — ' +
+        'please try again in a few minutes. Uploading to a connected board still works.',
+      errors: [
+        {
+          line: 0,
+          column: 0,
+          severity: 'error',
+          message: 'Compile service unavailable — this is not a problem with your code',
+        },
+      ],
+      durationMs: 0,
+      engine: 'wandbox',
+    };
+  }
+
+  logger.warn({ reason: cause.reason, board }, 'wandbox.unavailable.fallback_arduino');
+  const result = await compileArduino(code, board, timeoutMs);
+
+  if (!result.success) return result; // Real compile errors — show them as-is.
+
+  return {
+    ...result,
+    stdout:
+      'Your code compiled successfully.\n\n' +
+      'Note: the online simulator is temporarily unavailable, so the program was checked ' +
+      'but not run — no output to show this time. Upload to your board to see it work.',
+  };
+}
+
+/**
+ * Whether a usable arduino-cli exists on this machine.
+ *
+ * Actually runs `arduino-cli version` rather than trusting the path search:
+ * resolveArduinoCliPath() falls back to the bare binary name, meaning "hope
+ * it's on PATH", and a fallback that silently isn't there would turn one
+ * upstream outage into a confusing second failure. Cached — the answer cannot
+ * change while the process lives.
+ */
+let arduinoCliProbe: Promise<boolean> | null = null;
+function isArduinoCliAvailable(timeoutMs: number): Promise<boolean> {
+  arduinoCliProbe ??= spawnWithTimeout(resolveArduinoCliPath(), ['version'], timeoutMs)
+    .then(() => true)
+    .catch(() => false);
+  return arduinoCliProbe;
 }
 
 /**

@@ -499,24 +499,39 @@ export default function Editor() {
   const greenFlagCount = useSimulatorStore((s) => s.greenFlagCount);
 
   // ── Scratch Engine Integration ───────────────────────────────────────────
+  /**
+   * Compiles the current blocks into the engine without running anything.
+   *
+   * The engine used to receive the script only at green-flag time, which meant
+   * "when key pressed" and "when this sprite clicked" were dead until the user
+   * pressed Go — the hats simply weren't registered yet. Real Scratch fires
+   * those the moment the script exists, so we keep the engine in sync with the
+   * canvas instead and let each hat decide when it runs.
+   */
+  const syncScratchProgram = useCallback(() => {
+    if (engineMode !== 'software') return;
+    try {
+      const workspace = (window as any).Blockly?.getMainWorkspace?.();
+      if (workspace) scratchEngine.loadCode(workspaceToScratchCode(workspace));
+    } catch (err) {
+      console.error('Failed to compile Scratch script:', err);
+    }
+  }, [engineMode]);
+
+  useEffect(() => {
+    if (mode === 'block') syncScratchProgram();
+  }, [mode, syncScratchProgram]);
+
   useEffect(() => {
     if (isRunning && mode === 'block') {
-      try {
-        const workspace = (window as any).Blockly.getMainWorkspace();
-        if (workspace) {
-          const jsCode = workspaceToScratchCode(workspace);
-          scratchEngine.loadCode(jsCode);
-          scratchEngine.triggerGreenFlag();
-        } else {
-          console.error('No workspace found');
-        }
-      } catch (err) {
-        console.error('Failed to run Scratch script:', err);
-      }
+      // Recompile first: the flag must always run what is on the canvas right
+      // now, even if the last change event was missed.
+      syncScratchProgram();
+      scratchEngine.triggerGreenFlag();
     } else if (!isRunning) {
       scratchEngine.stop();
     }
-  }, [isRunning, greenFlagCount, mode]);
+  }, [isRunning, greenFlagCount, mode, syncScratchProgram]);
 
   // ── Mode switching ─────────────────────────────────────────────────────
   const switchToCode = useCallback(() => {
@@ -548,6 +563,12 @@ export default function Editor() {
 
   const confirmResetProject = useCallback(() => {
     setShowResetConfirm(false);
+    // Kill the running scripts *before* clearing the canvas. Reset used to rely
+    // on resetSimulator() flipping isRunning to false and the effect above
+    // noticing — which does nothing when isRunning is already false, and left
+    // the compiled scripts registered either way. The result was a wiped
+    // workspace with a sprite still moving.
+    scratchEngine.reset();
     blocklyRef.current?.clearWorkspace();
     setManualCode('');
     useSimulatorStore.getState().resetSimulator();
@@ -834,11 +855,15 @@ export default function Editor() {
   const handleBlocklyCodeChange = useCallback(
     (code: string) => {
       setGeneratedCode(code);
+      // Keep the Scratch engine's copy of the script current on every edit, so
+      // key/sprite-click hats fire against what is actually on the canvas.
+      // Cheap: this only re-registers callbacks, it never starts anything.
+      syncScratchProgram();
       // Note: Do NOT call setBlockXml here. Updating the store's blockXml on every change
       // triggers the loadXml effect which forcefully recreates blocks and interrupts dragging.
       // Auto-save and manual save fetch the XML on-demand via blocklyRef.current.getXml().
     },
-    [setGeneratedCode],
+    [setGeneratedCode, syncScratchProgram],
   );
 
   // ── Download .ino file ─────────────────────────────────────────────────

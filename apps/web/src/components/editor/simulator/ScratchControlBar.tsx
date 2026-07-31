@@ -9,6 +9,7 @@ import {
   ResetIcon,
 } from './ScratchIcons';
 import { Tooltip } from '../../ui/Tooltip';
+import { scratchEngine } from './ScratchEngine';
 
 interface ScratchControlBarProps {
   /** Called when the user confirms resetting the project back to a blank slate. */
@@ -21,6 +22,20 @@ interface ScratchControlBarProps {
 export function ScratchControlBar({ onReset }: ScratchControlBarProps) {
   const { isRunning, startSimulation, stopSimulation, stageViewMode, setStageViewMode } =
     useSimulatorStore();
+
+  /**
+   * Stop the engine directly, then clear the flag state.
+   *
+   * Going through `isRunning` alone is not enough any more: "when key pressed"
+   * and "when this sprite clicked" scripts start themselves without the green
+   * flag, so `isRunning` is already false while they run and setting it false
+   * again changes nothing — the effect that calls the engine would never fire
+   * and Stop would do nothing at all for those scripts.
+   */
+  const handleStop = () => {
+    scratchEngine.stop();
+    stopSimulation();
+  };
 
   return (
     <div className="scratch-control-bar">
@@ -35,10 +50,7 @@ export function ScratchControlBar({ onReset }: ScratchControlBarProps) {
           </div>
         </Tooltip>
         <Tooltip content="Stop Code Execution" position="bottom">
-          <div
-            onClick={stopSimulation}
-            className={`scratch-stop-btn ${isRunning ? 'running' : ''}`}
-          >
+          <div onClick={handleStop} className={`scratch-stop-btn ${isRunning ? 'running' : ''}`}>
             <StopIcon size={20} />
           </div>
         </Tooltip>
