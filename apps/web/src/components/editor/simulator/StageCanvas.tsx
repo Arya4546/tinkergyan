@@ -290,6 +290,7 @@ export function StageCanvas() {
     setMouseDown,
     setKeyDown,
     askPrompt,
+    variables,
     submitAnswer,
   } = useSimulatorStore();
 
@@ -612,6 +613,59 @@ export function StageCanvas() {
       <div className="scratch-coord-hint">
         {mouseCoords ? `x: ${mouseCoords.x} y: ${mouseCoords.y}` : 'x: 0 y: 0'}
       </div>
+
+      {/* Variable monitors — Scratch's readouts, top-left of the stage.
+          Without these a script like "when flag clicked / set score to 0" runs
+          perfectly and shows the student absolutely nothing, which is exactly
+          what was reported. Shown for every variable the moment it is written,
+          matching Scratch, where a new variable's monitor is visible by
+          default. */}
+      {Object.keys(variables).length > 0 && (
+        <div
+          style={{
+            position: 'absolute',
+            top: '6px',
+            left: '6px',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '4px',
+            pointerEvents: 'none',
+            zIndex: 20,
+          }}
+        >
+          {Object.entries(variables).map(([name, value]) => (
+            <div
+              key={name}
+              style={{
+                display: 'flex',
+                alignItems: 'stretch',
+                borderRadius: '4px',
+                overflow: 'hidden',
+                border: '1px solid rgba(0,0,0,0.15)',
+                boxShadow: '0 1px 2px rgba(0,0,0,0.12)',
+                fontSize: '10px',
+                fontWeight: 700,
+                lineHeight: 1.4,
+              }}
+            >
+              <span style={{ background: '#E6F0FF', color: '#33507A', padding: '2px 6px' }}>
+                {name}
+              </span>
+              <span
+                style={{
+                  background: 'var(--scratch-orange, #FF8C1A)',
+                  color: 'white',
+                  padding: '2px 8px',
+                  minWidth: '24px',
+                  textAlign: 'center',
+                }}
+              >
+                {String(value)}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
 
       <div style={{ position: 'absolute', bottom: '8px', right: '8px' }}>
         <ScratchZoomRail />

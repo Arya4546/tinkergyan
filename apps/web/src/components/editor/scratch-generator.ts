@@ -8,6 +8,32 @@ import {
 
 installAsyncProcedureCalls();
 
+/**
+ * Report every variable write, so the stage can show a monitor for it.
+ *
+ * A script of "when flag clicked / set score to 0" is completely correct and
+ * completely invisible — it runs, assigns, and produces no output at all. In
+ * real Scratch the variable's value is shown on the stage, and that readout is
+ * the whole feedback loop for a beginner learning what a variable is.
+ *
+ * Done by wrapping the stock generators rather than replacing them, so the
+ * assignment itself keeps Blockly's own name mangling (a variable the student
+ * names "1" becomes `my_1`, since `var 1` would not parse). The *display* name
+ * is the one the student typed.
+ */
+for (const type of ['variables_set', 'math_change'] as const) {
+  const original = javascriptGenerator.forBlock[type];
+  if (!original) continue;
+  javascriptGenerator.forBlock[type] = function (block, generator) {
+    const out = original.call(this, block, generator);
+    if (typeof out !== 'string') return out;
+    const model = block.workspace.getVariableById(block.getFieldValue('VAR') as string);
+    if (!model) return out;
+    const mangled = generator.getVariableName(model.getId());
+    return `${out}api.setVariable(${JSON.stringify(model.name)}, ${mangled});\n`;
+  };
+}
+
 // ─── EVENTS ─────────────────────────────────────────────────────────────────
 
 // Every "hat" block type — each compiles its body into a registered callback

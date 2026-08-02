@@ -1335,13 +1335,16 @@ export default function Editor() {
               </Tooltip>
             )}
 
-            {/* Simulator Panel Toggle.
-                Now offered in hardware mode too: that is where the LED, button,
-                servo and potentiometer components live, and until the stage can
-                be opened here there is nowhere to see a sketch actually do
-                anything. Stays off by default so the C++ preview keeps the
-                panel for anyone who was not looking for a stage. */}
-            {(engineMode === 'software' || (engineMode === 'hardware' && mode === 'block')) && (
+            {/* Simulator Panel Toggle — software mode only.
+                It was briefly offered in hardware mode so the LED/servo
+                components had somewhere to render, but this stage is the
+                *Scratch* stage: it brings sprite properties, costumes,
+                backdrops and a cartoon character into the Arduino editor.
+                Client rejected it on sight, and fairly — that is Scratch
+                furniture in a microcontroller tool. Hardware feedback lives in
+                the simulator output panel instead (live pin state + Serial),
+                which is the same information without the Scratch chrome. */}
+            {engineMode === 'software' && (
               <Tooltip
                 content={showSimulator ? 'Hide Stage Simulator' : 'Show Stage Simulator'}
                 position="bottom"

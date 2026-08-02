@@ -99,6 +99,9 @@ export interface ScratchAPI {
   isTouchingEdge: () => boolean;
   askAndWait: (prompt: string) => Promise<void>;
   getAnswer: () => string;
+
+  /** Publishes a variable's value so the stage can show its monitor. */
+  setVariable: (name: string, value: string | number) => void;
 }
 
 const wait = (ms: number, signal?: AbortSignal) => {
@@ -720,6 +723,10 @@ export class ScratchEngine {
         });
       },
       getAnswer: () => useSimulatorStore.getState().answer,
+
+      setVariable: (name, value) => {
+        useSimulatorStore.getState().setVariable(name, value);
+      },
     };
 
     try {

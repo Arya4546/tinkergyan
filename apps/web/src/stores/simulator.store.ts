@@ -71,6 +71,15 @@ interface SimulatorStore {
   timerStartedAt: number;
   answer: string;
   askPrompt: string | null;
+  /**
+   * Live variable values, shown as monitors on the stage.
+   *
+   * Scratch displays every variable on the stage by default, and that readout
+   * is how a beginner sees their program do anything at all. Without it a
+   * script like "when flag clicked / set score to 0" runs perfectly and appears
+   * to do nothing — which is exactly what was reported.
+   */
+  variables: Record<string, string | number>;
   pendingAskResolve: ((text: string) => void) | null;
 
   // Actions
@@ -84,6 +93,8 @@ interface SimulatorStore {
   startSimulation: () => void;
   toggleSimulation: () => void;
   stopSimulation: () => void;
+  /** Record a variable's current value so its stage monitor updates. */
+  setVariable: (name: string, value: string | number) => void;
   resetSimulator: () => void;
   setCamera: (x: number, y: number) => void;
   sendToFront: (id: string) => void;
@@ -140,6 +151,7 @@ export const useSimulatorStore = create<SimulatorStore>()(
       timerStartedAt: Date.now(),
       answer: '',
       askPrompt: null,
+      variables: {},
       pendingAskResolve: null,
 
       addSprite: (spriteInput) => {
@@ -213,6 +225,10 @@ export const useSimulatorStore = create<SimulatorStore>()(
         set((state) => ({ isRunning: !state.isRunning }));
       },
 
+      setVariable: (name, value) => {
+        set((state) => ({ variables: { ...state.variables, [name]: value } }));
+      },
+
       stopSimulation: () => {
         set({ isRunning: false, cameraX: 0, cameraY: 0 });
       },
@@ -236,6 +252,7 @@ export const useSimulatorStore = create<SimulatorStore>()(
           answer: '',
           askPrompt: null,
           pendingAskResolve: null,
+          variables: {},
         });
       },
 
