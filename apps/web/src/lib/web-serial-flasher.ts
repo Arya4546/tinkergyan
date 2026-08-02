@@ -14,6 +14,19 @@ import { getBoardDefinition, type BoardFqbn } from './boards';
 
 export type FlashBoard = BoardFqbn;
 
+/**
+ * What to tell a student when the port will not open.
+ *
+ * The browser's own message is "Failed to execute 'open' on 'SerialPort':
+ * Failed to open serial port", which tells a child (or their teacher) nothing
+ * they can act on. Every realistic cause is something they can fix in a few
+ * seconds, so say what those are.
+ */
+const PORT_BUSY_HINT =
+  "The board's serial port is busy. Close the Serial Monitor and any other program " +
+  'using the board (Arduino IDE, another browser tab), then press Upload again. ' +
+  'If it still will not open, unplug the USB cable and plug it back in.';
+
 export interface FlashOptions {
   board: FlashBoard;
   onProgress?: (percent: number, message: string) => void;
@@ -129,14 +142,29 @@ export class WebSerialFlasher {
     }
   }
 
-  /** Close (if open) and reopen the port at the given baud, claiming streams. */
+  /**
+   * Close (if open) and reopen the port at the given baud, claiming streams.
+   *
+   * The close has to actually succeed, and it used to be a `try/catch {}` that
+   * threw the failure away. `SerialPort.close()` rejects while the port's
+   * streams are locked, so any leftover lock meant close silently failed, the
+   * port stayed open, and the following `open()` died with the browser's
+   * useless "Failed to execute 'open' on 'SerialPort'".
+   *
+   * That is not hypothetical — it is the normal path for a *second* upload:
+   * after a successful flash we reopen the port at 9600 for the Serial Monitor,
+   * the monitor pipes from `port.readable` (locking it), and the next Upload
+   * arrives while that lock is still being torn down. First upload works,
+   * every one after it fails, which is exactly what was reported.
+   */
   private async openForFlashing(baudRate: number): Promise<void> {
+    await this.releaseStreams();
+    if (!(await this.closePortFully())) throw new Error(PORT_BUSY_HINT);
     try {
-      await this.port.close();
+      await this.port.open({ baudRate });
     } catch {
-      /* may already be closed */
+      throw new Error(PORT_BUSY_HINT);
     }
-    await this.port.open({ baudRate });
 
     if (!this.port.readable || !this.port.writable) {
       throw new Error('Port streams are not available');
@@ -145,6 +173,27 @@ export class WebSerialFlasher {
     this.reader = this.port.readable.getReader();
     this.writer = this.port.writable.getWriter();
     this.startBackgroundRead();
+  }
+
+  /**
+   * Closes the port and confirms it, retrying while another holder lets go.
+   *
+   * A closed Web Serial port reports `readable`/`writable` as null, which is the
+   * only reliable way to know the close took — `close()` resolving is not
+   * enough on its own, and it rejects outright while a stream is locked. The
+   * retries give an unmounting Serial Monitor time to finish releasing.
+   */
+  private async closePortFully(): Promise<boolean> {
+    for (let attempt = 0; attempt < 6; attempt++) {
+      if (this.port.readable === null && this.port.writable === null) return true;
+      try {
+        await this.port.close();
+        return true;
+      } catch {
+        await this.delay(200);
+      }
+    }
+    return this.port.readable === null && this.port.writable === null;
   }
 
   /** Stop the background read loop and release both stream locks. Idempotent. */
