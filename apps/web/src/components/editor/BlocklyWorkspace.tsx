@@ -135,14 +135,30 @@ export interface BlocklyWorkspaceHandle {
 interface BlocklyWorkspaceProps {
   engineMode?: 'hardware' | 'software';
   onCodeChange: (code: string) => void;
+  /**
+   * Fires on every real (non-UI) workspace edit, whether or not C++ could be
+   * generated from it.
+   *
+   * `onCodeChange` cannot serve this purpose: it only fires when the *Arduino*
+   * generator succeeds, and that generator throws on `scratch_*` blocks
+   * ("does not know how to generate code for block type ..."). In software mode
+   * it therefore never fired at all, so nothing downstream ever learned that
+   * the Scratch canvas had changed.
+   */
+  onWorkspaceChange?: () => void;
   className?: string;
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
 export const BlocklyWorkspace = forwardRef<BlocklyWorkspaceHandle, BlocklyWorkspaceProps>(
-  ({ engineMode = 'hardware', onCodeChange, className = '' }, ref) => {
+  ({ engineMode = 'hardware', onCodeChange, onWorkspaceChange, className = '' }, ref) => {
     const blocklyDiv = useRef<HTMLDivElement>(null);
     const workspaceRef = useRef<Blockly.WorkspaceSvg | null>(null);
+    // The workspace is created once (deps: []), so the change listener closes
+    // over the first render's props. A ref keeps it pointing at the current
+    // callback instead of a stale one.
+    const onWorkspaceChangeRef = useRef(onWorkspaceChange);
+    onWorkspaceChangeRef.current = onWorkspaceChange;
     const theme = useUIStore((s) => s.theme);
     const board = useEditorStore((s) => s.board);
 
@@ -307,11 +323,24 @@ export const BlocklyWorkspace = forwardRef<BlocklyWorkspaceHandle, BlocklyWorksp
         }
         if (!workspaceRef.current) return;
         setIsEmpty(workspaceRef.current.getAllBlocks(false).length === 0);
+
+        // Announce the edit first, and unconditionally. The C++ generation
+        // below throws for Scratch blocks, and when it did the whole handler
+        // bailed out — which is why the Scratch engine kept running a stale
+        // copy of the script and edits to a "when [key] pressed" dropdown had
+        // no effect until the green flag was pressed again.
+        try {
+          onWorkspaceChangeRef.current?.();
+        } catch (e) {
+          console.error('workspace change listener failed:', e);
+        }
+
         try {
           const code = arduinoGenerator.workspaceToCode(workspaceRef.current);
           onCodeChange(code);
         } catch {
-          // Generator errors should not crash the editor
+          // Expected in software mode: the Arduino generator has no handlers
+          // for scratch_* blocks. The C++ preview is meaningless there anyway.
         }
       };
 

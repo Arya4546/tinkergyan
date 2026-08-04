@@ -320,10 +320,27 @@ function friendlyExitMessage(status: string, signal?: string, programError?: str
  * the app-only, bootloader, and partition binaries. ESP8266 emits a single
  * complete .bin flashed at 0x0.
  */
-function pickFirmwareFile(files: string[]): string | undefined {
+function pickFirmwareFile(files: string[], board: string): string | undefined {
+  // AVR: a single .hex, flashed by the STK500 programmer. The with_bootloader
+  // variant would overwrite the bootloader itself.
+  const hex = files.find((f) => f.endsWith('.hex') && !f.includes('with_bootloader'));
+  if (hex) return hex;
+
+  // ESP32 boots from a three-part layout (bootloader @0x1000, partition table
+  // @0x8000, app @0x10000). The browser flasher writes whatever it is given to
+  // 0x0000, so only the *merged* image is safe to hand it.
+  //
+  // This used to fall through to the app-only `sketch.ino.bin`, which uploads
+  // perfectly and then cannot boot: no bootloader, no partition table, and the
+  // application sitting at the wrong offset. "Code uploads but the hardware
+  // does nothing" is precisely that failure. Refusing is better than shipping
+  // a board that looks flashed and is dead.
+  const merged = files.find((f) => f.endsWith('.merged.bin'));
+  if (board.startsWith('esp32')) return merged;
+
+  // ESP8266 emits one complete image that is written at 0x0000 as-is.
   return (
-    files.find((f) => f.endsWith('.hex') && !f.includes('with_bootloader')) ||
-    files.find((f) => f.endsWith('.merged.bin')) ||
+    merged ||
     files.find((f) => f.endsWith('.bin') && !f.includes('bootloader') && !f.includes('partitions'))
   );
 }
@@ -355,6 +372,12 @@ async function compileArduino(
   code: string,
   board: string,
   timeoutMs: number,
+  /**
+   * True when the caller is going to flash the result. Only then does a build
+   * that produces no usable firmware count as a failure — the simulate-mode
+   * fallback just wants to know whether the code compiles.
+   */
+  requireFirmware = false,
 ): Promise<CompileResult> {
   const start = Date.now();
   const tmpDir = await mkdtemp(path.join(os.tmpdir(), 'tinkergyan-'));
@@ -386,18 +409,41 @@ async function compileArduino(
     const { stdout, stderr: rawStderr } = await spawnWithTimeout(cliPath, args, timeoutMs);
     const stderr = stripToolchainNotices(rawStderr);
     const errors = parseArduinoErrors(stderr, sketchFile);
-    const hasError =
+    let hasError =
       errors.some((e) => e.severity === 'error') || stderr.toLowerCase().includes('error:');
 
     let hexBase64: string | undefined;
     if (!hasError) {
       try {
         const files = await readdir(buildDir);
-        const binFile = pickFirmwareFile(files);
+        const binFile = pickFirmwareFile(files, board);
         if (binFile) {
           const binData = await readFile(path.join(buildDir, binFile));
           hexBase64 = binData.toString('base64');
-          logger.info({ board, size: binData.length, file: binFile }, 'compiler.hex_extracted');
+          // `files` is logged too: when a board uploads but will not run, the
+          // first question is always which artifacts the toolchain actually
+          // produced, and guessing that after the fact is impossible.
+          logger.info(
+            { board, size: binData.length, file: binFile, files },
+            'compiler.hex_extracted',
+          );
+        } else {
+          logger.error({ board, files }, 'compiler.no_flashable_artifact');
+          // Surface it. The alternative — returning success with no firmware —
+          // reaches the browser as a bare "Firmware compilation failed" even
+          // though the code compiled perfectly, which sends everyone hunting
+          // in the wrong place.
+          if (requireFirmware) {
+            hasError = true;
+            errors.push({
+              line: 0,
+              column: 0,
+              severity: 'error',
+              message: board.startsWith('esp32')
+                ? 'The ESP32 toolchain did not produce a merged firmware image, so there is nothing safe to upload. The core may need reinstalling on the server.'
+                : 'The build produced no flashable firmware file.',
+            });
+          }
         }
       } catch (err) {
         logger.warn({ err }, 'Failed to read compiled firmware');
@@ -717,5 +763,5 @@ export async function compileForFirmware(
   timeoutMs = env.MAX_COMPILE_TIMEOUT,
 ): Promise<CompileResult> {
   logger.info({ board }, 'compileForFirmware.start');
-  return compileArduino(code, board, timeoutMs);
+  return compileArduino(code, board, timeoutMs, true);
 }

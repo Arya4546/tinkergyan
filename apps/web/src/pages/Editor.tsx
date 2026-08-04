@@ -913,6 +913,21 @@ export default function Editor() {
     return startHardwareBinding();
   }, [engineMode]);
 
+  /**
+   * Every real edit to the canvas, regardless of engine.
+   *
+   * Keeps the Scratch engine's compiled copy of the script current, so hats
+   * fire against what is actually on screen. Previously this rode on
+   * `onCodeChange`, which never fires in software mode because the Arduino
+   * generator throws on Scratch blocks — so changing a "when [key] pressed"
+   * dropdown left the engine still listening for the old key, and a freshly
+   * dropped block (which defaults to "any") kept matching every key until the
+   * green flag was pressed again.
+   */
+  const handleWorkspaceChange = useCallback(() => {
+    syncScratchProgram();
+  }, [syncScratchProgram]);
+
   // ── Blockly code change → also schedule auto-save ──────────────────────
   const handleBlocklyCodeChange = useCallback(
     (code: string) => {
@@ -1426,6 +1441,7 @@ export default function Editor() {
                 ref={blocklyRef}
                 engineMode={engineMode}
                 onCodeChange={handleBlocklyCodeChange}
+                onWorkspaceChange={handleWorkspaceChange}
                 className="w-full h-full"
               />
             </div>
