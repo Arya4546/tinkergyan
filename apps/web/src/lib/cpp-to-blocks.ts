@@ -90,6 +90,21 @@ export function tokenize(code: string): { tokens: Token[]; comments: CommentInfo
     'char',
     'String',
     'bool',
+    'boolean',
+    'byte',
+    'word',
+    'long',
+    'short',
+    'unsigned',
+    'signed',
+    'uint8_t',
+    'int8_t',
+    'uint16_t',
+    'int16_t',
+    'uint32_t',
+    'int32_t',
+    'static',
+    'volatile',
     'if',
     'else',
     'while',
@@ -409,7 +424,8 @@ class Parser {
     loopCode: string;
     functions: string[];
   } {
-    let setupCode = '';
+    const globalInitBlocks: BlockXml[] = [];
+    let setupBlocks: BlockXml[] = [];
     let loopCode = '';
     const functions: string[] = [];
 
@@ -429,14 +445,15 @@ class Parser {
         if (this.isFunctionDeclaration()) {
           const fnXml = this.parseFunction();
           if (fnXml.name === 'setup') {
-            setupCode = fnXml.body;
+            setupBlocks = fnXml.rawBlocks;
           } else if (fnXml.name === 'loop') {
             loopCode = fnXml.body;
           } else {
             functions.push(fnXml.xml);
           }
         } else if (this.isVariableDeclaration()) {
-          this.parseGlobalVariable();
+          const decls = this.parseGlobalVariable();
+          globalInitBlocks.push(...decls);
         } else {
           this.advance();
         }
@@ -449,6 +466,8 @@ class Parser {
       }
     }
 
+    const setupCode = this.statementsToXml([...globalInitBlocks, ...setupBlocks]);
+
     const ARDUINO_CONSTANTS = new Set([
       'HIGH',
       'LOW',
@@ -456,6 +475,22 @@ class Parser {
       'OUTPUT',
       'INPUT_PULLUP',
       'LED_BUILTIN',
+      'A0',
+      'A1',
+      'A2',
+      'A3',
+      'A4',
+      'A5',
+      'A6',
+      'A7',
+      'A8',
+      'A9',
+      'A10',
+      'A11',
+      'A12',
+      'A13',
+      'A14',
+      'A15',
     ]);
     const filteredVars = Array.from(this.variables).filter((v) => !ARDUINO_CONSTANTS.has(v));
 
@@ -467,10 +502,29 @@ class Parser {
     };
   }
 
+  private static readonly MODIFIERS = new Set([
+    'const',
+    'static',
+    'volatile',
+    'unsigned',
+    'signed',
+  ]);
+
+  private skipModifiers(start: number): number {
+    let temp = start;
+    while (temp < this.tokens.length) {
+      const tok = this.tokens[temp];
+      if (tok && Parser.MODIFIERS.has(tok.value)) {
+        temp++;
+      } else {
+        break;
+      }
+    }
+    return temp;
+  }
+
   private isVariableDeclaration(): boolean {
-    let temp = this.current;
-    const tTemp = this.tokens[temp];
-    if (tTemp && tTemp.value === 'const') temp++;
+    let temp = this.skipModifiers(this.current);
 
     const typeToken = this.tokens[temp];
     if (!typeToken) return false;
@@ -492,9 +546,7 @@ class Parser {
   }
 
   private isFunctionDeclaration(): boolean {
-    let temp = this.current;
-    const tTemp = this.tokens[temp];
-    if (tTemp && tTemp.value === 'const') temp++;
+    let temp = this.skipModifiers(this.current);
 
     const typeToken = this.tokens[temp];
     if (!typeToken) return false;
@@ -512,12 +564,20 @@ class Parser {
     return false;
   }
 
-  private parseGlobalVariable() {
-    if (this.check('KEYWORD', 'const')) {
+  private parseGlobalVariable(): BlockXml[] {
+    while (
+      this.check('KEYWORD', 'const') ||
+      this.check('KEYWORD', 'static') ||
+      this.check('KEYWORD', 'volatile') ||
+      this.check('KEYWORD', 'unsigned') ||
+      this.check('KEYWORD', 'signed')
+    ) {
       this.advance();
     }
 
     const typeToken = this.advance(); // type
+    const decls: BlockXml[] = [];
+
     while (true) {
       const nameToken = this.consume('IDENTIFIER', undefined, 'Expected variable name');
       if (this.check('PUNCTUATION', '[')) {
@@ -535,6 +595,11 @@ class Parser {
         if (literalVal !== null) {
           this.variableValues.set(nameToken.value, literalVal);
         }
+        decls.push({
+          type: 'variables_set',
+          fields: { VAR: nameToken.value },
+          values: { VALUE: valXml },
+        });
       }
 
       if (this.check('PUNCTUATION', ',')) {
@@ -544,10 +609,20 @@ class Parser {
       }
     }
     this.consume('PUNCTUATION', ';', 'Expected semicolon after variable declaration');
+    return decls;
   }
 
-  private parseFunction(): { name: string; body: string; xml: string } {
+  private parseFunction(): { name: string; body: string; xml: string; rawBlocks: BlockXml[] } {
     const startToken = this.peek();
+    while (
+      this.check('KEYWORD', 'const') ||
+      this.check('KEYWORD', 'static') ||
+      this.check('KEYWORD', 'volatile') ||
+      this.check('KEYWORD', 'unsigned') ||
+      this.check('KEYWORD', 'signed')
+    ) {
+      this.advance();
+    }
     const typeToken = this.advance();
     const nameToken = this.consume('IDENTIFIER', undefined, 'Expected function name');
     this.consume('PUNCTUATION', '(');
@@ -593,6 +668,7 @@ class Parser {
     return {
       name: nameToken.value,
       body: bodyXml,
+      rawBlocks: bodyBlocks,
       xml,
     };
   }
