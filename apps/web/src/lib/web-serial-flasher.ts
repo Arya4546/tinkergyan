@@ -674,7 +674,12 @@ export class WebSerialFlasher {
       });
 
       onLog?.('ESP Flashing complete. Resetting board...');
-      await transport.disconnect(); // This asserts DTR/RTS to reset the board automatically
+      try {
+        await esploader.after('hard_reset');
+      } catch (err) {
+        onLog?.(`[esptool] Reset notice: ${err instanceof Error ? err.message : String(err)}`);
+      }
+      await transport.disconnect();
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       onLog?.(`ESP Flash Error: ${msg}`);

@@ -50,6 +50,11 @@ export function SerialMonitor({ port }: SerialMonitorProps) {
       if (!port.readable) {
         try {
           await port.open({ baudRate });
+          try {
+            await port.setSignals({ dataTerminalReady: false, requestToSend: false });
+          } catch {
+            /* ignore if signals cannot be set */
+          }
         } catch (openErr: any) {
           console.warn('Port open error:', openErr);
           setLines((prev) => [...prev, `> Error opening port: ${openErr.message || openErr}`]);
