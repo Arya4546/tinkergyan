@@ -11,13 +11,13 @@ import {
   Zap,
   Loader2,
   Cpu,
-  Filter,
   SlidersHorizontal,
 } from 'lucide-react';
 import { useProjectStore } from '../stores/project.store';
 import { PageHeader } from '../components/ui/PageHeader';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import { NewProjectDialog } from '../components/ui/NewProjectDialog';
+import { CustomSelect } from '../components/ui/CustomSelect';
 import { Tooltip } from '../components/ui/Tooltip';
 import { BOARDS, getBoardLabel } from '../lib/boards';
 
@@ -136,38 +136,35 @@ export default function Projects() {
 
           {/* Hardware Board Filter */}
           {categoryFilter === 'HARDWARE' && (
-            <div className="flex items-center gap-1.5 bg-white dark:bg-[#1a1a1a] border border-slate-200 dark:border-slate-700 rounded-xl px-3 h-10">
-              <Filter size={12} className="text-slate-400 shrink-0" />
-              <span className="text-xs text-slate-500 dark:text-slate-400 font-medium">Board:</span>
-              <select
-                value={boardFilter}
-                onChange={(e) => setBoardFilter(e.target.value)}
-                className="bg-transparent text-xs font-semibold text-slate-900 dark:text-white outline-none cursor-pointer"
-              >
-                <option
-                  value="ALL"
-                  className="bg-white dark:bg-[#1A1D24] text-slate-900 dark:text-white"
-                >
-                  All Hardware Boards
-                </option>
-                {BOARDS.map((b) => (
-                  <option
-                    key={b.fqbn}
-                    value={b.fqbn}
-                    className="bg-white dark:bg-[#1A1D24] text-slate-900 dark:text-white"
-                  >
-                    {b.label}
-                  </option>
-                ))}
-              </select>
-            </div>
+            <CustomSelect
+              value={boardFilter}
+              onChange={setBoardFilter}
+              labelPrefix="Board:"
+              options={[
+                { value: 'ALL', label: 'All Hardware Boards' },
+                ...BOARDS.map((b) => ({ value: b.fqbn, label: b.label })),
+              ]}
+            />
           )}
 
           {/* Software Engine Indicator */}
           {categoryFilter === 'SOFTWARE' && (
-            <div className="flex items-center gap-1.5 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-900/50 rounded-xl px-3 h-10 text-xs font-semibold text-emerald-700 dark:text-emerald-400">
+            <div className="flex items-center gap-1.5 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-900/50 rounded-xl px-3 py-1.5 text-xs font-semibold text-emerald-700 dark:text-emerald-400">
               <SlidersHorizontal size={12} /> Engine: Scratch
             </div>
+          )}
+
+          {/* All Category Environment Selector */}
+          {categoryFilter === 'ALL' && (
+            <CustomSelect
+              value={boardFilter}
+              onChange={setBoardFilter}
+              options={[
+                { value: 'ALL', label: 'All Boards & Engines' },
+                { value: 'software', label: 'Software (Scratch)' },
+                ...BOARDS.map((b) => ({ value: b.fqbn, label: `${b.label} (Hardware)` })),
+              ]}
+            />
           )}
 
           {/* Code/Block Filter */}

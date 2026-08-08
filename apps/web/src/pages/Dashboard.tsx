@@ -11,13 +11,13 @@ import {
   Zap,
   Award,
   Cpu,
-  Filter,
   SlidersHorizontal,
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useEffect, useState, useMemo } from 'react';
 import { Loader } from '../components/ui/Loader';
 import { NewProjectDialog } from '../components/ui/NewProjectDialog';
+import { CustomSelect } from '../components/ui/CustomSelect';
 import { BOARDS, getBoardLabel } from '../lib/boards';
 
 function ProjectCard({
@@ -235,33 +235,15 @@ export default function Dashboard() {
 
               {/* Hardware Board Filter */}
               {categoryFilter === 'HARDWARE' && (
-                <div className="flex items-center gap-1.5 bg-slate-100 dark:bg-[#1A1D24] border border-slate-200 dark:border-slate-800 rounded-xl px-2.5 py-1">
-                  <Filter size={12} className="text-slate-400 shrink-0" />
-                  <span className="text-xs text-slate-500 dark:text-slate-400 font-medium">
-                    Board:
-                  </span>
-                  <select
-                    value={boardFilter}
-                    onChange={(e) => setBoardFilter(e.target.value)}
-                    className="bg-transparent text-xs font-semibold text-slate-900 dark:text-white outline-none cursor-pointer py-0.5"
-                  >
-                    <option
-                      value="ALL"
-                      className="bg-white dark:bg-[#1A1D24] text-slate-900 dark:text-white"
-                    >
-                      All Hardware Boards
-                    </option>
-                    {BOARDS.map((b) => (
-                      <option
-                        key={b.fqbn}
-                        value={b.fqbn}
-                        className="bg-white dark:bg-[#1A1D24] text-slate-900 dark:text-white"
-                      >
-                        {b.label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+                <CustomSelect
+                  value={boardFilter}
+                  onChange={setBoardFilter}
+                  labelPrefix="Board:"
+                  options={[
+                    { value: 'ALL', label: 'All Hardware Boards' },
+                    ...BOARDS.map((b) => ({ value: b.fqbn, label: b.label })),
+                  ]}
+                />
               )}
 
               {/* Software Mode Indicator */}
@@ -273,36 +255,15 @@ export default function Dashboard() {
 
               {/* All Category Environment Selector */}
               {categoryFilter === 'ALL' && (
-                <div className="flex items-center gap-1.5 bg-slate-100 dark:bg-[#1A1D24] border border-slate-200 dark:border-slate-800 rounded-xl px-2.5 py-1">
-                  <Filter size={12} className="text-slate-400 shrink-0" />
-                  <select
-                    value={boardFilter}
-                    onChange={(e) => setBoardFilter(e.target.value)}
-                    className="bg-transparent text-xs font-semibold text-slate-900 dark:text-white outline-none cursor-pointer py-0.5"
-                  >
-                    <option
-                      value="ALL"
-                      className="bg-white dark:bg-[#1A1D24] text-slate-900 dark:text-white"
-                    >
-                      All Boards & Engines
-                    </option>
-                    <option
-                      value="software"
-                      className="bg-white dark:bg-[#1A1D24] text-slate-900 dark:text-white"
-                    >
-                      Software (Scratch)
-                    </option>
-                    {BOARDS.map((b) => (
-                      <option
-                        key={b.fqbn}
-                        value={b.fqbn}
-                        className="bg-white dark:bg-[#1A1D24] text-slate-900 dark:text-white"
-                      >
-                        {b.label} (Hardware)
-                      </option>
-                    ))}
-                  </select>
-                </div>
+                <CustomSelect
+                  value={boardFilter}
+                  onChange={setBoardFilter}
+                  options={[
+                    { value: 'ALL', label: 'All Boards & Engines' },
+                    { value: 'software', label: 'Software (Scratch)' },
+                    ...BOARDS.map((b) => ({ value: b.fqbn, label: `${b.label} (Hardware)` })),
+                  ]}
+                />
               )}
             </div>
           </div>

@@ -4,6 +4,7 @@ import { api } from '../services/api';
 import { useUIStore } from '../stores/ui.store';
 import { PageHeader } from '../components/ui/PageHeader';
 import { Loader } from '../components/ui/Loader';
+import { CustomSelect } from '../components/ui/CustomSelect';
 import { BOARDS } from '../lib/boards';
 
 const FONT_SIZES = [10, 12, 14, 16, 18, 20, 22, 24];
@@ -193,17 +194,12 @@ export default function Settings() {
                 <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">
                   Default Board
                 </label>
-                <select
+                <CustomSelect
                   value={prefs.defaultBoard}
-                  onChange={(e) => updatePref('defaultBoard', e.target.value)}
-                  className={iClass}
-                >
-                  {BOARDS.map((b) => (
-                    <option key={b.fqbn} value={b.fqbn}>
-                      {b.label}
-                    </option>
-                  ))}
-                </select>
+                  onChange={(val) => updatePref('defaultBoard', val)}
+                  options={BOARDS.map((b) => ({ value: b.fqbn, label: b.label }))}
+                  className="w-full"
+                />
               </div>
               <div>
                 <p className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">
