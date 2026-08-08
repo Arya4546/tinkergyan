@@ -55,14 +55,15 @@ export class ProjectService {
       where.type = filter.type;
     }
 
-    if (filter?.category === 'HARDWARE') {
+    // Apply category and boardTarget filters without conflicts.
+    // boardTarget is more specific, but must be consistent with category.
+    if (filter?.boardTarget && filter.boardTarget !== 'ALL') {
+      // Specific board selected — use it directly (it already implies the category)
+      where.boardTarget = filter.boardTarget;
+    } else if (filter?.category === 'HARDWARE') {
       where.boardTarget = { not: 'software' };
     } else if (filter?.category === 'SOFTWARE') {
       where.boardTarget = 'software';
-    }
-
-    if (filter?.boardTarget && filter.boardTarget !== 'ALL') {
-      where.boardTarget = filter.boardTarget;
     }
 
     return prisma.project.findMany({

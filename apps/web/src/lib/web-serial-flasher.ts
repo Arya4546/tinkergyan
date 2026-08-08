@@ -607,7 +607,9 @@ export class WebSerialFlasher {
   ): Promise<void> {
     onLog?.('Initializing ESP Flasher...');
 
-    // Dynamically import esptool-js to avoid inflating the main bundle size
+    // Dynamically import esptool-js to avoid inflating the main bundle size.
+    // If the chunk is stale after a deploy, the global handler in main.tsx
+    // will auto-reload the page before this promise settles.
     const { ESPLoader, Transport } = await import('esptool-js');
 
     // ESPTool-JS terminal interface

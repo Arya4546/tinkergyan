@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import {
   FolderCode,
@@ -32,15 +32,25 @@ export default function Projects() {
   const [boardFilter, setBoardFilter] = useState<string>('ALL');
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
   const [isNewProjectOpen, setIsNewProjectOpen] = useState(false);
+  const isFirstRender = useRef(true);
 
   useEffect(() => {
+    const params = {
+      search: search.trim() || undefined,
+      type: filter === 'ALL' ? undefined : filter,
+      category: categoryFilter === 'ALL' ? undefined : categoryFilter,
+      boardTarget: boardFilter === 'ALL' ? undefined : boardFilter,
+    };
+
+    // Fetch immediately on mount; debounce subsequent filter changes
+    if (isFirstRender.current) {
+      isFirstRender.current = false;
+      void fetchProjects(params);
+      return;
+    }
+
     const timer = setTimeout(() => {
-      void fetchProjects({
-        search: search.trim() || undefined,
-        type: filter === 'ALL' ? undefined : filter,
-        category: categoryFilter === 'ALL' ? undefined : categoryFilter,
-        boardTarget: boardFilter === 'ALL' ? undefined : boardFilter,
-      });
+      void fetchProjects(params);
     }, 300);
 
     return () => clearTimeout(timer);

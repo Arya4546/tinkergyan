@@ -13,6 +13,39 @@ import '@fontsource/inter/700.css';
 import '@fontsource/jetbrains-mono/400.css';
 import './index.css';
 
+// ── Stale chunk auto-recovery ─────────────────────────────────────────────
+// After a deployment, browsers with open tabs may try to load old JS chunks
+// that no longer exist. Catch these errors and reload once to pick up the
+// new build. A sessionStorage flag prevents infinite reload loops (e.g. when
+// the server itself is unreachable).
+const RELOAD_KEY = '__tg_chunk_reload';
+
+function reloadOnce() {
+  const lastReload = Number(sessionStorage.getItem(RELOAD_KEY) || '0');
+  if (Date.now() - lastReload > 10_000) {
+    sessionStorage.setItem(RELOAD_KEY, String(Date.now()));
+    window.location.reload();
+  }
+}
+
+// Vite emits this event when a preloaded chunk fails to fetch
+window.addEventListener('vite:preloadError', (event) => {
+  event.preventDefault();
+  reloadOnce();
+});
+
+// Catch-all for dynamic import() failures (e.g. esptool-js, lazy routes)
+window.addEventListener('unhandledrejection', (event) => {
+  const msg = String((event.reason as { message?: string })?.message ?? event.reason ?? '');
+  if (
+    msg.includes('Failed to fetch dynamically imported module') ||
+    msg.includes('Importing a module script failed')
+  ) {
+    event.preventDefault();
+    reloadOnce();
+  }
+});
+
 const Login = lazy(() => import('@/pages/Login'));
 const Register = lazy(() => import('@/pages/Register'));
 const Dashboard = lazy(() => import('@/pages/Dashboard'));
