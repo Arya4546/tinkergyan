@@ -28,15 +28,45 @@ export interface UpdateProjectDto {
   isPublic?: boolean;
 }
 
+export interface ListProjectsFilterDto {
+  search?: string | undefined;
+  type?: 'BLOCK' | 'CODE' | undefined;
+  category?: 'HARDWARE' | 'SOFTWARE' | undefined;
+  boardTarget?: string | undefined;
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 
 export class ProjectService {
   /**
    * List all projects owned by the requesting user, newest first.
    */
-  static async findAll(userId: string) {
+  static async findAll(userId: string, filter?: ListProjectsFilterDto) {
+    const where: Prisma.ProjectWhereInput = { userId };
+
+    if (filter?.search?.trim()) {
+      where.title = {
+        contains: filter.search.trim(),
+        mode: 'insensitive',
+      };
+    }
+
+    if (filter?.type) {
+      where.type = filter.type;
+    }
+
+    if (filter?.category === 'HARDWARE') {
+      where.boardTarget = { not: 'software' };
+    } else if (filter?.category === 'SOFTWARE') {
+      where.boardTarget = 'software';
+    }
+
+    if (filter?.boardTarget && filter.boardTarget !== 'ALL') {
+      where.boardTarget = filter.boardTarget;
+    }
+
     return prisma.project.findMany({
-      where: { userId },
+      where,
       orderBy: { updatedAt: 'desc' },
       select: {
         id: true,

@@ -5,32 +5,34 @@
  * Used by Dashboard (list) and Editor (create/update via editor.store).
  */
 import { create } from 'zustand';
-import { projectService, type ProjectSummary } from '../services/project.service';
+import {
+  projectService,
+  type ProjectSummary,
+  type ProjectFilterParams,
+} from '../services/project.service';
 
 interface ProjectState {
-  projects:     ProjectSummary[];
-  isLoading:    boolean;
-  error:        string | null;
-  hasFetched:   boolean;
+  projects: ProjectSummary[];
+  isLoading: boolean;
+  error: string | null;
+  hasFetched: boolean;
 
-  fetchProjects:  () => Promise<void>;
-  removeProject:  (id: string) => Promise<void>;
+  fetchProjects: (params?: ProjectFilterParams) => Promise<void>;
+  removeProject: (id: string) => Promise<void>;
   /** Optimistically prepend a newly-created project to the list. */
-  addProject:     (project: ProjectSummary) => void;
+  addProject: (project: ProjectSummary) => void;
 }
 
 export const useProjectStore = create<ProjectState>()((set, get) => ({
-  projects:   [],
-  isLoading:  false,
-  error:      null,
+  projects: [],
+  isLoading: false,
+  error: null,
   hasFetched: false,
 
-  fetchProjects: async () => {
-    // Prevent duplicate in-flight requests (e.g. StrictMode double-mount)
-    if (get().isLoading) return;
+  fetchProjects: async (params?: ProjectFilterParams) => {
     set({ isLoading: true, error: null });
     try {
-      const projects = await projectService.list();
+      const projects = await projectService.list(params);
       set({ projects, hasFetched: true });
     } catch (err: any) {
       const message = err?.response?.data?.error?.message ?? 'Failed to load projects';

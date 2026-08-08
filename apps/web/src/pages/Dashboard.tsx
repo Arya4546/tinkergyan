@@ -10,11 +10,15 @@ import {
   TrendingUp,
   Zap,
   Award,
+  Cpu,
+  Filter,
+  SlidersHorizontal,
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { Loader } from '../components/ui/Loader';
 import { NewProjectDialog } from '../components/ui/NewProjectDialog';
+import { BOARDS, getBoardLabel } from '../lib/boards';
 
 function ProjectCard({
   project,
@@ -41,6 +45,8 @@ function ProjectCard({
   const bg = pastelBgs[index % pastelBgs.length];
   const iconBg = iconBgs[index % iconBgs.length];
 
+  const boardLabel = getBoardLabel(project.boardTarget);
+
   return (
     <div
       className={`rounded-2xl border p-5 flex flex-col gap-4 hover:shadow-md transition-shadow ${bg}`}
@@ -51,13 +57,13 @@ function ProjectCard({
         </div>
         <div className="flex items-center gap-2">
           <span
-            className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+            className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full ${
               project.boardTarget === 'software'
                 ? 'bg-emerald-100 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400'
                 : 'bg-purple-100 dark:bg-purple-950/40 text-purple-700 dark:text-purple-400'
             }`}
           >
-            {project.boardTarget === 'software' ? 'Software' : 'Hardware'}
+            {project.boardTarget === 'software' ? 'Software • Scratch' : `Hardware • ${boardLabel}`}
           </span>
           <button
             onClick={(e) => {
@@ -77,8 +83,10 @@ function ProjectCard({
           {project.title}
         </h3>
         <p className="text-xs text-slate-500 dark:text-slate-400">
-          {project.boardTarget === 'software' ? 'Software Coding' : 'Hardware Coding'} &bull;{' '}
-          {isBlock ? 'Block Logic' : 'C++ Code'} &bull; Updated{' '}
+          {project.boardTarget === 'software'
+            ? 'Software Coding (Scratch)'
+            : `Hardware (${boardLabel})`}{' '}
+          &bull; {isBlock ? 'Block Logic' : 'C++ Code'} &bull; Updated{' '}
           {new Date(project.updatedAt).toLocaleDateString()}
         </p>
       </div>
@@ -97,10 +105,29 @@ export default function Dashboard() {
   const user = useAuthStore((s) => s.user);
   const { projects, isLoading, error, fetchProjects, removeProject } = useProjectStore();
   const [isNewProjectOpen, setIsNewProjectOpen] = useState(false);
+  const [categoryFilter, setCategoryFilter] = useState<'ALL' | 'HARDWARE' | 'SOFTWARE'>('ALL');
+  const [boardFilter, setBoardFilter] = useState<string>('ALL');
 
   useEffect(() => {
     void fetchProjects();
   }, [fetchProjects]);
+
+  const filteredProjects = useMemo(() => {
+    return projects.filter((p) => {
+      if (categoryFilter === 'HARDWARE' && p.boardTarget === 'software') return false;
+      if (categoryFilter === 'SOFTWARE' && p.boardTarget !== 'software') return false;
+
+      if (boardFilter !== 'ALL') {
+        if (boardFilter === 'software') {
+          if (p.boardTarget !== 'software') return false;
+        } else {
+          if (p.boardTarget !== boardFilter) return false;
+        }
+      }
+
+      return true;
+    });
+  }, [projects, categoryFilter, boardFilter]);
 
   return (
     <div className="w-full h-full flex flex-col font-sans overflow-y-auto">
@@ -152,10 +179,132 @@ export default function Dashboard() {
             </div>
           </div>
 
-          {/* Projects Section */}
-          <div className="flex items-center justify-between mb-5">
-            <h2 className="text-base font-bold text-slate-900 dark:text-white">My Projects</h2>
-            <span className="text-xs text-slate-400">{projects.length} total</span>
+          {/* Projects Section Header & Filters */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-5">
+            <div className="flex items-center gap-3">
+              <h2 className="text-base font-bold text-slate-900 dark:text-white">My Projects</h2>
+              <span className="text-xs text-slate-400 font-medium">
+                ({filteredProjects.length} shown)
+              </span>
+            </div>
+
+            {/* Filter Controls */}
+            <div className="flex flex-wrap items-center gap-2">
+              {/* Category Filter Tabs */}
+              <div className="flex items-center p-1 bg-slate-100 dark:bg-[#1A1D24] border border-slate-200 dark:border-slate-800 rounded-xl">
+                <button
+                  onClick={() => {
+                    setCategoryFilter('ALL');
+                    setBoardFilter('ALL');
+                  }}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                    categoryFilter === 'ALL'
+                      ? 'bg-white dark:bg-[#252932] text-slate-900 dark:text-white shadow-sm'
+                      : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                  }`}
+                >
+                  All
+                </button>
+                <button
+                  onClick={() => {
+                    setCategoryFilter('HARDWARE');
+                    setBoardFilter('ALL');
+                  }}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all ${
+                    categoryFilter === 'HARDWARE'
+                      ? 'bg-purple-600 text-white shadow-sm'
+                      : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                  }`}
+                >
+                  <Cpu size={13} /> Hardware
+                </button>
+                <button
+                  onClick={() => {
+                    setCategoryFilter('SOFTWARE');
+                    setBoardFilter('ALL');
+                  }}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all ${
+                    categoryFilter === 'SOFTWARE'
+                      ? 'bg-emerald-600 text-white shadow-sm'
+                      : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                  }`}
+                >
+                  <Play size={13} className="fill-current" /> Software
+                </button>
+              </div>
+
+              {/* Hardware Board Filter */}
+              {categoryFilter === 'HARDWARE' && (
+                <div className="flex items-center gap-1.5 bg-slate-100 dark:bg-[#1A1D24] border border-slate-200 dark:border-slate-800 rounded-xl px-2.5 py-1">
+                  <Filter size={12} className="text-slate-400 shrink-0" />
+                  <span className="text-xs text-slate-500 dark:text-slate-400 font-medium">
+                    Board:
+                  </span>
+                  <select
+                    value={boardFilter}
+                    onChange={(e) => setBoardFilter(e.target.value)}
+                    className="bg-transparent text-xs font-semibold text-slate-900 dark:text-white outline-none cursor-pointer py-0.5"
+                  >
+                    <option
+                      value="ALL"
+                      className="bg-white dark:bg-[#1A1D24] text-slate-900 dark:text-white"
+                    >
+                      All Hardware Boards
+                    </option>
+                    {BOARDS.map((b) => (
+                      <option
+                        key={b.fqbn}
+                        value={b.fqbn}
+                        className="bg-white dark:bg-[#1A1D24] text-slate-900 dark:text-white"
+                      >
+                        {b.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              {/* Software Mode Indicator */}
+              {categoryFilter === 'SOFTWARE' && (
+                <div className="flex items-center gap-1.5 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-900/50 rounded-xl px-3 py-1.5 text-xs font-semibold text-emerald-700 dark:text-emerald-400">
+                  <SlidersHorizontal size={12} /> Engine: Scratch
+                </div>
+              )}
+
+              {/* All Category Environment Selector */}
+              {categoryFilter === 'ALL' && (
+                <div className="flex items-center gap-1.5 bg-slate-100 dark:bg-[#1A1D24] border border-slate-200 dark:border-slate-800 rounded-xl px-2.5 py-1">
+                  <Filter size={12} className="text-slate-400 shrink-0" />
+                  <select
+                    value={boardFilter}
+                    onChange={(e) => setBoardFilter(e.target.value)}
+                    className="bg-transparent text-xs font-semibold text-slate-900 dark:text-white outline-none cursor-pointer py-0.5"
+                  >
+                    <option
+                      value="ALL"
+                      className="bg-white dark:bg-[#1A1D24] text-slate-900 dark:text-white"
+                    >
+                      All Boards & Engines
+                    </option>
+                    <option
+                      value="software"
+                      className="bg-white dark:bg-[#1A1D24] text-slate-900 dark:text-white"
+                    >
+                      Software (Scratch)
+                    </option>
+                    {BOARDS.map((b) => (
+                      <option
+                        key={b.fqbn}
+                        value={b.fqbn}
+                        className="bg-white dark:bg-[#1A1D24] text-slate-900 dark:text-white"
+                      >
+                        {b.label} (Hardware)
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+            </div>
           </div>
 
           {isLoading && (
@@ -170,16 +319,16 @@ export default function Dashboard() {
             </div>
           )}
 
-          {!isLoading && !error && projects.length === 0 && (
+          {!isLoading && !error && filteredProjects.length === 0 && (
             <div className="flex flex-col items-center justify-center py-20 text-center">
               <div className="w-14 h-14 bg-slate-100 dark:bg-slate-800 rounded-2xl flex items-center justify-center mb-4">
                 <FolderCode size={24} className="text-slate-400" />
               </div>
               <p className="font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                No projects yet
+                No matching projects found
               </p>
               <p className="text-sm text-slate-400 mb-6">
-                Create your first project to get started.
+                Try selecting a different category or board filter.
               </p>
               <button
                 onClick={() => setIsNewProjectOpen(true)}
@@ -190,9 +339,9 @@ export default function Dashboard() {
             </div>
           )}
 
-          {!isLoading && !error && projects.length > 0 && (
+          {!isLoading && !error && filteredProjects.length > 0 && (
             <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
-              {projects.map((p, i) => (
+              {filteredProjects.map((p, i) => (
                 <ProjectCard key={p.id} project={p} onDelete={removeProject} index={i} />
               ))}
             </div>

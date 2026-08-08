@@ -26,6 +26,31 @@ export class ParserError extends Error {
   }
 }
 
+export const ARDUINO_CONSTANTS = new Set([
+  'HIGH',
+  'LOW',
+  'INPUT',
+  'OUTPUT',
+  'INPUT_PULLUP',
+  'LED_BUILTIN',
+  'A0',
+  'A1',
+  'A2',
+  'A3',
+  'A4',
+  'A5',
+  'A6',
+  'A7',
+  'A8',
+  'A9',
+  'A10',
+  'A11',
+  'A12',
+  'A13',
+  'A14',
+  'A15',
+]);
+
 export interface Token {
   type:
     | 'KEYWORD'
@@ -468,30 +493,6 @@ class Parser {
 
     const setupCode = this.statementsToXml([...globalInitBlocks, ...setupBlocks]);
 
-    const ARDUINO_CONSTANTS = new Set([
-      'HIGH',
-      'LOW',
-      'INPUT',
-      'OUTPUT',
-      'INPUT_PULLUP',
-      'LED_BUILTIN',
-      'A0',
-      'A1',
-      'A2',
-      'A3',
-      'A4',
-      'A5',
-      'A6',
-      'A7',
-      'A8',
-      'A9',
-      'A10',
-      'A11',
-      'A12',
-      'A13',
-      'A14',
-      'A15',
-    ]);
     const filteredVars = Array.from(this.variables).filter((v) => !ARDUINO_CONSTANTS.has(v));
 
     return {
@@ -585,7 +586,9 @@ class Parser {
         if (this.check('NUMBER')) this.advance();
         this.consume('PUNCTUATION', ']');
       }
-      this.variables.add(nameToken.value);
+      if (!ARDUINO_CONSTANTS.has(nameToken.value)) {
+        this.variables.add(nameToken.value);
+      }
       this.variableTypes.set(nameToken.value, typeToken.value);
 
       if (this.check('OPERATOR', '=')) {
@@ -597,6 +600,7 @@ class Parser {
         }
         decls.push({
           type: 'variables_set',
+          mutation: '<mutation is_global_init="true"></mutation>',
           fields: { VAR: nameToken.value },
           values: { VALUE: valXml },
         });
@@ -1282,7 +1286,9 @@ class Parser {
         return this.parseFunctionCall(name, inExpression);
       }
 
-      this.variables.add(name);
+      if (!ARDUINO_CONSTANTS.has(name)) {
+        this.variables.add(name);
+      }
       return `<block type="variables_get"><field name="VAR">${escapeXml(name)}</field></block>`;
     }
 
@@ -1437,15 +1443,10 @@ class Parser {
       }
     }
 
-    const fullCallName = `${objName}.${methodName}`;
-    this.calledProcedures.set(
-      fullCallName,
-      args.map((_, i) => `arg${i}`),
-    );
-
+    const fullMethodName = `${objName}.${methodName}`;
     const callType = inExpression ? 'procedures_callreturn' : 'procedures_callnoreturn';
     return `<block type="${callType}">
-      <mutation name="${escapeXml(fullCallName)}">
+      <mutation name="${escapeXml(fullMethodName)}">
         ${args.map((_, i) => `<arg name="arg${i}"></arg>`).join('')}
       </mutation>
       ${args.map((argXml, i) => `<value name="ARG${i}">${argXml}</value>`).join('')}
@@ -1462,13 +1463,7 @@ class Parser {
     if (match && match[1] !== undefined) return match[1];
     match = xml.match(/<field name="VAR">([^<]+)<\/field>/);
     if (match && match[1] !== undefined) {
-      let varName = match[1];
-      let depth = 0;
-      while (this.variableValues.has(varName) && depth < 5) {
-        varName = this.variableValues.get(varName)!;
-        depth++;
-      }
-      return varName;
+      return match[1];
     }
     return null;
   }

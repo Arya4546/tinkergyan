@@ -38,9 +38,16 @@ export interface UpdateProjectInput {
   isPublic?: boolean;
 }
 
+export interface ProjectFilterParams {
+  search?: string | undefined;
+  type?: 'BLOCK' | 'CODE' | undefined;
+  category?: 'HARDWARE' | 'SOFTWARE' | undefined;
+  boardTarget?: string | undefined;
+}
+
 export const projectService = {
-  async list(): Promise<ProjectSummary[]> {
-    const { data } = await api.get('/projects');
+  async list(params?: ProjectFilterParams): Promise<ProjectSummary[]> {
+    const { data } = await api.get('/projects', { params });
     return data.data.projects as ProjectSummary[];
   },
 

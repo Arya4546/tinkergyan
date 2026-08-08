@@ -12,6 +12,7 @@
 import { CodeGenerator, Names } from 'blockly/core';
 import type { Block, Workspace } from 'blockly/core';
 import { useEditorStore } from '../../stores/editor.store';
+import { ARDUINO_CONSTANTS } from '../../lib/cpp-to-blocks';
 
 // ─── Operator precedence for C++ ─────────────────────────────────────────────
 export enum Order {
@@ -415,6 +416,10 @@ arduinoGenerator.forBlock['math_single'] = function (block, generator) {
 arduinoGenerator.forBlock['variables_get'] = function (block, generator) {
   const name = generator.getVariableName(block.getFieldValue('VAR'));
 
+  if (ARDUINO_CONSTANTS.has(name)) {
+    return [name, Order.ATOMIC] as [string, Order];
+  }
+
   // Ensure variable is declared globally even if only 'get' is used
   const currentDef = (generator as any).definitions_[`var_${name}`];
   if (!currentDef) {
@@ -426,6 +431,11 @@ arduinoGenerator.forBlock['variables_get'] = function (block, generator) {
 
 arduinoGenerator.forBlock['variables_set'] = function (block, generator) {
   const name = generator.getVariableName(block.getFieldValue('VAR'));
+
+  if (ARDUINO_CONSTANTS.has(name)) {
+    return '';
+  }
+
   const valueBlock = block.getInputTargetBlock('VALUE');
   const value = generator.valueToCode(block, 'VALUE', Order.ASSIGNMENT) || '0';
 
@@ -440,6 +450,13 @@ arduinoGenerator.forBlock['variables_set'] = function (block, generator) {
         type = 'float';
       }
     }
+  }
+
+  const isGlobalInit = (block as any).is_global_init === true;
+
+  if (isGlobalInit) {
+    (generator as any).definitions_[`var_${name}`] = `${type} ${name} = ${value};`;
+    return '';
   }
 
   // If already declared, keep/upgrade it

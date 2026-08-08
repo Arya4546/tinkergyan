@@ -234,3 +234,22 @@ Blockly.Blocks['arduino_serial_println'] = {
     this.setTooltip('Print data to the serial port, followed by a newline.');
   },
 };
+
+// Enable is_global_init mutation support on variables_set block
+const varSetBlock = Blockly.Blocks['variables_set'] as Record<string, unknown> | undefined;
+if (varSetBlock) {
+  varSetBlock.domToMutation = function (
+    this: Blockly.Block & { is_global_init?: boolean },
+    xmlElement: Element,
+  ) {
+    this.is_global_init = xmlElement.getAttribute('is_global_init') === 'true';
+  };
+  varSetBlock.mutationToDom = function (this: Blockly.Block & { is_global_init?: boolean }) {
+    if (this.is_global_init) {
+      const container = Blockly.utils.xml.createElement('mutation');
+      container.setAttribute('is_global_init', 'true');
+      return container;
+    }
+    return null;
+  };
+}
