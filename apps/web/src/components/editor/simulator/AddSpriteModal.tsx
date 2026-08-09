@@ -1,5 +1,20 @@
 import React from 'react';
-import { X, User, Lightbulb, CircleDot, RotateCw, Gauge, Car } from 'lucide-react';
+import {
+  X,
+  User,
+  Lightbulb,
+  CircleDot,
+  RotateCw,
+  Gauge,
+  Car,
+  Bot,
+  Printer,
+  Plane,
+  Cpu,
+  Activity,
+  Sun,
+  Wrench,
+} from 'lucide-react';
 import { useSimulatorStore, type SpriteType } from '../../../stores/simulator.store';
 import { useEditorStore } from '../../../stores/editor.store';
 
@@ -39,6 +54,104 @@ const PRESETS: PresetSprite[] = [
     icon: <User size={24} className="text-indigo-500" />,
     desc: 'Robot mascot',
     image: '/sprites/svg.svg',
+  },
+  {
+    name: '3D Printer',
+    type: 'character',
+    icon: <Printer size={24} className="text-pink-500" />,
+    desc: 'STEMMANTRA 3D Printer',
+    image: '/sprites/STEMMANTRA_3D_Printer.svg',
+  },
+  {
+    name: 'AI Bot',
+    type: 'character',
+    icon: <Bot size={24} className="text-purple-500" />,
+    desc: 'STEMMANTRA AI Bot',
+    image: '/sprites/STEMMANTRA_AI_Bot.svg',
+  },
+  {
+    name: 'Autonomous Car',
+    type: 'character',
+    icon: <Car size={24} className="text-emerald-500" />,
+    desc: 'STEMMANTRA Autonomous Car',
+    image: '/sprites/STEMMANTRA_Autonomous_Car.svg',
+  },
+  {
+    name: 'Coding Bot',
+    type: 'character',
+    icon: <Bot size={24} className="text-blue-500" />,
+    desc: 'STEMMANTRA Coding Bot',
+    image: '/sprites/STEMMANTRA_Coding_Bot.svg',
+  },
+  {
+    name: 'Controller Board',
+    type: 'character',
+    icon: <Cpu size={24} className="text-teal-500" />,
+    desc: 'STEMMANTRA Controller Board',
+    image: '/sprites/STEMMANTRA_Controller_Board.svg',
+  },
+  {
+    name: 'Drone',
+    type: 'character',
+    icon: <Plane size={24} className="text-slate-500" />,
+    desc: 'STEMMANTRA Drone',
+    image: '/sprites/STEMMANTRA_Drone.svg',
+  },
+  {
+    name: 'Engineer Bot',
+    type: 'character',
+    icon: <Wrench size={24} className="text-orange-500" />,
+    desc: 'STEMMANTRA Engineer Bot',
+    image: '/sprites/STEMMANTRA_Engineer_Bot.svg',
+  },
+  {
+    name: 'Motor',
+    type: 'character',
+    icon: <RotateCw size={24} className="text-red-500" />,
+    desc: 'STEMMANTRA Motor',
+    image: '/sprites/STEMMANTRA_Motor.svg',
+  },
+  {
+    name: 'Robotic Arm',
+    type: 'character',
+    icon: <Bot size={24} className="text-indigo-400" />,
+    desc: 'STEMMANTRA Robotic Arm',
+    image: '/sprites/STEMMANTRA_Robotic_Arm.svg',
+  },
+  {
+    name: 'Rover',
+    type: 'character',
+    icon: <Car size={24} className="text-amber-500" />,
+    desc: 'STEMMANTRA Rover',
+    image: '/sprites/STEMMANTRA_Rover.svg',
+  },
+  {
+    name: 'Sensor',
+    type: 'character',
+    icon: <Activity size={24} className="text-sky-500" />,
+    desc: 'STEMMANTRA Sensor',
+    image: '/sprites/STEMMANTRA_Sensor.svg',
+  },
+  {
+    name: 'Servo Motor',
+    type: 'character',
+    icon: <RotateCw size={24} className="text-rose-500" />,
+    desc: 'STEMMANTRA Servo Motor',
+    image: '/sprites/STEMMANTRA_Servo_Motor.svg',
+  },
+  {
+    name: 'Solar Panel',
+    type: 'character',
+    icon: <Sun size={24} className="text-yellow-500" />,
+    desc: 'STEMMANTRA Solar Panel',
+    image: '/sprites/STEMMANTRA_Solar_Panel.svg',
+  },
+  {
+    name: 'Ultrasonic Sensor',
+    type: 'character',
+    icon: <Activity size={24} className="text-cyan-500" />,
+    desc: 'STEMMANTRA Ultrasonic Sensor',
+    image: '/sprites/STEMMANTRA_Ultrasonic_Sensor.svg',
   },
 ];
 
