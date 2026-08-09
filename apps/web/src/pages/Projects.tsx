@@ -22,13 +22,13 @@ import { Tooltip } from '../components/ui/Tooltip';
 import { BOARDS, getBoardLabel } from '../lib/boards';
 
 type FilterType = 'ALL' | 'BLOCK' | 'CODE';
-type CategoryFilterType = 'ALL' | 'HARDWARE' | 'SOFTWARE';
+type CategoryFilterType = 'NONE' | 'HARDWARE' | 'SOFTWARE';
 
 export default function Projects() {
   const { projects, isLoading, error, fetchProjects, removeProject } = useProjectStore();
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<FilterType>('ALL');
-  const [categoryFilter, setCategoryFilter] = useState<CategoryFilterType>('ALL');
+  const [categoryFilter, setCategoryFilter] = useState<CategoryFilterType>('NONE');
   const [boardFilter, setBoardFilter] = useState<string>('ALL');
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
   const [isNewProjectOpen, setIsNewProjectOpen] = useState(false);
@@ -38,7 +38,7 @@ export default function Projects() {
     const params = {
       search: search.trim() || undefined,
       type: filter === 'ALL' ? undefined : filter,
-      category: categoryFilter === 'ALL' ? undefined : categoryFilter,
+      category: categoryFilter === 'NONE' ? undefined : categoryFilter,
       boardTarget: boardFilter === 'ALL' ? undefined : boardFilter,
     };
 
@@ -56,7 +56,11 @@ export default function Projects() {
     return () => clearTimeout(timer);
   }, [search, filter, categoryFilter, boardFilter, fetchProjects]);
 
-  const filtered = projects;
+  const filtered = projects.filter((_p) => {
+    if (categoryFilter === 'NONE') return false;
+    if (categoryFilter === 'HARDWARE' && boardFilter === 'ALL') return false;
+    return true;
+  });
 
   const handleDelete = () => {
     if (!deleteTarget) return;
@@ -91,21 +95,8 @@ export default function Projects() {
           />
         </div>
         <div className="flex flex-wrap items-center gap-2 shrink-0">
-          {/* Category Tabs: All | Hardware | Software */}
+          {/* Category Tabs: Hardware | Software */}
           <div className="flex items-center p-1 bg-white dark:bg-[#1a1a1a] border border-slate-200 dark:border-slate-700 rounded-xl h-10">
-            <button
-              onClick={() => {
-                setCategoryFilter('ALL');
-                setBoardFilter('ALL');
-              }}
-              className={`px-3 py-1 rounded-lg text-xs font-semibold transition-all ${
-                categoryFilter === 'ALL'
-                  ? 'bg-slate-900 dark:bg-white text-white dark:text-slate-900 shadow-sm'
-                  : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
-              }`}
-            >
-              All Modes
-            </button>
             <button
               onClick={() => {
                 setCategoryFilter('HARDWARE');
@@ -154,18 +145,7 @@ export default function Projects() {
             </div>
           )}
 
-          {/* All Category Environment Selector */}
-          {categoryFilter === 'ALL' && (
-            <CustomSelect
-              value={boardFilter}
-              onChange={setBoardFilter}
-              options={[
-                { value: 'ALL', label: 'All Boards & Engines' },
-                { value: 'software', label: 'Software (Scratch)' },
-                ...BOARDS.map((b) => ({ value: b.fqbn, label: `${b.label} (Hardware)` })),
-              ]}
-            />
-          )}
+          {/* All Category Environment Selector Removed (Handled by strict typing now) */}
 
           {/* Code/Block Filter */}
           <div className="flex gap-1.5 border-l border-slate-200 dark:border-slate-800 pl-2">
@@ -207,21 +187,43 @@ export default function Projects() {
             <div className="w-14 h-14 bg-slate-100 dark:bg-slate-800 rounded-2xl flex items-center justify-center mb-4">
               <FolderCode size={24} className="text-slate-400" />
             </div>
-            <p className="font-semibold text-slate-700 dark:text-slate-300 mb-1">
-              {search || filter !== 'ALL' ? 'No results found' : 'No projects yet'}
-            </p>
-            <p className="text-sm text-slate-400 mb-6">
-              {search || filter !== 'ALL'
-                ? 'Try adjusting your search or filter.'
-                : 'Create your first project to get started.'}
-            </p>
-            {!search && filter === 'ALL' && (
-              <button
-                onClick={() => setIsNewProjectOpen(true)}
-                className="inline-flex items-center gap-2 bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-semibold px-5 py-2.5 rounded-xl transition-colors"
-              >
-                <Plus size={16} /> Create Project
-              </button>
+            {categoryFilter === 'NONE' ? (
+              <>
+                <p className="font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                  Select a Coding Mode
+                </p>
+                <p className="text-sm text-slate-400 mb-6">
+                  Please select Hardware or Software to view your projects.
+                </p>
+              </>
+            ) : categoryFilter === 'HARDWARE' && boardFilter === 'ALL' ? (
+              <>
+                <p className="font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                  Select a Board
+                </p>
+                <p className="text-sm text-slate-400 mb-6">
+                  Please select a specific board (like ESP32) to view its projects.
+                </p>
+              </>
+            ) : (
+              <>
+                <p className="font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                  {search || filter !== 'ALL' ? 'No results found' : 'No projects yet'}
+                </p>
+                <p className="text-sm text-slate-400 mb-6">
+                  {search || filter !== 'ALL'
+                    ? 'Try adjusting your search or filter.'
+                    : 'Create your first project to get started.'}
+                </p>
+                {!search && filter === 'ALL' && (
+                  <button
+                    onClick={() => setIsNewProjectOpen(true)}
+                    className="inline-flex items-center gap-2 bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-semibold px-5 py-2.5 rounded-xl transition-colors"
+                  >
+                    <Plus size={16} /> Create Project
+                  </button>
+                )}
+              </>
             )}
           </div>
         )}

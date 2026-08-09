@@ -513,7 +513,7 @@ export function StageCanvas() {
       onClick={handleStageClick}
     >
       {sprites
-        .filter((s) => s.visible)
+        .filter((s) => s.visible && s.id === activeSpriteId)
         .map((sprite, index) => {
           const { pctX, pctY } = scratchToPercent(sprite.x, sprite.y);
           const baseSize = sprite.type === 'character' ? CHARACTER_BASE_SIZE : HARDWARE_BASE_SIZE;
