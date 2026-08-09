@@ -3,6 +3,8 @@ import {
   BACKDROP_OPTIONS,
   type RotationStyle,
 } from '../../../stores/simulator.store';
+import { aiEngine } from '../../../lib/ai-engine';
+import { useAIStore } from '../../../stores/ai.store';
 
 /** Normalizes a browser KeyboardEvent.key into the tokens used by our "key pressed" blocks. */
 export function normalizeKeyName(key: string): string {
@@ -102,6 +104,21 @@ export interface ScratchAPI {
 
   /** Publishes a variable's value so the stage can show its monitor. */
   setVariable: (name: string, value: string | number) => void;
+
+  // AI Vision
+  aiStartVision: () => Promise<void>;
+  aiStopVision: () => Promise<void>;
+  onAIPredicted: (label: string, callback: () => Promise<void>) => void;
+  getAIPrediction: () => string;
+  getAIConfidence: (label: string) => number;
+  isAIPredicting: (label: string) => boolean;
+
+  // AI Pose & Audio
+  getPoseKeypoint: (partName: string, axis: 'x' | 'y') => number;
+  startAudioListening: () => Promise<void>;
+  stopAudioListening: () => Promise<void>;
+  onSpeechCommand: (word: string, callback: () => Promise<void>) => void;
+  getLatestSpeechCommand: () => string;
 }
 
 const wait = (ms: number, signal?: AbortSignal) => {
@@ -131,6 +148,11 @@ export class ScratchEngine {
   private keyPressedCallbacks: Array<{ key: string; cb: () => Promise<void> }> = [];
   private spriteClickedCallbacks: Array<() => Promise<void>> = [];
   private receiveCallbacks: Map<string, Array<() => Promise<void>>> = new Map();
+  private aiPredictedCallbacks: Map<string, Array<() => Promise<void>>> = new Map();
+  private speechCommandCallbacks: Map<string, Array<() => Promise<void>>> = new Map();
+  private speechBridgeRegistered = false;
+  private aiVideoEl: HTMLVideoElement | null = null;
+  private aiPollInterval: ReturnType<typeof setInterval> | null = null;
   private audioCtx: AudioContext | null = null;
   private activeAudioNodes: Set<OscillatorNode> = new Set();
 
@@ -727,6 +749,112 @@ export class ScratchEngine {
       setVariable: (name, value) => {
         useSimulatorStore.getState().setVariable(name, value);
       },
+
+      // ── AI Vision ────────────────────────────────────────────────────
+      aiStartVision: async () => {
+        if (!aiEngine.isInitialised) await aiEngine.init();
+        useAIStore.getState().setModelLoaded(true);
+
+        // Create a hidden video element for the inference loop
+        if (!this.aiVideoEl) {
+          this.aiVideoEl = document.createElement('video');
+          this.aiVideoEl.setAttribute('autoplay', '');
+          this.aiVideoEl.setAttribute('playsinline', '');
+          this.aiVideoEl.setAttribute('muted', '');
+          this.aiVideoEl.style.display = 'none';
+          document.body.appendChild(this.aiVideoEl);
+        }
+
+        await aiEngine.startWebcam(this.aiVideoEl);
+        useAIStore.getState().setWebcamActive(true);
+
+        if (!aiEngine.isReadyToPredict) return;
+
+        if (!aiEngine.isReadyToPredict && !aiEngine.isInitialised) return;
+
+        aiEngine.startPredicting(
+          this.aiVideoEl,
+          (result) => {
+            useAIStore.getState().updatePrediction(result.label, result.allConfidences);
+
+            // Fire registered "when AI sees [Label]" hat callbacks
+            const callbacks = this.aiPredictedCallbacks.get(result.label);
+            if (callbacks && result.confidence >= 70) {
+              for (const cb of callbacks) {
+                void cb().catch((e) => {
+                  if (e instanceof Error && e.message !== 'Aborted')
+                    console.error('AI Script Error:', e);
+                });
+              }
+            }
+          },
+          true,
+          true,
+        ); // Enable Image KNN and Pose
+        useAIStore.getState().setPredicting(true);
+      },
+
+      aiStopVision: async () => {
+        aiEngine.stopPredicting();
+        aiEngine.stopWebcam();
+        if (this.aiVideoEl) {
+          this.aiVideoEl.remove();
+          this.aiVideoEl = null;
+        }
+        useAIStore.getState().setWebcamActive(false);
+        useAIStore.getState().setPredicting(false);
+        useAIStore.getState().clearPrediction();
+        await this.tick(10);
+      },
+
+      onAIPredicted: (label, callback) => {
+        const list = this.aiPredictedCallbacks.get(label) ?? [];
+        list.push(callback);
+        this.aiPredictedCallbacks.set(label, list);
+      },
+
+      getAIPrediction: () => useAIStore.getState().currentPrediction ?? '',
+
+      getAIConfidence: (label) => useAIStore.getState().confidences[label] ?? 0,
+
+      isAIPredicting: (label) => useAIStore.getState().currentPrediction === label,
+
+      // ── AI Pose & Audio ────────────────────────────────────────────────
+      getPoseKeypoint: (partName, axis) => aiEngine.getPoseKeypoint(partName, axis),
+
+      startAudioListening: async () => {
+        if (!aiEngine.isInitialised) await aiEngine.init();
+        await aiEngine.startAudioListening();
+
+        // Register the bridge between aiEngine and ScratchEngine
+        if (!this.speechBridgeRegistered) {
+          aiEngine.onSpeechCommand((word) => {
+            const callbacks = this.speechCommandCallbacks.get(word);
+            if (callbacks) {
+              for (const cb of callbacks) {
+                void cb().catch((e) => {
+                  if (e instanceof Error && e.message !== 'Aborted')
+                    console.error('Speech Script Error:', e);
+                });
+              }
+            }
+          });
+          this.speechBridgeRegistered = true;
+        }
+      },
+
+      stopAudioListening: async () => {
+        aiEngine.stopAudioListening();
+        return Promise.resolve();
+      },
+
+      onSpeechCommand: (word, callback) => {
+        const list = this.speechCommandCallbacks.get(word) ?? [];
+        list.push(callback);
+        this.speechCommandCallbacks.set(word, list);
+      },
+
+      getLatestSpeechCommand: () => aiEngine.getLatestSpeechCommand(),
     };
 
     try {
@@ -809,6 +937,21 @@ export class ScratchEngine {
     this.keyPressedCallbacks = [];
     this.spriteClickedCallbacks = [];
     this.receiveCallbacks = new Map();
+    this.aiPredictedCallbacks = new Map();
+    this.speechCommandCallbacks = new Map();
+    this.speechBridgeRegistered = false;
+    // Clean up AI resources
+    aiEngine.stopPredicting();
+    aiEngine.stopWebcam();
+    aiEngine.stopAudioListening();
+    aiEngine.clearSpeechListeners();
+    if (this.aiVideoEl) {
+      this.aiVideoEl.remove();
+      this.aiVideoEl = null;
+    }
+    useAIStore.getState().setPredicting(false);
+    useAIStore.getState().setWebcamActive(false);
+    useAIStore.getState().clearPrediction();
   }
 
   /**

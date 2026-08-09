@@ -307,6 +307,26 @@ export function getToolbox(engineMode: 'hardware' | 'software') {
     },
   ];
 
+  const aiCategory = [
+    {
+      kind: 'category',
+      name: '🤖 My AI Model',
+      categorystyle: 'ai_category',
+      contents: [
+        { kind: 'block', type: 'ai_turn_vision' },
+        { kind: 'block', type: 'ai_when_predicted' },
+        { kind: 'block', type: 'ai_current_prediction' },
+        { kind: 'block', type: 'ai_confidence_of' },
+        { kind: 'block', type: 'ai_is_predicting' },
+        { kind: 'block', type: 'ai_pose_x' },
+        { kind: 'block', type: 'ai_pose_y' },
+        { kind: 'block', type: 'ai_audio_listen' },
+        { kind: 'block', type: 'ai_when_hear_word' },
+        { kind: 'block', type: 'ai_latest_word' },
+      ],
+    },
+  ];
+
   const sharedCategories = [
     {
       kind: 'category',
@@ -424,7 +444,7 @@ export function getToolbox(engineMode: 'hardware' | 'software') {
     kind: 'categoryToolbox',
     contents:
       engineMode === 'software'
-        ? [...scratchCategories, ...sharedCategories]
-        : [...hardwareCategories, ...sharedCategories],
+        ? [...scratchCategories, ...sharedCategories, ...aiCategory]
+        : [...hardwareCategories, ...sharedCategories, ...aiCategory],
   };
 }

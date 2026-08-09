@@ -6,6 +6,7 @@ import { StageCanvas } from './StageCanvas';
 import { SpriteProperties } from './SpriteProperties';
 import { SpriteList } from './SpriteList';
 import { ScratchBackdropPanel } from './ScratchBackdropPanel';
+import { AIWebcamOverlay } from '../AIWebcamOverlay';
 import { ExitFullscreenIcon } from './ScratchIcons';
 import './scratch-stage.css';
 
@@ -82,6 +83,7 @@ export function StagePanel({ onReset }: StagePanelProps) {
             style={{ maxWidth: stageViewMode === 'small' ? '240px' : '480px' }}
           >
             <StageCanvas />
+            <AIWebcamOverlay />
           </div>
         </div>
       </div>

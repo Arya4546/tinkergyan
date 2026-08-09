@@ -15,6 +15,8 @@
  */
 import { create } from 'zustand';
 import { api } from '../services/api';
+import { aiEngine } from '../lib/ai-engine';
+import { useAIStore } from './ai.store';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -418,6 +420,21 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
     try {
       const { data } = await api.get(`/projects/${id}`);
       const project = data.data.project;
+
+      // Extract blockXml and AI dataset from blockState
+      let blockXml = '';
+      let aiDataset: string | null = null;
+
+      if (typeof project.blockState === 'string') {
+        // Legacy format: plain XML string
+        blockXml = project.blockState;
+      } else if (project.blockState && typeof project.blockState === 'object') {
+        // New format: { blockXml: string, aiDataset?: string }
+        const state = project.blockState as { blockXml?: string; aiDataset?: string };
+        blockXml = state.blockXml ?? '';
+        aiDataset = state.aiDataset ?? null;
+      }
+
       set({
         projectId: project.id,
         projectTitle: project.title,
@@ -425,11 +442,26 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
         board: project.boardTarget || 'arduino:avr:uno',
         manualCode: project.code || '',
         generatedCode: project.code || '',
-        blockXml: typeof project.blockState === 'string' ? project.blockState : '',
+        blockXml,
         isPublic: !!project.isPublic,
         isDirty: false,
         compileResult: null,
       });
+
+      // Restore AI model if dataset exists
+      if (aiDataset) {
+        try {
+          if (!aiEngine.isInitialised) await aiEngine.init();
+          aiEngine.deserializeDataset(aiDataset);
+          const labels = aiEngine.getClassLabels();
+          const counts = aiEngine.getExampleCounts();
+          useAIStore.getState().setModelLoaded(true);
+          useAIStore.getState().updateTrainingState(labels, counts);
+          useAIStore.getState().setSerializedDataset(aiDataset);
+        } catch (err) {
+          console.warn('Failed to restore AI model from project:', err);
+        }
+      }
     } catch {
       // If project can't be loaded, stay on empty editor
     } finally {
@@ -464,11 +496,26 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
     set({ isSaving: true });
     try {
       const code = mode === 'code' ? manualCode : generatedCode;
+
+      // Serialize AI dataset if a model has been trained
+      let aiDataset: string | null = null;
+      if (aiEngine.isInitialised) {
+        try {
+          aiDataset = await aiEngine.serializeDataset();
+        } catch {
+          // Non-fatal — save the project without AI data
+        }
+      }
+
+      // If there's an AI dataset, wrap blockXml + aiDataset in a JSON object.
+      // Otherwise, keep the plain XML string for backward compatibility.
+      const blockState = aiDataset ? { blockXml, aiDataset } : blockXml;
+
       if (projectId) {
         await api.patch(`/projects/${projectId}`, {
           title: projectTitle,
           code,
-          blockState: blockXml,
+          blockState,
           boardTarget: board,
         });
       } else {
@@ -476,7 +523,7 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
           title: projectTitle,
           type: mode === 'block' ? 'BLOCK' : 'CODE',
           code,
-          blockState: blockXml,
+          blockState,
           boardTarget: board,
         });
         set({ projectId: data.data.project.id });

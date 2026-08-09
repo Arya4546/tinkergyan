@@ -17,7 +17,10 @@ import * as En from 'blockly/msg/en';
 // Custom Arduino extensions — must be imported before inject()
 import './arduino-blocks';
 import './scratch-blocks';
+import './ai-blocks';
 import { arduinoGenerator } from './arduino-generator';
+import './ai-arduino-generator';
+import './ai-scratch-generator';
 import { getToolbox } from './toolbox';
 import { useUIStore } from '../../stores/ui.store';
 import { useEditorStore } from '../../stores/editor.store';
@@ -64,6 +67,7 @@ const KID_CATEGORY_STYLES = {
   scratch_control_category: { colour: '#FFAB19' },
   scratch_sensing_category: { colour: '#5CB1D6' },
   scratch_lists_category: { colour: '#FF8C1A' },
+  ai_category: { colour: '#FF6F61' },
 };
 
 const KID_FONT: Blockly.Theme.FontStyle = {

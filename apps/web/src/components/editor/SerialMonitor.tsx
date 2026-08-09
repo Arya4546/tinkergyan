@@ -9,6 +9,8 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { Radio, Send, Trash2, Download, Pause, Play, ChevronDown } from 'lucide-react';
 import { Tooltip } from '../ui/Tooltip';
+import { useAIStore } from '../../stores/ai.store';
+import { aiEngine } from '../../lib/ai-engine';
 
 const BAUD_RATES = [300, 1200, 2400, 4800, 9600, 19200, 38400, 57600, 115200] as const;
 
@@ -24,6 +26,10 @@ export function SerialMonitor({ port }: SerialMonitorProps) {
   const [isPaused, setIsPaused] = useState(false);
   const [isReading, setIsReading] = useState(false);
   const [showBaudDropdown, setShowBaudDropdown] = useState(false);
+
+  // AI prediction sync
+  const currentPrediction = useAIStore((state) => state.currentPrediction);
+  const isPredicting = useAIStore((state) => state.isPredicting);
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const readerRef = useRef<ReadableStreamDefaultReader<string> | null>(null);
@@ -88,6 +94,21 @@ export function SerialMonitor({ port }: SerialMonitorProps) {
             buffer = parts.pop() || '';
 
             if (parts.length > 0) {
+              // Parse hardware-to-browser AI triggers
+              parts.forEach((part) => {
+                const text = part.trim();
+                if (text === 'AI_AUDIO_CTRL:ON') {
+                  if (!aiEngine.isInitialised)
+                    void aiEngine.init().then(() => void aiEngine.startAudioListening());
+                  else void aiEngine.startAudioListening();
+                } else if (text === 'AI_AUDIO_CTRL:OFF') {
+                  void aiEngine.stopAudioListening();
+                } else if (text === 'AI_VISION:ON') {
+                  // If we had a global webcam trigger we could call it here.
+                  // For now, the user uses the UI button for Vision to see the video feed.
+                }
+              });
+
               setLines((prev) => {
                 const newLines = [...prev, ...parts];
                 // Cap at 500 lines to prevent memory issues
@@ -130,22 +151,64 @@ export function SerialMonitor({ port }: SerialMonitorProps) {
   }, [port]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Send data to the board
-  const handleSend = useCallback(async () => {
-    if (!port || !port.writable || !inputValue.trim()) return;
+  const handleSend = async (e?: React.FormEvent) => {
+    e?.preventDefault();
+    if (!port || !port.writable || !inputValue) return;
 
     try {
-      const writer = port.writable.getWriter();
       const encoder = new TextEncoder();
+      const writer = port.writable.getWriter();
       await writer.write(encoder.encode(inputValue + '\n'));
       writer.releaseLock();
 
-      // Show sent data in monitor
       setLines((prev) => [...prev, `> ${inputValue}`]);
       setInputValue('');
     } catch (err) {
-      console.warn('Failed to send serial data:', err);
+      console.error('Serial send error:', err);
     }
-  }, [port, inputValue]);
+  };
+
+  // Sync AI predictions to hardware over Serial
+  useEffect(() => {
+    if (!port || !port.writable || !isPredicting || !currentPrediction) return;
+
+    const sendPrediction = async () => {
+      try {
+        const encoder = new TextEncoder();
+        const writer = port.writable.getWriter();
+        const msg = `AI_PRED:${currentPrediction}\n`;
+        await writer.write(encoder.encode(msg));
+        writer.releaseLock();
+      } catch (err) {
+        console.error('AI sync serial error:', err);
+      }
+    };
+
+    void sendPrediction();
+  }, [currentPrediction, isPredicting, port]);
+
+  // Sync AI audio commands over Serial
+  useEffect(() => {
+    if (!port || !port.writable) return;
+
+    const handleWord = async (word: string) => {
+      try {
+        const encoder = new TextEncoder();
+        const writer = port.writable.getWriter();
+        const msg = `AI_AUDIO:${word}\n`;
+        await writer.write(encoder.encode(msg));
+        writer.releaseLock();
+      } catch (err) {
+        console.error('AI sync audio error:', err);
+      }
+    };
+
+    aiEngine.onSpeechCommand(handleWord);
+
+    return () => {
+      aiEngine.offSpeechCommand(handleWord);
+    };
+  }, [port]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') {

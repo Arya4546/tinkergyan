@@ -43,6 +43,7 @@ import {
   Cpu,
   ChevronDown,
   Check,
+  Brain,
 } from 'lucide-react';
 
 import { CompileConsole } from '../components/editor/CompileConsole';
@@ -55,6 +56,7 @@ import {
 import { useArduinoSimStore } from '../stores/arduino-sim.store';
 import { startHardwareBinding } from '../components/editor/simulator/hardware-binding';
 import { StagePanel } from '../components/editor/simulator/StagePanel';
+import { AITrainerModal } from '../components/editor/AITrainerModal';
 import { WebSerialFlasher } from '../lib/web-serial-flasher';
 import type { FlashBoard } from '../lib/web-serial-flasher';
 import confetti from 'canvas-confetti';
@@ -260,6 +262,7 @@ export default function Editor() {
   const [flashProgress, setFlashProgress] = useState(0);
   const [flashMessage, setFlashMessage] = useState('');
   const [showSerialMonitor, setShowSerialMonitor] = useState(false);
+  const [showAITrainer, setShowAITrainer] = useState(false);
   const [showCodePanel, setShowCodePanel] = useState(
     () => searchParams.get('engine') === 'software',
   );
@@ -1350,6 +1353,17 @@ export default function Editor() {
               </Tooltip>
             )}
 
+            {/* AI Studio Button */}
+            <Tooltip content="Open AI Model Studio" position="bottom">
+              <button
+                onClick={() => setShowAITrainer(true)}
+                className="h-11 px-3 sm:px-4 rounded-xl font-sans font-semibold text-sm flex items-center gap-2 transition-all focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:outline-none active:scale-[0.97] bg-ed-panel text-[#FF6F61] hover:bg-[#FF6F61]/10 border border-[#FF6F61]/20"
+              >
+                <Brain size={16} />
+                <span className="hidden md:inline">AI Studio</span>
+              </button>
+            </Tooltip>
+
             {/* Simulator Panel Toggle — software mode only.
                 It was briefly offered in hardware mode so the LED/servo
                 components had somewhere to render, but this stage is the
@@ -1710,6 +1724,8 @@ export default function Editor() {
           </div>
         </div>
       )}
+      {/* AI Model Studio Modal */}
+      <AITrainerModal isOpen={showAITrainer} onClose={() => setShowAITrainer(false)} />
     </div>
   );
 }
