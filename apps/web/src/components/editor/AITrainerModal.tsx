@@ -166,6 +166,19 @@ export function AITrainerModal({ isOpen, onClose }: AITrainerModalProps) {
     [syncTrainingState],
   );
 
+  // Rename a class
+  const handleRenameClass = useCallback(
+    (oldName: string, newName: string) => {
+      const trimmed = newName.trim();
+      if (!trimmed || trimmed === oldName || classes.includes(trimmed)) return;
+
+      aiEngine.renameClass(oldName, trimmed);
+      setClasses((prev) => prev.map((c) => (c === oldName ? trimmed : c)));
+      syncTrainingState();
+    },
+    [classes, syncTrainingState],
+  );
+
   // Toggle live testing
   const handleToggleTest = useCallback(() => {
     if (!videoRef.current || !isWebcamActive) return;
@@ -372,8 +385,14 @@ export function AITrainerModal({ isOpen, onClose }: AITrainerModalProps) {
                     className="rounded-xl bg-white/5 border border-white/10 p-4 space-y-3"
                   >
                     <div className="flex items-center justify-between">
-                      <span className="text-white font-bold text-sm">{className}</span>
-                      <div className="flex items-center gap-1">
+                      <input
+                        defaultValue={className}
+                        onBlur={(e) => handleRenameClass(className, e.target.value)}
+                        onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()}
+                        className="text-white font-bold text-sm bg-transparent outline-none flex-1 min-w-0 mr-2 border-b border-transparent focus:border-[#FF6F61]/50 hover:border-white/20 transition-colors"
+                        title="Click to rename"
+                      />
+                      <div className="flex items-center gap-1 shrink-0">
                         <span className="text-white/40 text-xs font-mono">{count} samples</span>
                         <button
                           onClick={() => handleClearClass(className)}

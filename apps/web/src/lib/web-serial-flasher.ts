@@ -593,7 +593,14 @@ export class WebSerialFlasher {
       // Close and reopen at normal baud for Serial Monitor
       try {
         await this.port.close();
+      } catch {
+        // ignore
+      }
+
+      try {
         await this.port.open({ baudRate: 9600 });
+        // Release DTR and RTS so ESP32/ESP8266 boards can actually boot instead of hanging in reset
+        await this.port.setSignals({ dataTerminalReady: false, requestToSend: false });
       } catch {
         // Best-effort reopen
       }

@@ -57,6 +57,9 @@ export function SerialMonitor({ port }: SerialMonitorProps) {
         try {
           await port.open({ baudRate });
           try {
+            // Pulse DTR to reset the board into run mode (fixes ESP32 hanging after flash)
+            await port.setSignals({ dataTerminalReady: true, requestToSend: false });
+            await new Promise((resolve) => setTimeout(resolve, 100));
             await port.setSignals({ dataTerminalReady: false, requestToSend: false });
           } catch {
             /* ignore if signals cannot be set */
