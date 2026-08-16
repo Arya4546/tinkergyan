@@ -107,8 +107,44 @@ export function SerialMonitor({ port }: SerialMonitorProps) {
                 } else if (text === 'AI_AUDIO_CTRL:OFF') {
                   void aiEngine.stopAudioListening();
                 } else if (text === 'AI_VISION:ON') {
-                  // If we had a global webcam trigger we could call it here.
-                  // For now, the user uses the UI button for Vision to see the video feed.
+                  const startVision = async () => {
+                    if (!aiEngine.isInitialised) await aiEngine.init();
+                    useAIStore.getState().setModelLoaded(true);
+
+                    let videoEl = document.getElementById('hardware-ai-video') as HTMLVideoElement;
+                    if (!videoEl) {
+                      videoEl = document.createElement('video');
+                      videoEl.id = 'hardware-ai-video';
+                      videoEl.autoplay = true;
+                      videoEl.playsInline = true;
+                      videoEl.muted = true;
+                      videoEl.style.display = 'none';
+                      document.body.appendChild(videoEl);
+                    }
+
+                    await aiEngine.startWebcam(videoEl);
+                    useAIStore.getState().setWebcamActive(true);
+
+                    if (!aiEngine.isReadyToPredict) return;
+
+                    aiEngine.startPredicting(
+                      videoEl,
+                      (result) => {
+                        useAIStore.getState().updatePrediction(result.label, result.allConfidences);
+                      },
+                      true,
+                      false,
+                    );
+                    useAIStore.getState().setPredicting(true);
+                  };
+                  void startVision();
+                } else if (text === 'AI_VISION:OFF') {
+                  aiEngine.stopPredicting();
+                  aiEngine.stopWebcam();
+                  const videoEl = document.getElementById('hardware-ai-video');
+                  if (videoEl) videoEl.remove();
+                  useAIStore.getState().setWebcamActive(false);
+                  useAIStore.getState().setPredicting(false);
                 }
               });
 
