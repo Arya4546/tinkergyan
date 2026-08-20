@@ -11,6 +11,8 @@ import { Radio, Send, Trash2, Download, Pause, Play, ChevronDown } from 'lucide-
 import { Tooltip } from '../ui/Tooltip';
 import { useAIStore } from '../../stores/ai.store';
 import { aiEngine } from '../../lib/ai-engine';
+import { emotionEngine } from '../../lib/emotion-engine';
+import { speechEngine } from '../../lib/speech-engine';
 
 const BAUD_RATES = [300, 1200, 2400, 4800, 9600, 19200, 38400, 57600, 115200] as const;
 
@@ -145,6 +147,60 @@ export function SerialMonitor({ port }: SerialMonitorProps) {
                   if (videoEl) videoEl.remove();
                   useAIStore.getState().setWebcamActive(false);
                   useAIStore.getState().setPredicting(false);
+                } else if (text === 'AI_EMOTION_CTRL:ON') {
+                  // Start emotion detection and stream results back over Serial
+                  const startEmotion = async () => {
+                    if (!emotionEngine.isInitialised) await emotionEngine.init();
+                    let videoEl = document.getElementById('hardware-ai-video') as HTMLVideoElement;
+                    if (!videoEl) {
+                      videoEl = document.createElement('video');
+                      videoEl.id = 'hardware-ai-video';
+                      videoEl.autoplay = true;
+                      videoEl.playsInline = true;
+                      videoEl.muted = true;
+                      videoEl.style.display = 'none';
+                      document.body.appendChild(videoEl);
+                    }
+                    await aiEngine.startWebcam(videoEl);
+                    emotionEngine.startDetecting(videoEl, async (result) => {
+                      useAIStore
+                        .getState()
+                        .updateEmotion(result.emotion, result.allEmotions, result.faceDetected);
+                      // Send emotion back to board
+                      if (result.faceDetected && port?.writable) {
+                        try {
+                          const enc = new TextEncoder();
+                          const w = port.writable.getWriter();
+                          await w.write(enc.encode(`AI_EMOTION:${result.emotion}\n`));
+                          w.releaseLock();
+                        } catch {
+                          /* ignore */
+                        }
+                      }
+                    });
+                    useAIStore.getState().setEmotionActive(true);
+                  };
+                  void startEmotion();
+                } else if (text === 'AI_EMOTION_CTRL:OFF') {
+                  emotionEngine.stopDetecting();
+                  useAIStore.getState().setEmotionActive(false);
+                } else if (text === 'AI_HAND_CTRL:ON') {
+                  // Hand tracking start — handled by Scratch engine in software mode
+                  // In hardware mode, we just acknowledge
+                  useAIStore.getState().setHandTrackingActive(true);
+                } else if (text === 'AI_HAND_CTRL:OFF') {
+                  useAIStore.getState().setHandTrackingActive(false);
+                } else if (text === 'AI_STT_CTRL:ON') {
+                  speechEngine.startListening();
+                  useAIStore.getState().setSpeechListening(true);
+                } else if (text === 'AI_STT_CTRL:OFF') {
+                  speechEngine.stopListening();
+                  useAIStore.getState().setSpeechListening(false);
+                } else if (text.startsWith('AI_SAY:')) {
+                  const sayText = text.substring(7).trim();
+                  speechEngine.speak(sayText);
+                } else if (text === 'AI_SAY_STOP') {
+                  speechEngine.stopSpeaking();
                 }
               });
 

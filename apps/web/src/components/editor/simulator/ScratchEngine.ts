@@ -4,6 +4,11 @@ import {
   type RotationStyle,
 } from '../../../stores/simulator.store';
 import { aiEngine } from '../../../lib/ai-engine';
+import { emotionEngine } from '../../../lib/emotion-engine';
+import { handEngine } from '../../../lib/hand-engine';
+import { speechEngine } from '../../../lib/speech-engine';
+import { textAIEngine } from '../../../lib/text-ai-engine';
+import { musicEngine } from '../../../lib/music-engine';
 import { useAIStore } from '../../../stores/ai.store';
 
 /** Normalizes a browser KeyboardEvent.key into the tokens used by our "key pressed" blocks. */
@@ -119,6 +124,42 @@ export interface ScratchAPI {
   stopAudioListening: () => Promise<void>;
   onSpeechCommand: (word: string, callback: () => Promise<void>) => void;
   getLatestSpeechCommand: () => string;
+
+  // AI Emotion Detection
+  aiStartEmotion: () => Promise<void>;
+  aiStopEmotion: () => Promise<void>;
+  onAIEmotion: (emotion: string, callback: () => Promise<void>) => void;
+  getAIEmotion: () => string;
+  getAIEmotionConfidence: (emotion: string) => number;
+  isFaceDetected: () => boolean;
+  getFacePosition: (axis: string) => number;
+
+  // AI Hand Tracking
+  aiStartHandTracking: () => Promise<void>;
+  aiStopHandTracking: () => Promise<void>;
+  onHandGesture: (gesture: string, callback: () => Promise<void>) => void;
+  getHandGesture: () => string;
+  getHandLandmark: (landmark: string, axis: string) => number;
+  isHandDetected: () => boolean;
+
+  // Speech-to-Text (free form)
+  startSpeechListening: () => void;
+  stopSpeechListening: () => void;
+  getSpeechTranscript: () => string;
+  onSpeechContains: (phrase: string, callback: () => Promise<void>) => void;
+
+  // Text-to-Speech
+  speak: (text: string, lang?: string) => void;
+  setSpeechSpeed: (speed: number) => void;
+  stopSpeaking: () => void;
+
+  // Text Classification (NLP)
+  classifyText: (text: string) => Promise<string>;
+  onTextClassified: (text: string, label: string, callback: () => Promise<void>) => void;
+
+  // AI Music (Magenta)
+  aiPlayMusic: (notes: number[], steps: number, temperature: number) => Promise<void>;
+  aiStopMusic: () => void;
 }
 
 const wait = (ms: number, signal?: AbortSignal) => {
@@ -150,6 +191,12 @@ export class ScratchEngine {
   private receiveCallbacks: Map<string, Array<() => Promise<void>>> = new Map();
   private aiPredictedCallbacks: Map<string, Array<() => Promise<void>>> = new Map();
   private speechCommandCallbacks: Map<string, Array<() => Promise<void>>> = new Map();
+  private emotionCallbacks: Map<string, Array<() => Promise<void>>> = new Map();
+  private handGestureCallbacks: Map<string, Array<() => Promise<void>>> = new Map();
+  private speechContainsCallbacks: Array<{ phrase: string; cb: () => Promise<void> }> = [];
+  private emotionBridgeRegistered = false;
+  private handBridgeRegistered = false;
+  private sttBridgeRegistered = false;
   private speechBridgeRegistered = false;
   private aiVideoEl: HTMLVideoElement | null = null;
   private aiPollInterval: ReturnType<typeof setInterval> | null = null;
@@ -855,6 +902,188 @@ export class ScratchEngine {
       },
 
       getLatestSpeechCommand: () => aiEngine.getLatestSpeechCommand(),
+
+      // ── AI Emotion ───────────────────────────────────────────────────
+      aiStartEmotion: async () => {
+        if (!emotionEngine.isInitialised) await emotionEngine.init();
+        if (!this.aiVideoEl) {
+          this.aiVideoEl = document.createElement('video');
+          this.aiVideoEl.setAttribute('autoplay', '');
+          this.aiVideoEl.setAttribute('playsinline', '');
+          this.aiVideoEl.setAttribute('muted', '');
+          this.aiVideoEl.style.display = 'none';
+          document.body.appendChild(this.aiVideoEl);
+        }
+        await aiEngine.startWebcam(this.aiVideoEl);
+        emotionEngine.startDetecting(this.aiVideoEl, (result) => {
+          useAIStore
+            .getState()
+            .updateEmotion(result.emotion, result.allEmotions, result.faceDetected);
+          if (result.faceDetected && !this.emotionBridgeRegistered) return;
+          // Fire hat callbacks
+          const cbs = this.emotionCallbacks.get(result.emotion);
+          if (cbs && result.faceDetected && result.confidence >= 50) {
+            for (const cb of cbs) {
+              void cb().catch((e) => {
+                if (e instanceof Error && e.message !== 'Aborted')
+                  console.error('Emotion Script Error:', e);
+              });
+            }
+          }
+        });
+        if (!this.emotionBridgeRegistered) this.emotionBridgeRegistered = true;
+        useAIStore.getState().setEmotionActive(true);
+      },
+
+      aiStopEmotion: () => {
+        emotionEngine.stopDetecting();
+        useAIStore.getState().setEmotionActive(false);
+        return Promise.resolve();
+      },
+
+      onAIEmotion: (emotion, callback) => {
+        const list = this.emotionCallbacks.get(emotion) ?? [];
+        list.push(callback);
+        this.emotionCallbacks.set(emotion, list);
+      },
+
+      getAIEmotion: () => useAIStore.getState().currentEmotion ?? '',
+
+      getAIEmotionConfidence: (emotion) =>
+        useAIStore.getState().emotionConfidences[
+          emotion as 'happy' | 'sad' | 'angry' | 'disgusted' | 'fearful' | 'surprised' | 'neutral'
+        ] ?? 0,
+
+      isFaceDetected: () => useAIStore.getState().faceDetected,
+
+      getFacePosition: (axis) => emotionEngine.getFacePosition(axis as 'x' | 'y'),
+
+      // ── AI Hand Tracking ─────────────────────────────────────────────
+      aiStartHandTracking: async () => {
+        if (!handEngine.isInitialised) await handEngine.init();
+        if (!this.aiVideoEl) {
+          this.aiVideoEl = document.createElement('video');
+          this.aiVideoEl.setAttribute('autoplay', '');
+          this.aiVideoEl.setAttribute('playsinline', '');
+          this.aiVideoEl.setAttribute('muted', '');
+          this.aiVideoEl.style.display = 'none';
+          document.body.appendChild(this.aiVideoEl);
+        }
+        await aiEngine.startWebcam(this.aiVideoEl);
+        handEngine.startTracking(this.aiVideoEl, (result) => {
+          useAIStore
+            .getState()
+            .updateHandKeypoints(
+              result.detected,
+              Object.fromEntries(
+                Object.entries(result.keypoints).map(([k, v]) => [k, { x: v.x, y: v.y }]),
+              ),
+            );
+          // Fire hat callbacks
+          const cbs = this.handGestureCallbacks.get(result.gesture);
+          if (cbs && result.detected) {
+            for (const cb of cbs) {
+              void cb().catch((e) => {
+                if (e instanceof Error && e.message !== 'Aborted')
+                  console.error('Hand Script Error:', e);
+              });
+            }
+          }
+        });
+        if (!this.handBridgeRegistered) this.handBridgeRegistered = true;
+        useAIStore.getState().setHandTrackingActive(true);
+      },
+
+      aiStopHandTracking: () => {
+        handEngine.stopTracking();
+        useAIStore.getState().setHandTrackingActive(false);
+        return Promise.resolve();
+      },
+
+      onHandGesture: (gesture, callback) => {
+        const list = this.handGestureCallbacks.get(gesture) ?? [];
+        list.push(callback);
+        this.handGestureCallbacks.set(gesture, list);
+      },
+
+      getHandGesture: () => handEngine.getGesture(),
+
+      getHandLandmark: (landmark, axis) => handEngine.getKeypoint(landmark, axis as 'x' | 'y'),
+
+      isHandDetected: () => handEngine.isHandDetected(),
+
+      // ── Speech-to-Text (Free form) ───────────────────────────────────
+      startSpeechListening: () => {
+        speechEngine.startListening();
+        useAIStore.getState().setSpeechListening(true);
+
+        if (!this.sttBridgeRegistered) {
+          speechEngine.onTranscript((text) => {
+            useAIStore.getState().setLatestTranscript(text);
+            // Fire onSpeechContains callbacks
+            for (const { phrase, cb } of this.speechContainsCallbacks) {
+              if (text.includes(phrase.toLowerCase())) {
+                void cb().catch((e) => {
+                  if (e instanceof Error && e.message !== 'Aborted')
+                    console.error('STT Script Error:', e);
+                });
+              }
+            }
+          });
+          this.sttBridgeRegistered = true;
+        }
+      },
+
+      stopSpeechListening: () => {
+        speechEngine.stopListening();
+        useAIStore.getState().setSpeechListening(false);
+      },
+
+      getSpeechTranscript: () => speechEngine.getLatestTranscript(),
+
+      onSpeechContains: (phrase, callback) => {
+        this.speechContainsCallbacks.push({ phrase, cb: callback });
+      },
+
+      // ── Text-to-Speech ───────────────────────────────────────────────
+      speak: (text, lang) => speechEngine.speak(text, lang),
+
+      setSpeechSpeed: (speed) => speechEngine.setSpeechRate(speed),
+
+      stopSpeaking: () => speechEngine.stopSpeaking(),
+
+      // ── Text Classification (NLP) ────────────────────────────────────
+      classifyText: async (text) => {
+        if (!textAIEngine.isInitialised) await textAIEngine.init();
+        if (!textAIEngine.isReadyToClassify) return '';
+        const result = await textAIEngine.classifyText(text);
+        return result.label;
+      },
+
+      onTextClassified: (text, label, callback) => {
+        // Evaluate immediately and fire if matches
+        void (async () => {
+          if (!textAIEngine.isInitialised) await textAIEngine.init();
+          if (!textAIEngine.isReadyToClassify) return;
+          const result = await textAIEngine.classifyText(text);
+          if (result.label === label) {
+            void callback().catch((e) => {
+              if (e instanceof Error && e.message !== 'Aborted')
+                console.error('Text AI Script Error:', e);
+            });
+          }
+        })();
+      },
+
+      // ── AI Music (Magenta) ───────────────────────────────────────────
+      aiPlayMusic: async (notes, steps, temperature) => {
+        if (!musicEngine.isInitialised) await musicEngine.init();
+        await musicEngine.playAIMelody(notes, steps, temperature);
+      },
+
+      aiStopMusic: () => {
+        musicEngine.stop();
+      },
     };
 
     try {
@@ -939,12 +1168,24 @@ export class ScratchEngine {
     this.receiveCallbacks = new Map();
     this.aiPredictedCallbacks = new Map();
     this.speechCommandCallbacks = new Map();
+    this.emotionCallbacks = new Map();
+    this.handGestureCallbacks = new Map();
+    this.speechContainsCallbacks = [];
     this.speechBridgeRegistered = false;
-    // Clean up AI resources
+    this.emotionBridgeRegistered = false;
+    this.handBridgeRegistered = false;
+    this.sttBridgeRegistered = false;
+    // Clean up all AI resources
     aiEngine.stopPredicting();
     aiEngine.stopWebcam();
     aiEngine.stopAudioListening();
     aiEngine.clearSpeechListeners();
+    emotionEngine.stopDetecting();
+    handEngine.stopTracking();
+    handEngine.clearListeners();
+    speechEngine.stopListening();
+    speechEngine.stopSpeaking();
+    musicEngine.stop();
     if (this.aiVideoEl) {
       this.aiVideoEl.remove();
       this.aiVideoEl = null;
@@ -952,6 +1193,9 @@ export class ScratchEngine {
     useAIStore.getState().setPredicting(false);
     useAIStore.getState().setWebcamActive(false);
     useAIStore.getState().clearPrediction();
+    useAIStore.getState().setEmotionActive(false);
+    useAIStore.getState().setHandTrackingActive(false);
+    useAIStore.getState().setSpeechListening(false);
   }
 
   /**
@@ -970,6 +1214,7 @@ export class ScratchEngine {
       }
     }
     this.activeAudioNodes.clear();
+    musicEngine.stop();
 
     // An "ask and wait" prompt has no other way to dismiss itself — without this,
     // stopping a script mid-ask leaves the question bar stuck open on the stage.

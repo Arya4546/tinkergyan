@@ -313,16 +313,66 @@ export function getToolbox(engineMode: 'hardware' | 'software') {
       name: '🤖 My AI Model',
       categorystyle: 'ai_category',
       contents: [
+        // ── Image Classification ──────────────────────────────────────────
+        { kind: 'label', text: '🎥 Image Classifier' },
         { kind: 'block', type: 'ai_turn_vision' },
         { kind: 'block', type: 'ai_when_predicted' },
         { kind: 'block', type: 'ai_current_prediction' },
         { kind: 'block', type: 'ai_confidence_of' },
         { kind: 'block', type: 'ai_is_predicting' },
+
+        // ── Emotion / Face Detection ──────────────────────────────────────
+        { kind: 'label', text: '😊 Emotion Detection' },
+        { kind: 'block', type: 'ai_turn_emotion' },
+        { kind: 'block', type: 'ai_when_emotion' },
+        { kind: 'block', type: 'ai_emotion_detected' },
+        { kind: 'block', type: 'ai_emotion_confidence' },
+        { kind: 'block', type: 'ai_face_detected' },
+        { kind: 'block', type: 'ai_face_position' },
+
+        // ── Hand / Finger Tracking ────────────────────────────────────────
+        { kind: 'label', text: '✋ Hand Tracking' },
+        { kind: 'block', type: 'ai_turn_hand_tracking' },
+        { kind: 'block', type: 'ai_when_hand_gesture' },
+        { kind: 'block', type: 'ai_hand_gesture' },
+        { kind: 'block', type: 'ai_hand_x' },
+        { kind: 'block', type: 'ai_hand_y' },
+        { kind: 'block', type: 'ai_hand_detected' },
+
+        // ── Pose / Body Detection ─────────────────────────────────────────
+        { kind: 'label', text: '🕺 Body Pose' },
         { kind: 'block', type: 'ai_pose_x' },
         { kind: 'block', type: 'ai_pose_y' },
+
+        // ── Voice Commands ────────────────────────────────────────────────
+        { kind: 'label', text: '🎤 Voice Commands' },
         { kind: 'block', type: 'ai_audio_listen' },
         { kind: 'block', type: 'ai_when_hear_word' },
         { kind: 'block', type: 'ai_latest_word' },
+
+        // ── Speech-to-Text ────────────────────────────────────────────────
+        { kind: 'label', text: '📝 Speech-to-Text' },
+        { kind: 'block', type: 'ai_speech_listen' },
+        { kind: 'block', type: 'ai_speech_stop' },
+        { kind: 'block', type: 'ai_speech_heard' },
+        { kind: 'block', type: 'ai_when_speech_contains' },
+
+        // ── Text-to-Speech ────────────────────────────────────────────────
+        { kind: 'label', text: '🔊 Text-to-Speech' },
+        { kind: 'block', type: 'ai_speak' },
+        { kind: 'block', type: 'ai_speak_in_lang' },
+        { kind: 'block', type: 'ai_set_speech_speed' },
+        { kind: 'block', type: 'ai_stop_speaking' },
+
+        // ── Text Classification (NLP) ─────────────────────────────────────
+        { kind: 'label', text: '💬 Text AI' },
+        { kind: 'block', type: 'ai_classify_text' },
+        { kind: 'block', type: 'ai_when_text_classified' },
+
+        // ── AI Music (Magenta) ────────────────────────────────────────────
+        { kind: 'label', text: '🎵 AI Music' },
+        { kind: 'block', type: 'ai_generate_music' },
+        { kind: 'block', type: 'ai_stop_music' },
       ],
     },
   ];
