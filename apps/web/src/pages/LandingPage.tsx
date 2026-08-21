@@ -81,7 +81,7 @@ export default function LandingPage() {
                 Start Learning <ChevronRight size={16} />
               </Link>
               <Link
-                to="/editor"
+                to="/dashboard?new=true"
                 className="inline-flex items-center gap-2 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-semibold px-6 py-3 rounded-xl hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
               >
                 Try the Editor

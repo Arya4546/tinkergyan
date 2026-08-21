@@ -1,8 +1,8 @@
 import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuthStore } from '../stores/auth.store';
 import { useUIStore } from '../stores/ui.store';
-import { Eye, EyeOff, Rocket, Sparkles, Check } from 'lucide-react';
+import { Eye, EyeOff, Rocket, Sparkles, Check, ArrowLeft } from 'lucide-react';
 import { z } from 'zod';
 
 const schema = z.object({
@@ -18,6 +18,7 @@ const schema = z.object({
 
 export default function Register() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const register = useAuthStore((s) => s.register);
   const addToast = useUIStore((s) => s.addToast);
 
@@ -90,7 +91,7 @@ export default function Register() {
       try {
         await register({ name: formData.name, email: formData.email, password: formData.password });
         addToast({ type: 'success', title: 'Account created!', message: 'Welcome to Tinkergyan.' });
-        navigate('/dashboard');
+        navigate(searchParams.get('returnTo') || '/dashboard');
       } catch (err: unknown) {
         const error = err as { response?: { data?: { error?: { message?: string } } } };
         addToast({
@@ -105,20 +106,20 @@ export default function Register() {
   };
 
   const inputClass = (field: string) =>
-    `w-full h-11 px-4 rounded-xl border text-sm font-medium bg-slate-950/60 text-white placeholder:text-slate-600 outline-none transition-all duration-300 focus:ring-4 focus:ring-purple-500/10 ${
+    `w-full h-12 px-4 rounded-xl border text-sm font-medium bg-white dark:bg-slate-950/60 text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-600 outline-none transition-all duration-300 focus:ring-4 focus:ring-purple-500/10 ${
       errors[field]
         ? 'border-red-500/80 focus:border-red-500 focus:ring-red-500/10'
-        : 'border-slate-800 focus:border-purple-500/80'
+        : 'border-slate-200 dark:border-slate-800 focus:border-purple-500/80'
     }`;
 
   return (
-    <div className="min-h-screen bg-[#07090e] dark:bg-[#030407] font-sans flex relative overflow-hidden text-slate-100">
+    <div className="min-h-screen bg-slate-50 dark:bg-[#030407] font-sans flex relative overflow-hidden text-slate-900 dark:text-slate-100 transition-colors duration-300">
       {/* Ambient background glows */}
       <div className="absolute top-[-10%] right-[-10%] w-[50%] h-[50%] bg-purple-500/10 rounded-full blur-[150px] animate-pulse" />
       <div className="absolute bottom-[-10%] left-[-10%] w-[50%] h-[50%] bg-emerald-500/10 rounded-full blur-[150px] animate-pulse [animation-delay:2s]" />
 
       {/* Left: Visual Panel */}
-      <div className="hidden lg:flex flex-1 bg-slate-950/80 items-center justify-center p-16 relative overflow-hidden border-r border-slate-900">
+      <div className="hidden lg:flex flex-1 bg-slate-100 dark:bg-slate-950/80 items-center justify-center p-16 relative overflow-hidden border-l border-slate-200 dark:border-slate-900">
         {/* Futuristic circuit grid backdrop */}
         <div className="absolute inset-0 bg-[radial-gradient(#1e293b_1px,transparent_1px)] [background-size:24px_24px] opacity-25" />
 
@@ -127,33 +128,33 @@ export default function Register() {
 
         <div className="relative z-10 max-w-md text-center flex flex-col items-center">
           {/* Animated Breadboard/Potentiometer Widget */}
-          <div className="relative w-64 h-64 bg-slate-900 border-2 border-slate-800 rounded-3xl p-6 shadow-2xl mb-10 flex flex-col items-center justify-between group overflow-hidden">
+          <div className="relative w-64 h-64 bg-slate-200 dark:bg-slate-900 border-2 border-slate-300 dark:border-slate-800 rounded-3xl p-6 shadow-2xl mb-10 flex flex-col items-center justify-between group overflow-hidden">
             {/* PCB Traces */}
             <div className="absolute top-1/3 left-0 right-0 h-0.5 bg-gradient-to-r from-transparent via-purple-500/30 to-transparent" />
             <div className="absolute bottom-1/4 left-0 right-0 h-0.5 bg-gradient-to-r from-transparent via-emerald-500/20 to-transparent" />
 
             {/* Breadboard SVG Visual */}
-            <div className="w-48 h-20 bg-[#eaeaea] dark:bg-slate-800 rounded-lg border-2 border-slate-300 dark:border-slate-700 p-2 flex flex-col justify-between shadow-inner relative z-10">
+            <div className="w-48 h-20 bg-slate-50 dark:bg-slate-800 rounded-lg border-2 border-slate-300 dark:border-slate-700 p-2 flex flex-col justify-between shadow-inner relative z-10">
               <div className="flex justify-between">
                 {[...Array(9)].map((_, i) => (
                   <div key={i} className="flex flex-col gap-1">
-                    <div className="w-1.5 h-1.5 rounded-full bg-slate-900/60 dark:bg-slate-950" />
-                    <div className="w-1.5 h-1.5 rounded-full bg-slate-900/60 dark:bg-slate-950" />
+                    <div className="w-1.5 h-1.5 rounded-full bg-slate-400 dark:bg-slate-950" />
+                    <div className="w-1.5 h-1.5 rounded-full bg-slate-400 dark:bg-slate-950" />
                   </div>
                 ))}
               </div>
 
               {/* Mounted IC Chip */}
-              <div className="w-24 h-6 bg-slate-950 border border-slate-800 rounded mx-auto flex items-center justify-center text-[8px] font-bold text-slate-500 uppercase tracking-widest relative">
+              <div className="w-24 h-6 bg-slate-300 dark:bg-slate-950 border border-slate-400 dark:border-slate-800 rounded mx-auto flex items-center justify-center text-[8px] font-bold text-slate-600 dark:text-slate-500 uppercase tracking-widest relative">
                 <span>TINKER</span>
-                <div className="absolute -left-1 w-1 h-3 bg-slate-700 rounded-r" />
+                <div className="absolute -left-1 w-1 h-3 bg-slate-400 dark:bg-slate-700 rounded-r" />
               </div>
 
               <div className="flex justify-between">
                 {[...Array(9)].map((_, i) => (
                   <div key={i} className="flex flex-col gap-1">
-                    <div className="w-1.5 h-1.5 rounded-full bg-slate-900/60 dark:bg-slate-950" />
-                    <div className="w-1.5 h-1.5 rounded-full bg-slate-900/60 dark:bg-slate-950" />
+                    <div className="w-1.5 h-1.5 rounded-full bg-slate-400 dark:bg-slate-950" />
+                    <div className="w-1.5 h-1.5 rounded-full bg-slate-400 dark:bg-slate-950" />
                   </div>
                 ))}
               </div>
@@ -166,7 +167,7 @@ export default function Register() {
                   <div className="w-0.5 h-3 bg-purple-400 absolute top-0.5 rounded-full animate-pulse" />
                 </div>
               </div>
-              <span className="text-[9px] font-mono text-purple-400 mt-2 uppercase tracking-wider">
+              <span className="text-[9px] font-mono text-purple-600 dark:text-purple-400 mt-2 uppercase tracking-wider">
                 ANALOG INPUT
               </span>
             </div>
@@ -184,10 +185,10 @@ export default function Register() {
             </svg>
           </div>
 
-          <h2 className="text-3xl font-extrabold text-white mb-4 leading-tight">
-            Start Your Journey Today
+          <h2 className="text-3xl font-extrabold text-slate-900 dark:text-white mb-4 leading-tight">
+            Learn, Build, and Create
           </h2>
-          <p className="text-slate-400 text-sm leading-relaxed max-w-sm">
+          <p className="text-slate-500 dark:text-slate-400 text-sm leading-relaxed max-w-sm">
             Join thousands of student makers building interactive projects. Your first coding
             experiment is just a few keystrokes away.
           </p>
@@ -198,27 +199,35 @@ export default function Register() {
       <div className="flex-1 flex flex-col justify-center px-6 sm:px-12 lg:px-20 py-12 relative z-10">
         <div className="w-full max-w-md mx-auto">
           {/* Glass Card Container */}
-          <div className="bg-slate-900/40 dark:bg-slate-950/40 border border-slate-800/80 backdrop-blur-2xl rounded-3xl p-8 sm:p-10 shadow-2xl shadow-purple-500/5 relative overflow-hidden">
+          <div className="bg-white/80 dark:bg-slate-950/40 border border-slate-200/80 dark:border-slate-800/80 backdrop-blur-2xl rounded-3xl p-8 sm:p-10 shadow-2xl shadow-purple-500/5 relative overflow-hidden">
             {/* Edge reflection */}
             <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-purple-500/20 to-transparent" />
 
+            {/* Back Button */}
+            <Link
+              to="/"
+              className="absolute top-6 right-6 p-2 text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors flex items-center gap-2 text-sm font-semibold"
+            >
+              <ArrowLeft size={16} /> Back to Home
+            </Link>
+
             <Link to="/" className="flex items-center gap-3 mb-8 group w-fit">
               <div className="w-10 h-10 bg-gradient-to-tr from-purple-500 to-indigo-400 rounded-xl flex items-center justify-center shadow-lg shadow-purple-500/20 group-hover:scale-105 transition-transform duration-300">
-                <Rocket size={18} className="text-slate-950 font-bold" />
+                <Rocket size={18} className="text-white font-bold" />
               </div>
-              <span className="font-extrabold text-xl tracking-tight bg-gradient-to-r from-white via-slate-200 to-slate-400 bg-clip-text text-transparent">
+              <span className="font-extrabold text-xl tracking-tight bg-gradient-to-r from-slate-900 to-slate-600 dark:from-white dark:via-slate-200 dark:to-slate-400 bg-clip-text text-transparent">
                 Tinkergyan
               </span>
             </Link>
 
-            <h1 className="text-3xl font-extrabold tracking-tight text-white mb-2">
-              Create Account
+            <h1 className="text-3xl font-extrabold tracking-tight text-slate-900 dark:text-white mb-2">
+              Create an Account
             </h1>
-            <p className="text-sm text-slate-400 mb-8">
+            <p className="text-sm text-slate-500 dark:text-slate-400 mb-8">
               Already have an account?{' '}
               <Link
                 to="/login"
-                className="font-bold text-purple-400 hover:text-purple-300 transition-colors underline decoration-purple-500/30 underline-offset-4 hover:decoration-purple-400"
+                className="font-bold text-purple-600 dark:text-purple-400 hover:text-purple-500 dark:hover:text-purple-300 transition-colors underline decoration-purple-500/30 underline-offset-4 hover:decoration-purple-400"
               >
                 Sign in
               </Link>
@@ -227,7 +236,7 @@ export default function Register() {
             <form onSubmit={handleSubmit} className="space-y-4">
               {/* Name */}
               <div>
-                <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">
+                <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">
                   Full name
                 </label>
                 <input
@@ -240,8 +249,8 @@ export default function Register() {
                   className={inputClass('name')}
                 />
                 {errors.name && (
-                  <p className="mt-2 text-xs text-red-400 font-semibold flex items-center gap-1">
-                    <span className="inline-block w-1 h-1 bg-red-400 rounded-full" />
+                  <p className="mt-2 text-xs text-red-500 dark:text-red-400 font-semibold flex items-center gap-1">
+                    <span className="inline-block w-1 h-1 bg-red-500 dark:bg-red-400 rounded-full" />
                     {errors.name}
                   </p>
                 )}
@@ -249,7 +258,7 @@ export default function Register() {
 
               {/* Email */}
               <div>
-                <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">
+                <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">
                   Email address
                 </label>
                 <input
@@ -263,8 +272,8 @@ export default function Register() {
                   className={inputClass('email')}
                 />
                 {errors.email && (
-                  <p className="mt-2 text-xs text-red-400 font-semibold flex items-center gap-1">
-                    <span className="inline-block w-1 h-1 bg-red-400 rounded-full" />
+                  <p className="mt-2 text-xs text-red-500 dark:text-red-400 font-semibold flex items-center gap-1">
+                    <span className="inline-block w-1 h-1 bg-red-500 dark:bg-red-400 rounded-full" />
                     {errors.email}
                   </p>
                 )}
@@ -272,7 +281,7 @@ export default function Register() {
 
               {/* Password */}
               <div>
-                <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">
+                <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">
                   Password
                 </label>
                 <div className="relative">
@@ -290,7 +299,7 @@ export default function Register() {
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
                     tabIndex={-1}
-                    className="absolute inset-y-0 right-0 w-12 flex items-center justify-center text-slate-500 hover:text-slate-300 transition-colors"
+                    className="absolute inset-y-0 right-0 w-12 flex items-center justify-center text-slate-400 hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-300 transition-colors"
                   >
                     {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                   </button>
@@ -298,34 +307,46 @@ export default function Register() {
 
                 {/* Password Criteria checklist */}
                 {formData.password && (
-                  <div className="mt-3 p-3 bg-slate-950/80 rounded-xl border border-slate-800 text-[11px] space-y-1.5">
+                  <div className="mt-3 p-3 bg-slate-100 dark:bg-slate-950/80 rounded-xl border border-slate-200 dark:border-slate-800 text-[11px] space-y-1.5">
                     <div className="flex items-center gap-2">
                       <div
-                        className={`w-3.5 h-3.5 rounded-full flex items-center justify-center ${meetsLength ? 'bg-emerald-500/20 text-emerald-400' : 'bg-red-500/20 text-red-400'}`}
+                        className={`w-3.5 h-3.5 rounded-full flex items-center justify-center ${meetsLength ? 'bg-emerald-500/20 text-emerald-600 dark:text-emerald-400' : 'bg-red-500/20 text-red-600 dark:text-red-400'}`}
                       >
                         <Check size={10} strokeWidth={3} />
                       </div>
-                      <span className={meetsLength ? 'text-slate-300' : 'text-slate-500'}>
+                      <span
+                        className={
+                          meetsLength ? 'text-slate-700 dark:text-slate-300' : 'text-slate-500'
+                        }
+                      >
                         At least 8 characters
                       </span>
                     </div>
                     <div className="flex items-center gap-2">
                       <div
-                        className={`w-3.5 h-3.5 rounded-full flex items-center justify-center ${meetsUppercase ? 'bg-emerald-500/20 text-emerald-400' : 'bg-red-500/20 text-red-400'}`}
+                        className={`w-3.5 h-3.5 rounded-full flex items-center justify-center ${meetsUppercase ? 'bg-emerald-500/20 text-emerald-600 dark:text-emerald-400' : 'bg-red-500/20 text-red-600 dark:text-red-400'}`}
                       >
                         <Check size={10} strokeWidth={3} />
                       </div>
-                      <span className={meetsUppercase ? 'text-slate-300' : 'text-slate-500'}>
+                      <span
+                        className={
+                          meetsUppercase ? 'text-slate-700 dark:text-slate-300' : 'text-slate-500'
+                        }
+                      >
                         Contains an uppercase letter
                       </span>
                     </div>
                     <div className="flex items-center gap-2">
                       <div
-                        className={`w-3.5 h-3.5 rounded-full flex items-center justify-center ${meetsNumber ? 'bg-emerald-500/20 text-emerald-400' : 'bg-red-500/20 text-red-400'}`}
+                        className={`w-3.5 h-3.5 rounded-full flex items-center justify-center ${meetsNumber ? 'bg-emerald-500/20 text-emerald-600 dark:text-emerald-400' : 'bg-red-500/20 text-red-600 dark:text-red-400'}`}
                       >
                         <Check size={10} strokeWidth={3} />
                       </div>
-                      <span className={meetsNumber ? 'text-slate-300' : 'text-slate-500'}>
+                      <span
+                        className={
+                          meetsNumber ? 'text-slate-700 dark:text-slate-300' : 'text-slate-500'
+                        }
+                      >
                         Contains a number
                       </span>
                     </div>
@@ -333,8 +354,8 @@ export default function Register() {
                 )}
 
                 {errors.password && (
-                  <p className="mt-2 text-xs text-red-400 font-semibold flex items-center gap-1">
-                    <span className="inline-block w-1 h-1 bg-red-400 rounded-full" />
+                  <p className="mt-2 text-xs text-red-500 dark:text-red-400 font-semibold flex items-center gap-1">
+                    <span className="inline-block w-1 h-1 bg-red-500 dark:bg-red-400 rounded-full" />
                     {errors.password}
                   </p>
                 )}
@@ -342,7 +363,7 @@ export default function Register() {
 
               {/* Confirm Password */}
               <div>
-                <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">
+                <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">
                   Confirm password
                 </label>
                 <div className="relative">
@@ -360,7 +381,7 @@ export default function Register() {
                     type="button"
                     onClick={() => setShowConfirm(!showConfirm)}
                     tabIndex={-1}
-                    className="absolute inset-y-0 right-0 w-12 flex items-center justify-center text-slate-500 hover:text-slate-300 transition-colors"
+                    className="absolute inset-y-0 right-0 w-12 flex items-center justify-center text-slate-400 hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-300 transition-colors"
                   >
                     {showConfirm ? <EyeOff size={18} /> : <Eye size={18} />}
                   </button>
@@ -368,15 +389,15 @@ export default function Register() {
                 {formData.confirmPassword && (
                   <div className="mt-2 flex items-center gap-2 text-[11px]">
                     <div
-                      className={`w-3.5 h-3.5 rounded-full flex items-center justify-center ${passwordsMatch ? 'bg-emerald-500/20 text-emerald-400' : 'bg-red-500/20 text-red-400'}`}
+                      className={`w-3.5 h-3.5 rounded-full flex items-center justify-center ${passwordsMatch ? 'bg-emerald-500/20 text-emerald-600 dark:text-emerald-400' : 'bg-red-500/20 text-red-600 dark:text-red-400'}`}
                     >
                       <Check size={10} strokeWidth={3} />
                     </div>
                     <span
                       className={
                         passwordsMatch
-                          ? 'text-emerald-400 font-semibold'
-                          : 'text-red-400 font-semibold'
+                          ? 'text-emerald-600 dark:text-emerald-400 font-semibold'
+                          : 'text-red-600 dark:text-red-400 font-semibold'
                       }
                     >
                       {passwordsMatch ? 'Passwords match' : 'Passwords do not match'}
@@ -384,8 +405,8 @@ export default function Register() {
                   </div>
                 )}
                 {errors.confirmPassword && (
-                  <p className="mt-2 text-xs text-red-400 font-semibold flex items-center gap-1">
-                    <span className="inline-block w-1 h-1 bg-red-400 rounded-full" />
+                  <p className="mt-2 text-xs text-red-500 dark:text-red-400 font-semibold flex items-center gap-1">
+                    <span className="inline-block w-1 h-1 bg-red-500 dark:bg-red-400 rounded-full" />
                     {errors.confirmPassword}
                   </p>
                 )}
@@ -394,7 +415,7 @@ export default function Register() {
               <button
                 type="submit"
                 disabled={isSubmitting || !isFormValid}
-                className="w-full h-12 bg-gradient-to-r from-purple-500 to-indigo-500 text-white font-bold text-sm rounded-xl hover:shadow-lg hover:shadow-purple-500/15 active:scale-[0.98] transition-all disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:shadow-none mt-6 flex items-center justify-center gap-2"
+                className="w-full h-12 bg-gradient-to-r from-purple-600 to-indigo-600 text-white font-bold text-sm rounded-xl hover:shadow-lg hover:shadow-purple-500/20 active:scale-[0.98] transition-all disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:shadow-none mt-6 flex items-center justify-center gap-2"
               >
                 {isSubmitting ? (
                   <>

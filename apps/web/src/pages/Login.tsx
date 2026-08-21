@@ -1,8 +1,8 @@
 import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuthStore } from '../stores/auth.store';
 import { useUIStore } from '../stores/ui.store';
-import { Eye, EyeOff, Rocket, Cpu, Sparkles, ShieldCheck } from 'lucide-react';
+import { Eye, EyeOff, Rocket, Cpu, Sparkles, ShieldCheck, ArrowLeft } from 'lucide-react';
 import { z } from 'zod';
 
 const loginSchema = z.object({
@@ -12,6 +12,7 @@ const loginSchema = z.object({
 
 export default function Login() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const login = useAuthStore((s) => s.login);
   const addToast = useUIStore((s) => s.addToast);
 
@@ -50,7 +51,7 @@ export default function Login() {
       try {
         await login({ email: formData.email, password: formData.password });
         addToast({ type: 'success', title: 'Welcome back!', message: 'Logged in successfully.' });
-        navigate('/dashboard');
+        navigate(searchParams.get('returnTo') || '/dashboard');
       } catch (err: unknown) {
         const error = err as { response?: { data?: { error?: { message?: string } } } };
         const message = error.response?.data?.error?.message || 'Invalid email or password.';
@@ -62,7 +63,7 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-screen bg-[#07090e] dark:bg-[#030407] font-sans flex relative overflow-hidden text-slate-100">
+    <div className="min-h-screen bg-slate-50 dark:bg-[#030407] font-sans flex relative overflow-hidden text-slate-900 dark:text-slate-100 transition-colors duration-300">
       {/* Decorative ambient background glows */}
       <div className="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] bg-emerald-500/10 rounded-full blur-[150px] animate-pulse" />
       <div className="absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] bg-purple-500/10 rounded-full blur-[150px] animate-pulse [animation-delay:2s]" />
@@ -75,22 +76,32 @@ export default function Login() {
       <div className="flex-1 flex flex-col justify-center px-6 sm:px-12 lg:px-20 py-12 relative z-10">
         <div className="w-full max-w-md mx-auto">
           {/* Glass Card Container */}
-          <div className="bg-slate-900/40 dark:bg-slate-950/40 border border-slate-800/80 backdrop-blur-2xl rounded-3xl p-8 sm:p-10 shadow-2xl shadow-emerald-500/5 relative overflow-hidden">
+          <div className="bg-white/80 dark:bg-slate-950/40 border border-slate-200/80 dark:border-slate-800/80 backdrop-blur-2xl rounded-3xl p-8 sm:p-10 shadow-2xl shadow-emerald-500/5 relative overflow-hidden">
             {/* Edge reflection */}
             <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-emerald-500/20 to-transparent" />
+
+            {/* Back Button */}
+            <Link
+              to="/"
+              className="absolute top-6 right-6 p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-colors flex items-center gap-2 text-sm font-semibold"
+            >
+              <ArrowLeft size={16} /> Back to Home
+            </Link>
 
             {/* Logo */}
             <Link to="/" className="flex items-center gap-3 mb-8 group w-fit">
               <div className="w-10 h-10 bg-gradient-to-tr from-emerald-500 to-teal-400 rounded-xl flex items-center justify-center shadow-lg shadow-emerald-500/20 group-hover:scale-105 transition-transform duration-300">
                 <Rocket size={18} className="text-slate-950 font-bold" />
               </div>
-              <span className="font-extrabold text-xl tracking-tight bg-gradient-to-r from-white via-slate-200 to-slate-400 bg-clip-text text-transparent">
+              <span className="font-extrabold text-xl tracking-tight bg-gradient-to-r from-slate-900 to-slate-600 dark:from-white dark:via-slate-200 dark:to-slate-400 bg-clip-text text-transparent">
                 Tinkergyan
               </span>
             </Link>
 
-            <h1 className="text-3xl font-extrabold tracking-tight text-white mb-2">Welcome Back</h1>
-            <p className="text-sm text-slate-400 mb-8">
+            <h1 className="text-3xl font-extrabold tracking-tight text-slate-900 dark:text-white mb-2">
+              Welcome Back
+            </h1>
+            <p className="text-sm text-slate-500 dark:text-slate-400 mb-8">
               New to Tinkergyan?{' '}
               <Link
                 to="/register"
@@ -115,10 +126,10 @@ export default function Login() {
                     onChange={handleChange}
                     onBlur={handleBlur}
                     placeholder="you@example.com"
-                    className={`w-full h-12 px-4 rounded-xl border text-sm font-medium bg-slate-950/60 text-white placeholder:text-slate-600 outline-none transition-all duration-300 focus:ring-4 focus:ring-emerald-500/10 ${
+                    className={`w-full h-12 px-4 rounded-xl border text-sm font-medium bg-white dark:bg-slate-950/60 text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-600 outline-none transition-all duration-300 focus:ring-4 focus:ring-emerald-500/10 ${
                       errors.email
                         ? 'border-red-500/80 focus:border-red-500 focus:ring-red-500/10'
-                        : 'border-slate-800 focus:border-emerald-500/80'
+                        : 'border-slate-200 dark:border-slate-800 focus:border-emerald-500/80'
                     }`}
                   />
                   {errors.email && (
@@ -146,10 +157,10 @@ export default function Login() {
                     onChange={handleChange}
                     onBlur={handleBlur}
                     placeholder="Enter your password"
-                    className={`w-full h-12 px-4 pr-12 rounded-xl border text-sm font-medium bg-slate-950/60 text-white placeholder:text-slate-600 outline-none transition-all duration-300 focus:ring-4 focus:ring-emerald-500/10 ${
+                    className={`w-full h-12 px-4 pr-12 rounded-xl border text-sm font-medium bg-white dark:bg-slate-950/60 text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-600 outline-none transition-all duration-300 focus:ring-4 focus:ring-emerald-500/10 ${
                       errors.password
                         ? 'border-red-500/80 focus:border-red-500 focus:ring-red-500/10'
-                        : 'border-slate-800 focus:border-emerald-500/80'
+                        : 'border-slate-200 dark:border-slate-800 focus:border-emerald-500/80'
                     }`}
                   />
                   <button
@@ -172,7 +183,7 @@ export default function Login() {
               <button
                 type="submit"
                 disabled={isSubmitting || !isFormValid}
-                className="w-full h-12 bg-gradient-to-r from-emerald-500 to-teal-500 text-slate-950 font-bold text-sm rounded-xl hover:shadow-lg hover:shadow-emerald-500/15 active:scale-[0.98] transition-all disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:shadow-none mt-4 flex items-center justify-center gap-2"
+                className="w-full h-12 bg-gradient-to-r from-emerald-500 to-teal-500 text-white font-bold text-sm rounded-xl hover:shadow-lg hover:shadow-emerald-500/20 active:scale-[0.98] transition-all disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:shadow-none mt-4 flex items-center justify-center gap-2"
               >
                 {isSubmitting ? (
                   <>
@@ -192,7 +203,7 @@ export default function Login() {
       </div>
 
       {/* Right: Visual Panel */}
-      <div className="hidden lg:flex flex-1 bg-slate-950/80 items-center justify-center p-16 relative overflow-hidden border-l border-slate-900">
+      <div className="hidden lg:flex flex-1 bg-slate-100 dark:bg-slate-950/80 items-center justify-center p-16 relative overflow-hidden border-l border-slate-200 dark:border-slate-900">
         {/* Futuristic circuit grid backdrop */}
         <div className="absolute inset-0 bg-[radial-gradient(#1e293b_1px,transparent_1px)] [background-size:24px_24px] opacity-25" />
 
@@ -260,10 +271,10 @@ export default function Login() {
             </div>
           </div>
 
-          <h2 className="text-3xl font-extrabold text-white mb-4 leading-tight">
+          <h2 className="text-3xl font-extrabold text-slate-900 dark:text-white mb-4 leading-tight">
             Code and Build Real Hardware
           </h2>
-          <p className="text-slate-400 text-sm leading-relaxed max-w-sm">
+          <p className="text-slate-500 dark:text-slate-400 text-sm leading-relaxed max-w-sm">
             Learn microcontroller programming through our interactive Scratch stage. Design,
             simulate, and compile C++ code inside a beautiful glass environment.
           </p>

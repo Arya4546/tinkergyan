@@ -85,7 +85,7 @@ export default function Courses() {
                 <Link
                   key={course.id}
                   to={`/courses/${course.slug}`}
-                  className="hw-border bg-slate-50 dark:bg-[#111111] flex flex-col group hover:bg-slate-900 dark:hover:bg-white hover:text-white dark:hover:text-slate-900 transition-colors overflow-hidden"
+                  className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-[#111111] flex flex-col group hover:border-emerald-300 dark:hover:border-emerald-800 hover:shadow-md transition-all overflow-hidden relative"
                 >
                   {/* Gradient accent bar */}
                   <div
@@ -102,41 +102,41 @@ export default function Courses() {
                     {/* Header: difficulty + enrolled */}
                     <div className="flex justify-between items-start mb-4">
                       <div
-                        className={`inline-flex items-center gap-1 px-2 py-0.5 font-mono text-[9px] font-bold uppercase tracking-widest ${diff.bg} ${diff.text} border ${diff.border}`}
+                        className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold ${diff.bg} ${diff.text} border ${diff.border}`}
                       >
-                        <Zap size={8} /> {diff.label}
+                        <Zap size={12} /> {diff.label}
                       </div>
                       {course.isEnrolled && (
-                        <div className="inline-flex items-center gap-1 px-2 py-0.5 font-mono text-[9px] font-bold uppercase tracking-widest bg-blue-500/10 text-blue-400 border border-blue-500/30">
-                          <CheckCircle2 size={8} /> ENROLLED
+                        <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold bg-blue-500/10 text-blue-500 dark:text-blue-400 border border-blue-500/30">
+                          <CheckCircle2 size={12} /> Enrolled
                         </div>
                       )}
                     </div>
 
                     {/* Title */}
-                    <h3 className="font-bold text-lg uppercase tracking-tight leading-tight mb-2 group-hover:text-white dark:group-hover:text-slate-900">
+                    <h3 className="font-bold text-lg text-slate-900 dark:text-white leading-tight mb-2 group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors">
                       {course.title}
                     </h3>
 
                     {/* Description */}
-                    <p className="font-mono text-[10px] text-slate-400 group-hover:text-slate-300 dark:group-hover:text-slate-600 leading-relaxed mb-4 line-clamp-3">
+                    <p className="text-sm text-slate-500 dark:text-slate-400 leading-relaxed mb-6 line-clamp-3">
                       {course.description}
                     </p>
 
                     {/* Stats */}
-                    <div className="mt-auto flex items-center gap-4 pt-4 hw-border-t group-hover:border-slate-800 dark:group-hover:border-slate-200">
-                      <div className="flex items-center gap-1.5 font-mono text-[10px] text-slate-500 uppercase">
-                        <BookOpen size={10} /> {course.moduleCount} modules
+                    <div className="mt-auto flex items-center gap-4 pt-4 border-t border-slate-100 dark:border-slate-800/60">
+                      <div className="flex items-center gap-1.5 text-xs font-medium text-slate-500 dark:text-slate-400">
+                        <BookOpen size={14} /> {course.moduleCount} modules
                       </div>
-                      <div className="flex items-center gap-1.5 font-mono text-[10px] text-slate-500 uppercase">
-                        <GraduationCap size={10} /> {course.lessonCount} lessons
+                      <div className="flex items-center gap-1.5 text-xs font-medium text-slate-500 dark:text-slate-400">
+                        <GraduationCap size={14} /> {course.lessonCount} lessons
                       </div>
-                      <div className="flex items-center gap-1.5 font-mono text-[10px] text-slate-500 uppercase">
-                        <Users size={10} /> {course.enrollmentCount}
+                      <div className="flex items-center gap-1.5 text-xs font-medium text-slate-500 dark:text-slate-400">
+                        <Users size={14} /> {course.enrollmentCount}
                       </div>
                       <ChevronRight
-                        size={12}
-                        className="ml-auto text-slate-400 group-hover:text-white dark:group-hover:text-slate-900"
+                        size={16}
+                        className="ml-auto text-slate-300 dark:text-slate-600 group-hover:text-emerald-500 transition-colors"
                       />
                     </div>
                   </div>

@@ -7,8 +7,16 @@
 import { useEffect, useState } from 'react';
 import { Link, useParams, useNavigate } from 'react-router-dom';
 import {
-  GraduationCap, BookOpen, ChevronLeft, Users, Zap,
-  CheckCircle2, Circle, Code2, FileText, Loader2,
+  GraduationCap,
+  BookOpen,
+  ChevronLeft,
+  Users,
+  Zap,
+  CheckCircle2,
+  Circle,
+  Code2,
+  FileText,
+  Loader2,
 } from 'lucide-react';
 
 import { courseService, type CourseDetail as CourseDetailType } from '../services/course.service';
@@ -18,8 +26,8 @@ import { Loader } from '../components/ui/Loader';
 
 const LESSON_TYPE_ICON = {
   READING: FileText,
-  CODING:  Code2,
-  QUIZ:    Zap,
+  CODING: Code2,
+  QUIZ: Zap,
 } as const;
 
 export default function CourseDetail() {
@@ -27,8 +35,8 @@ export default function CourseDetail() {
   const navigate = useNavigate();
   const addToast = useUIStore((s: any) => s.addToast);
 
-  const [course, setCourse]       = useState<CourseDetailType | null>(null);
-  const [isLoading, setLoading]   = useState(true);
+  const [course, setCourse] = useState<CourseDetailType | null>(null);
+  const [isLoading, setLoading] = useState(true);
   const [isEnrolling, setEnrolling] = useState(false);
 
   useEffect(() => {
@@ -51,7 +59,9 @@ export default function CourseDetail() {
     setEnrolling(true);
     try {
       await courseService.enroll(course.id);
-      setCourse((prev) => prev ? { ...prev, isEnrolled: true, enrollmentCount: prev.enrollmentCount + 1 } : null);
+      setCourse((prev) =>
+        prev ? { ...prev, isEnrolled: true, enrollmentCount: prev.enrollmentCount + 1 } : null,
+      );
       addToast({ type: 'success', title: 'ENROLLED', message: `Welcome to ${course.title}!` });
     } catch {
       addToast({ type: 'error', title: 'ENROLL_FAILED', message: 'Could not enroll. Try again.' });
@@ -61,9 +71,7 @@ export default function CourseDetail() {
   };
 
   // Find the first incomplete lesson for "Continue" button
-  const nextLesson = course?.modules
-    .flatMap((m) => m.lessons)
-    .find((l) => !l.completed);
+  const nextLesson = course?.modules.flatMap((m) => m.lessons).find((l) => !l.completed);
 
   if (isLoading) {
     return (
@@ -78,29 +86,33 @@ export default function CourseDetail() {
   return (
     <div className="w-full h-full flex flex-col overflow-y-auto">
       {/* Hero Header */}
-      <div className="w-full hw-border-b bg-white dark:bg-[#000000] p-6 lg:p-10 shrink-0">
+      <div className="w-full border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-[#000000] p-6 lg:p-10 shrink-0">
         <div className="max-w-4xl mx-auto">
           {/* Breadcrumb */}
           <Link
             to="/courses"
-            className="inline-flex items-center gap-2 font-mono text-[10px] font-bold text-slate-400 uppercase tracking-widest hover:text-slate-900 dark:hover:text-white mb-4"
+            className="inline-flex items-center gap-2 text-sm font-semibold text-slate-400 hover:text-slate-900 dark:hover:text-white mb-4 transition-colors"
           >
-            <ChevronLeft size={12} /> QUEST_LOG
+            <ChevronLeft size={16} /> Back to Courses
           </Link>
 
           <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
             <div>
-              <div className={`inline-flex items-center gap-1 px-2 py-0.5 font-mono text-[9px] font-bold uppercase tracking-widest mb-3 ${
-                course.difficulty === 'BEGINNER' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/30' :
-                course.difficulty === 'INTERMEDIATE' ? 'bg-yellow-500/10 text-yellow-400 border border-yellow-500/30' :
-                'bg-red-500/10 text-red-400 border border-red-500/30'
-              }`}>
-                <Zap size={8} /> {course.difficulty}
+              <div
+                className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold mb-4 ${
+                  course.difficulty === 'BEGINNER'
+                    ? 'bg-emerald-500/10 text-emerald-500 dark:text-emerald-400 border border-emerald-500/30'
+                    : course.difficulty === 'INTERMEDIATE'
+                      ? 'bg-yellow-500/10 text-yellow-600 dark:text-yellow-400 border border-yellow-500/30'
+                      : 'bg-red-500/10 text-red-500 dark:text-red-400 border border-red-500/30'
+                }`}
+              >
+                <Zap size={12} /> {course.difficulty}
               </div>
-              <h1 className="text-3xl md:text-4xl font-bold tracking-tighter uppercase leading-none text-slate-900 dark:text-white mb-3">
+              <h1 className="text-3xl md:text-4xl font-extrabold tracking-tight text-slate-900 dark:text-white mb-3">
                 {course.title}
               </h1>
-              <p className="font-mono text-xs text-slate-500 leading-relaxed max-w-lg">
+              <p className="text-sm text-slate-500 dark:text-slate-400 leading-relaxed max-w-lg">
                 {course.description}
               </p>
             </div>
@@ -109,58 +121,57 @@ export default function CourseDetail() {
               {!course.isEnrolled ? (
                 <Button
                   variant="primary"
-                  className="h-12 px-6 rounded-none"
+                  className="h-12 px-6 rounded-xl font-bold transition-all shadow-lg shadow-emerald-500/20"
                   onClick={handleEnroll}
                   disabled={isEnrolling}
                 >
-                  {isEnrolling
-                    ? <Loader2 size={14} className="animate-spin mr-2" />
-                    : <GraduationCap size={14} className="mr-2" />
-                  }
-                  <span className="font-mono text-[10px] font-bold uppercase">
-                    {isEnrolling ? 'Enrolling...' : 'Enroll Now'}
-                  </span>
+                  {isEnrolling ? (
+                    <Loader2 size={16} className="animate-spin mr-2" />
+                  ) : (
+                    <GraduationCap size={16} className="mr-2" />
+                  )}
+                  <span>{isEnrolling ? 'Enrolling...' : 'Enroll Now'}</span>
                 </Button>
               ) : nextLesson ? (
                 <Link
                   to={`/courses/${course.slug}/lessons/${nextLesson.id}`}
-                  className="h-12 px-6 hw-key bg-emerald-500 text-white border-emerald-600 hover:bg-emerald-600 flex items-center gap-2"
+                  className="h-12 px-6 rounded-xl bg-emerald-500 text-white font-bold hover:bg-emerald-600 transition-colors flex items-center gap-2 shadow-lg shadow-emerald-500/20"
                 >
-                  <BookOpen size={14} />
-                  <span className="font-mono text-[10px] font-bold uppercase">Continue</span>
+                  <BookOpen size={16} />
+                  <span>Continue</span>
                 </Link>
               ) : (
-                <div className="h-12 px-6 hw-key bg-slate-800 text-emerald-400 border-slate-700 flex items-center gap-2">
-                  <CheckCircle2 size={14} />
-                  <span className="font-mono text-[10px] font-bold uppercase">Completed</span>
+                <div className="h-12 px-6 rounded-xl bg-slate-100 dark:bg-slate-800 text-emerald-500 dark:text-emerald-400 border border-slate-200 dark:border-slate-700 flex items-center gap-2 font-bold">
+                  <CheckCircle2 size={16} />
+                  <span>Completed</span>
                 </div>
               )}
             </div>
           </div>
 
           {/* Stats strip */}
-          <div className="flex items-center gap-6 mt-6 pt-4 hw-border-t">
-            <div className="flex items-center gap-1.5 font-mono text-[10px] text-slate-500 uppercase">
-              <BookOpen size={10} /> {course.modules.length} modules
+          <div className="flex flex-wrap items-center gap-4 sm:gap-6 mt-8 pt-6 border-t border-slate-200 dark:border-slate-800">
+            <div className="flex items-center gap-2 text-sm font-medium text-slate-500 dark:text-slate-400">
+              <BookOpen size={16} /> {course.modules.length} modules
             </div>
-            <div className="flex items-center gap-1.5 font-mono text-[10px] text-slate-500 uppercase">
-              <GraduationCap size={10} /> {course.totalLessons} lessons
+            <div className="flex items-center gap-2 text-sm font-medium text-slate-500 dark:text-slate-400">
+              <GraduationCap size={16} /> {course.totalLessons} lessons
             </div>
-            <div className="flex items-center gap-1.5 font-mono text-[10px] text-slate-500 uppercase">
-              <Users size={10} /> {course.enrollmentCount} enrolled
+            <div className="flex items-center gap-2 text-sm font-medium text-slate-500 dark:text-slate-400">
+              <Users size={16} /> {course.enrollmentCount} enrolled
             </div>
             {course.isEnrolled && (
-              <div className="flex items-center gap-1.5 font-mono text-[10px] text-emerald-400 uppercase">
-                <Zap size={10} /> {course.progressPct}% complete
+              <div className="flex items-center gap-2 text-sm font-bold text-emerald-500 dark:text-emerald-400">
+                <Zap size={16} /> {course.progressPct}% complete
               </div>
             )}
           </div>
 
           {/* Progress bar */}
           {course.isEnrolled && (
-            <div className="mt-3 w-full h-2 bg-slate-200 dark:bg-slate-800 overflow-hidden">
+            <div className="mt-4 w-full h-2.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
               <div
-                className="h-full bg-emerald-500 transition-all duration-500"
+                className="h-full bg-emerald-500 rounded-full transition-all duration-500"
                 style={{ width: `${course.progressPct}%` }}
               />
             </div>
@@ -169,25 +180,28 @@ export default function CourseDetail() {
       </div>
 
       {/* Module / Lesson Tree */}
-      <div className="flex-1 p-6 lg:p-10 bg-white dark:bg-[#0A0A0A]">
+      <div className="flex-1 p-6 lg:p-10 bg-slate-50 dark:bg-[#0A0A0A]">
         <div className="max-w-4xl mx-auto space-y-6">
           {course.modules.map((mod, mi) => (
-            <div key={mod.id} className="hw-border bg-slate-50 dark:bg-[#111111] overflow-hidden">
+            <div
+              key={mod.id}
+              className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-[#111111] overflow-hidden shadow-sm"
+            >
               {/* Module header */}
-              <div className="px-5 py-4 bg-slate-900 dark:bg-white flex items-center gap-3">
-                <div className="w-8 h-8 border-2 border-slate-700 dark:border-slate-300 flex items-center justify-center font-mono text-xs font-bold text-white dark:text-slate-900">
+              <div className="px-5 py-4 border-b border-slate-100 dark:border-slate-800/60 bg-slate-50 dark:bg-[#111111] flex items-center gap-4">
+                <div className="w-8 h-8 rounded-full bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center text-sm font-bold text-emerald-600 dark:text-emerald-400">
                   {mi + 1}
                 </div>
-                <span className="font-mono text-sm font-bold uppercase tracking-widest text-white dark:text-slate-900">
+                <span className="text-base font-bold text-slate-900 dark:text-white">
                   {mod.title}
                 </span>
-                <span className="ml-auto font-mono text-[10px] text-slate-400 dark:text-slate-500 uppercase">
-                  {mod.lessons.filter((l) => l.completed).length}/{mod.lessons.length} done
+                <span className="ml-auto text-xs font-semibold text-slate-500 dark:text-slate-400">
+                  {mod.lessons.filter((l) => l.completed).length}/{mod.lessons.length} completed
                 </span>
               </div>
 
               {/* Lessons */}
-              <div className="divide-y divide-slate-200 dark:divide-slate-800">
+              <div className="divide-y divide-slate-100 dark:divide-slate-800/60">
                 {mod.lessons.map((lesson) => {
                   const TypeIcon = LESSON_TYPE_ICON[lesson.type] || FileText;
                   const isComplete = lesson.completed;
@@ -199,39 +213,53 @@ export default function CourseDetail() {
                       onClick={(e) => {
                         if (!course.isEnrolled) {
                           e.preventDefault();
-                          addToast({ type: 'info', title: 'ENROLL_FIRST', message: 'Enroll to access lessons.' });
+                          addToast({
+                            type: 'info',
+                            title: 'ENROLL_FIRST',
+                            message: 'Enroll to access lessons.',
+                          });
                         }
                       }}
                       className={`flex items-center gap-4 px-5 py-4 transition-colors group ${
                         course.isEnrolled
-                          ? 'hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer'
+                          ? 'hover:bg-slate-50 dark:hover:bg-[#1A1D24] cursor-pointer'
                           : 'opacity-60 cursor-not-allowed'
                       }`}
                     >
                       {/* Status icon */}
-                      {isComplete
-                        ? <CheckCircle2 size={16} className="text-emerald-500 shrink-0" />
-                        : <Circle size={16} className="text-slate-300 dark:text-slate-600 shrink-0" />
-                      }
+                      {isComplete ? (
+                        <CheckCircle2 size={20} className="text-emerald-500 shrink-0" />
+                      ) : (
+                        <Circle
+                          size={20}
+                          className="text-slate-300 dark:text-slate-600 shrink-0 group-hover:text-emerald-400 transition-colors"
+                        />
+                      )}
 
                       {/* Type icon */}
-                      <TypeIcon size={14} className="text-slate-400 shrink-0" />
+                      <div className="w-8 h-8 rounded-lg bg-slate-100 dark:bg-slate-800 flex items-center justify-center shrink-0">
+                        <TypeIcon size={16} className="text-slate-500 dark:text-slate-400" />
+                      </div>
 
                       {/* Title */}
-                      <span className={`font-mono text-xs font-bold uppercase tracking-widest flex-1 ${
-                        isComplete ? 'text-slate-400 line-through' : 'text-slate-900 dark:text-white'
-                      }`}>
+                      <span
+                        className={`text-sm font-semibold flex-1 ${
+                          isComplete
+                            ? 'text-slate-500 line-through'
+                            : 'text-slate-700 dark:text-slate-200 group-hover:text-slate-900 dark:group-hover:text-white'
+                        }`}
+                      >
                         {lesson.title}
                       </span>
 
                       {/* Type badge */}
-                      <span className="font-mono text-[9px] text-slate-400 uppercase tracking-widest hidden sm:block">
+                      <span className="text-xs font-medium text-slate-400 dark:text-slate-500 hidden sm:block bg-slate-100 dark:bg-slate-800 px-2 py-1 rounded-md">
                         {lesson.type}
                       </span>
 
                       {/* XP */}
-                      <span className="font-mono text-[10px] font-bold text-yellow-400 uppercase flex items-center gap-1">
-                        <Zap size={8} /> {lesson.xpReward}xp
+                      <span className="text-xs font-bold text-amber-500 dark:text-amber-400 flex items-center gap-1 bg-amber-50 dark:bg-amber-900/10 px-2 py-1 rounded-md">
+                        <Zap size={12} className="fill-current" /> {lesson.xpReward} XP
                       </span>
                     </Link>
                   );

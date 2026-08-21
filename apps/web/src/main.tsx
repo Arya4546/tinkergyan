@@ -1,6 +1,12 @@
 import { StrictMode, lazy, Suspense, useEffect } from 'react';
 import { createRoot } from 'react-dom/client';
-import { createBrowserRouter, RouterProvider, Outlet, Navigate } from 'react-router-dom';
+import {
+  createBrowserRouter,
+  RouterProvider,
+  Outlet,
+  Navigate,
+  useLocation,
+} from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useAuthStore, useIsAuthenticated } from '@/stores/auth.store';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
@@ -99,7 +105,15 @@ const RootLayout = () => {
 
 const ProtectedLayout = () => {
   const isAuthenticated = useIsAuthenticated();
-  if (!isAuthenticated) return <Navigate to="/login" replace />;
+  const location = useLocation();
+  if (!isAuthenticated) {
+    return (
+      <Navigate
+        to={`/login?returnTo=${encodeURIComponent(location.pathname + location.search)}`}
+        replace
+      />
+    );
+  }
   return <Outlet />;
 };
 

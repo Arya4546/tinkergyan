@@ -13,7 +13,7 @@ import {
   Cpu,
   SlidersHorizontal,
 } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { useEffect, useState, useMemo } from 'react';
 import { Loader } from '../components/ui/Loader';
 import { NewProjectDialog } from '../components/ui/NewProjectDialog';
@@ -104,13 +104,24 @@ function ProjectCard({
 export default function Dashboard() {
   const user = useAuthStore((s) => s.user);
   const { projects, isLoading, error, fetchProjects, removeProject } = useProjectStore();
-  const [isNewProjectOpen, setIsNewProjectOpen] = useState(false);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [isNewProjectOpen, setIsNewProjectOpen] = useState(
+    () => searchParams.get('new') === 'true',
+  );
   const [categoryFilter, setCategoryFilter] = useState<'NONE' | 'HARDWARE' | 'SOFTWARE'>('NONE');
   const [boardFilter, setBoardFilter] = useState<string>('ALL');
 
   useEffect(() => {
     void fetchProjects();
   }, [fetchProjects]);
+
+  useEffect(() => {
+    if (isNewProjectOpen && searchParams.has('new')) {
+      const newParams = new URLSearchParams(searchParams);
+      newParams.delete('new');
+      setSearchParams(newParams, { replace: true });
+    }
+  }, [isNewProjectOpen, searchParams, setSearchParams]);
 
   const filteredProjects = useMemo(() => {
     return projects.filter((p) => {
