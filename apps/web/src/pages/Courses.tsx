@@ -54,17 +54,17 @@ export default function Courses() {
 
   return (
     <div className="w-full h-full flex flex-col">
-      <PageHeader icon={GraduationCap} title="Quest Log" subtitle="LEARNING_MODULES" />
+      <PageHeader icon={GraduationCap} title="Quest Log" subtitle="Learning Modules" />
 
       <div className="flex-1 overflow-y-auto p-6 lg:p-10 bg-white dark:bg-[#0A0A0A]">
         {isLoading && (
           <div className="flex justify-center py-16">
-            <Loader message="LOADING_COURSES..." />
+            <Loader message="Loading courses..." />
           </div>
         )}
 
         {!isLoading && error && (
-          <div className="font-mono text-xs text-red-400 uppercase tracking-widest text-center py-12">
+          <div className="bg-red-50 dark:bg-red-900/10 border border-red-100 dark:border-red-900/30 rounded-2xl p-5 text-sm font-medium text-red-600">
             {error}
           </div>
         )}
@@ -72,7 +72,7 @@ export default function Courses() {
         {!isLoading && !error && courses.length === 0 && (
           <EmptyState
             icon={GraduationCap}
-            title="NO_COURSES_AVAILABLE"
+            title="No Courses Available"
             subtitle="Courses are being prepared. Check back soon!"
           />
         )}

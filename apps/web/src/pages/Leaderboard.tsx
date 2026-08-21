@@ -3,6 +3,7 @@ import { Trophy, Medal, Loader2 } from 'lucide-react';
 import { PageHeader } from '../components/ui/PageHeader';
 import { useAuthStore } from '../stores/auth.store';
 import { api } from '../services/api';
+import { getAvatarGradient } from '../lib/avatar';
 
 interface LeaderboardUser {
   id: string;
@@ -96,7 +97,9 @@ export default function Leaderboard() {
                   </div>
 
                   {/* Avatar */}
-                  <div className="w-9 h-9 bg-slate-200 dark:bg-slate-700 rounded-full flex items-center justify-center font-bold text-sm text-slate-600 dark:text-slate-300 overflow-hidden shrink-0">
+                  <div
+                    className={`w-9 h-9 rounded-full flex items-center justify-center font-bold text-sm overflow-hidden shrink-0 ${!u.avatar ? getAvatarGradient(u.name) : 'bg-slate-200 dark:bg-slate-700'}`}
+                  >
                     {u.avatar ? (
                       <img src={u.avatar} alt="" className="w-full h-full object-cover" />
                     ) : (

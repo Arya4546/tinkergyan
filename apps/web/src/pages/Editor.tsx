@@ -788,6 +788,7 @@ export default function Editor() {
     setFlashProgress(0);
     setFlashMessage('Compiling firmware...');
     setShowSerialMonitor(false); // Close serial monitor during flash
+    setShowCodePanel(true);
 
     try {
       // Step 1: Compile for firmware (uses arduino-cli on server)
@@ -885,6 +886,8 @@ export default function Editor() {
       return;
     }
 
+    setShowCodePanel(true);
+    setShowSerialMonitor(false);
     await compile(code, 'simulate');
   }, [mode, engineMode, generatedCode, manualCode, compile, clearResult, addToast]);
 
@@ -1508,6 +1511,7 @@ export default function Editor() {
                         setHardwarePort(null);
                         setShowSerialMonitor(false);
                       }}
+                      onClose={() => setShowSerialMonitor(false)}
                     />
                   ) : (
                     <>

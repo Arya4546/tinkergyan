@@ -17,7 +17,6 @@ import {
   MonitorPlay,
 } from 'lucide-react';
 import { useUIStore } from '../../stores/ui.store';
-import { Tooltip } from '../ui/Tooltip';
 import { NewProjectDialog } from '../ui/NewProjectDialog';
 
 const NAV_ITEMS = [
@@ -80,24 +79,23 @@ export function Sidebar() {
               const Icon = i.icon;
 
               return (
-                <Tooltip key={i.href} content={i.label} position="right" className="w-full">
-                  <Link
-                    to={i.href}
-                    onClick={() => setMobileMenuOpen(false)}
-                    className={`h-12 w-full flex items-center justify-center lg:justify-start px-0 lg:px-4 rounded-xl transition-all duration-200 ${
-                      isActive
-                        ? 'bg-white dark:bg-[#1A1D24] text-emerald-600 dark:text-emerald-400 shadow-sm border border-slate-200 dark:border-slate-800'
-                        : 'hover:bg-slate-200/50 dark:hover:bg-[#1A1D24] hover:text-slate-900 dark:hover:text-slate-200'
-                    }`}
+                <Link
+                  key={i.href}
+                  to={i.href}
+                  onClick={() => setMobileMenuOpen(false)}
+                  className={`h-12 w-full flex items-center justify-center lg:justify-start px-0 lg:px-4 rounded-xl transition-all duration-200 ${
+                    isActive
+                      ? 'bg-white dark:bg-[#1A1D24] text-emerald-600 dark:text-emerald-400 shadow-sm border border-slate-200 dark:border-slate-800'
+                      : 'hover:bg-slate-200/50 dark:hover:bg-[#1A1D24] hover:text-slate-900 dark:hover:text-slate-200'
+                  }`}
+                >
+                  <Icon size={20} strokeWidth={isActive ? 2.5 : 2} className="shrink-0" />
+                  <span
+                    className={`font-medium text-sm tracking-wide ml-3 sm:hidden lg:block ${isActive ? 'font-bold' : ''}`}
                   >
-                    <Icon size={20} strokeWidth={isActive ? 2.5 : 2} className="shrink-0" />
-                    <span
-                      className={`font-medium text-sm tracking-wide ml-3 sm:hidden lg:block ${isActive ? 'font-bold' : ''}`}
-                    >
-                      {i.label}
-                    </span>
-                  </Link>
-                </Tooltip>
+                    {i.label}
+                  </span>
+                </Link>
               );
             };
 
@@ -105,73 +103,55 @@ export function Sidebar() {
             if (index === 4) {
               // original Engine position
               elements.push(
-                <div key="engine-menu" className="flex flex-col gap-1">
-                  <Tooltip content="Code Editor Engine" position="right" className="w-full">
-                    <button
-                      onClick={() => setEngineExpanded(!engineExpanded)}
-                      className={`h-12 w-full flex items-center justify-between px-0 lg:px-4 rounded-xl transition-all duration-200 ${
-                        isEngineActive
-                          ? 'bg-white dark:bg-[#1A1D24] text-emerald-600 dark:text-emerald-400 shadow-sm border border-slate-200 dark:border-slate-800'
-                          : 'hover:bg-slate-200/50 dark:hover:bg-[#1A1D24] hover:text-slate-900 dark:hover:text-slate-200'
-                      }`}
-                    >
-                      <div className="flex items-center justify-center lg:justify-start w-full">
-                        <TerminalSquare
-                          size={20}
-                          strokeWidth={isEngineActive ? 2.5 : 2}
-                          className="shrink-0"
-                        />
-                        <span
-                          className={`font-medium text-sm tracking-wide ml-3 sm:hidden lg:block ${isEngineActive ? 'font-bold' : ''}`}
-                        >
-                          Engine
-                        </span>
-                      </div>
-                      <div className="hidden lg:block text-slate-400">
-                        {engineExpanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
-                      </div>
-                    </button>
-                  </Tooltip>
+                <div key="engine-menu" className="flex flex-col gap-1 w-full">
+                  <button
+                    onClick={() => setEngineExpanded(!engineExpanded)}
+                    className={`h-12 w-full flex items-center justify-between px-0 lg:px-4 rounded-xl transition-all duration-200 ${
+                      isEngineActive
+                        ? 'bg-white dark:bg-[#1A1D24] text-emerald-600 dark:text-emerald-400 shadow-sm border border-slate-200 dark:border-slate-800'
+                        : 'hover:bg-slate-200/50 dark:hover:bg-[#1A1D24] hover:text-slate-900 dark:hover:text-slate-200'
+                    }`}
+                  >
+                    <div className="flex items-center justify-center lg:justify-start w-full">
+                      <TerminalSquare
+                        size={20}
+                        strokeWidth={isEngineActive ? 2.5 : 2}
+                        className="shrink-0"
+                      />
+                      <span
+                        className={`font-medium text-sm tracking-wide ml-3 sm:hidden lg:block ${isEngineActive ? 'font-bold' : ''}`}
+                      >
+                        Engine
+                      </span>
+                    </div>
+                    <div className="hidden lg:block text-slate-400">
+                      {engineExpanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+                    </div>
+                  </button>
                   {engineExpanded && (
-                    <div className="flex flex-col gap-1 lg:pl-11 pl-0">
-                      <Tooltip
-                        content="Hardware Coding (Arduino & Sensors)"
-                        position="right"
-                        className="w-full"
+                    <div className="flex flex-col gap-1 lg:pl-11 pl-0 w-full">
+                      <button
+                        onClick={() => {
+                          setSelectedCategory('hardware');
+                          setNewProjectOpen(true);
+                          setMobileMenuOpen(false);
+                        }}
+                        className={`h-10 w-full flex items-center justify-center lg:justify-start px-0 lg:px-3 rounded-lg transition-all duration-200 ${location.search.includes('engine=hardware') ? 'bg-slate-200/50 dark:bg-[#1A1D24] text-emerald-600 dark:text-emerald-400 font-bold' : 'text-slate-500 hover:text-slate-900 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-[#1A1D24]'}`}
                       >
-                        <button
-                          onClick={() => {
-                            setSelectedCategory('hardware');
-                            setNewProjectOpen(true);
-                            setMobileMenuOpen(false);
-                          }}
-                          className={`h-10 w-full flex items-center justify-center lg:justify-start px-0 lg:px-3 rounded-lg transition-all duration-200 ${location.search.includes('engine=hardware') ? 'bg-slate-200/50 dark:bg-[#1A1D24] text-emerald-600 dark:text-emerald-400 font-bold' : 'text-slate-500 hover:text-slate-900 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-[#1A1D24]'}`}
-                        >
-                          <Cpu size={16} className="shrink-0 lg:mr-2" />
-                          <span className="text-xs font-medium sm:hidden lg:block">
-                            Hardware Coding
-                          </span>
-                        </button>
-                      </Tooltip>
-                      <Tooltip
-                        content="Software Coding (Blockly & Scratch)"
-                        position="right"
-                        className="w-full"
+                        <Cpu size={16} className="shrink-0 lg:mr-2" />
+                        <span className="hidden lg:block text-xs font-semibold">Hardware</span>
+                      </button>
+                      <button
+                        onClick={() => {
+                          setSelectedCategory('software');
+                          setNewProjectOpen(true);
+                          setMobileMenuOpen(false);
+                        }}
+                        className={`h-10 w-full flex items-center justify-center lg:justify-start px-0 lg:px-3 rounded-lg transition-all duration-200 ${location.search.includes('engine=software') ? 'bg-slate-200/50 dark:bg-[#1A1D24] text-emerald-600 dark:text-emerald-400 font-bold' : 'text-slate-500 hover:text-slate-900 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-[#1A1D24]'}`}
                       >
-                        <button
-                          onClick={() => {
-                            setSelectedCategory('software');
-                            setNewProjectOpen(true);
-                            setMobileMenuOpen(false);
-                          }}
-                          className={`h-10 w-full flex items-center justify-center lg:justify-start px-0 lg:px-3 rounded-lg transition-all duration-200 ${location.search.includes('engine=software') ? 'bg-slate-200/50 dark:bg-[#1A1D24] text-emerald-600 dark:text-emerald-400 font-bold' : 'text-slate-500 hover:text-slate-900 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-[#1A1D24]'}`}
-                        >
-                          <MonitorPlay size={16} className="shrink-0 lg:mr-2" />
-                          <span className="text-xs font-medium sm:hidden lg:block">
-                            Software Coding
-                          </span>
-                        </button>
-                      </Tooltip>
+                        <MonitorPlay size={16} className="shrink-0 lg:mr-2" />
+                        <span className="hidden lg:block text-xs font-semibold">Software</span>
+                      </button>
                     </div>
                   )}
                 </div>,
@@ -183,30 +163,26 @@ export function Sidebar() {
         </nav>
 
         <div className="mt-auto px-3 flex flex-col gap-2">
-          <Tooltip content="User Profile & Stats" position="right" className="w-full">
-            <Link
-              to="/profile"
-              onClick={() => setMobileMenuOpen(false)}
-              className="h-12 w-full flex items-center justify-center lg:justify-start px-0 lg:px-4 rounded-xl transition-all duration-200 hover:bg-slate-200/50 dark:hover:bg-[#1A1D24] hover:text-slate-900 dark:hover:text-slate-200"
-            >
-              <User size={20} className="shrink-0" />
-              <span className="font-medium text-sm tracking-wide ml-3 sm:hidden lg:block">
-                Profile
-              </span>
-            </Link>
-          </Tooltip>
-          <Tooltip content="Account & Preferences" position="right" className="w-full">
-            <Link
-              to="/settings"
-              onClick={() => setMobileMenuOpen(false)}
-              className="h-12 w-full flex items-center justify-center lg:justify-start px-0 lg:px-4 rounded-xl transition-all duration-200 hover:bg-slate-200/50 dark:hover:bg-[#1A1D24] hover:text-slate-900 dark:hover:text-slate-200"
-            >
-              <Settings2 size={20} className="shrink-0" />
-              <span className="font-medium text-sm tracking-wide ml-3 sm:hidden lg:block">
-                Settings
-              </span>
-            </Link>
-          </Tooltip>
+          <Link
+            to="/profile"
+            onClick={() => setMobileMenuOpen(false)}
+            className="h-12 w-full flex items-center justify-center lg:justify-start px-0 lg:px-4 rounded-xl transition-all duration-200 hover:bg-slate-200/50 dark:hover:bg-[#1A1D24] hover:text-slate-900 dark:hover:text-slate-200"
+          >
+            <User size={20} className="shrink-0" />
+            <span className="font-medium text-sm tracking-wide ml-3 sm:hidden lg:block">
+              Profile
+            </span>
+          </Link>
+          <Link
+            to="/settings"
+            onClick={() => setMobileMenuOpen(false)}
+            className="h-12 w-full flex items-center justify-center lg:justify-start px-0 lg:px-4 rounded-xl transition-all duration-200 hover:bg-slate-200/50 dark:hover:bg-[#1A1D24] hover:text-slate-900 dark:hover:text-slate-200"
+          >
+            <Settings2 size={20} className="shrink-0" />
+            <span className="font-medium text-sm tracking-wide ml-3 sm:hidden lg:block">
+              Settings
+            </span>
+          </Link>
         </div>
       </aside>
 

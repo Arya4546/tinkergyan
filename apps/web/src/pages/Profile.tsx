@@ -13,6 +13,7 @@ import { useAuthStore } from '../stores/auth.store';
 import { api } from '../services/api';
 import { PageHeader } from '../components/ui/PageHeader';
 import { useUIStore } from '../stores/ui.store';
+import { getAvatarGradient } from '../lib/avatar';
 
 interface ProfileData {
   id: string;
@@ -131,10 +132,18 @@ export default function Profile() {
           <div className="bg-slate-50 dark:bg-[#1a1a1a] border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden">
             <div className="p-6 flex flex-col sm:flex-row gap-6 items-start">
               {/* Avatar */}
-              <div className="w-16 h-16 bg-emerald-100 dark:bg-emerald-900/30 rounded-2xl flex items-center justify-center shrink-0">
-                <span className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">
-                  {profile.name.charAt(0).toUpperCase()}
-                </span>
+              <div
+                className={`w-16 h-16 rounded-2xl flex items-center justify-center shrink-0 shadow-sm ${!profile.avatar ? getAvatarGradient(profile.name) : 'bg-slate-200 dark:bg-slate-700'}`}
+              >
+                {profile.avatar ? (
+                  <img
+                    src={profile.avatar}
+                    alt=""
+                    className="w-full h-full object-cover rounded-2xl"
+                  />
+                ) : (
+                  <span className="text-2xl font-bold">{profile.name.charAt(0).toUpperCase()}</span>
+                )}
               </div>
 
               <div className="flex-1 space-y-5">

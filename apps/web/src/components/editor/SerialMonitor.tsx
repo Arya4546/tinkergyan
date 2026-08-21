@@ -19,13 +19,15 @@ const BAUD_RATES = [300, 1200, 2400, 4800, 9600, 19200, 38400, 57600, 115200] as
 interface SerialMonitorProps {
   port: any; // SerialPort from Web Serial API
   onDisconnect?: () => void;
+  onClose?: () => void;
 }
 
-export function SerialMonitor({ port }: SerialMonitorProps) {
+export function SerialMonitor({ port, onClose }: SerialMonitorProps) {
   const [lines, setLines] = useState<string[]>([]);
   const [inputValue, setInputValue] = useState('');
   const [baudRate, setBaudRate] = useState(9600);
   const [isPaused, setIsPaused] = useState(false);
+  const [isAutoScroll, setIsAutoScroll] = useState(true);
   const [isReading, setIsReading] = useState(false);
   const [showBaudDropdown, setShowBaudDropdown] = useState(false);
 
@@ -44,10 +46,10 @@ export function SerialMonitor({ port }: SerialMonitorProps) {
 
   // Auto-scroll to bottom
   useEffect(() => {
-    if (!isPaused && scrollRef.current) {
+    if (isAutoScroll && scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
-  }, [lines, isPaused]);
+  }, [lines, isAutoScroll]);
 
   // Start reading when port changes or baud rate changes
   const startReading = useCallback(async () => {
@@ -412,6 +414,23 @@ export function SerialMonitor({ port }: SerialMonitorProps) {
           </button>
         </Tooltip>
 
+        {/* Auto-scroll toggle */}
+        <Tooltip
+          content={isAutoScroll ? 'Disable Auto-scroll' : 'Enable Auto-scroll'}
+          position="bottom"
+        >
+          <button
+            onClick={() => setIsAutoScroll(!isAutoScroll)}
+            className={`p-1.5 transition-colors font-mono text-[9px] font-bold uppercase tracking-widest ${
+              isAutoScroll
+                ? 'text-emerald-400 hover:bg-emerald-500/10'
+                : 'text-ed-term-dim hover:text-ed-term-text'
+            }`}
+          >
+            Scroll
+          </button>
+        </Tooltip>
+
         {/* Clear */}
         <Tooltip content="Clear Output Logs" position="bottom">
           <button
@@ -421,6 +440,21 @@ export function SerialMonitor({ port }: SerialMonitorProps) {
             <Trash2 size={12} />
           </button>
         </Tooltip>
+
+        {/* Close Button */}
+        {onClose && (
+          <>
+            <div className="w-px h-4 bg-ed-term-line mx-1" />
+            <Tooltip content="Close Serial Monitor" position="bottom">
+              <button
+                onClick={onClose}
+                className="p-1.5 text-ed-term-dim hover:text-ed-term-text transition-colors"
+              >
+                ✕
+              </button>
+            </Tooltip>
+          </>
+        )}
       </div>
 
       {/* Output area */}
