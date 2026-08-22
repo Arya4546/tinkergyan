@@ -22,13 +22,13 @@ import { Tooltip } from '../components/ui/Tooltip';
 import { BOARDS, getBoardLabel } from '../lib/boards';
 
 type FilterType = 'ALL' | 'BLOCK' | 'CODE';
-type CategoryFilterType = 'NONE' | 'HARDWARE' | 'SOFTWARE';
+type CategoryFilterType = 'ALL' | 'HARDWARE' | 'SOFTWARE';
 
 export default function Projects() {
   const { projects, isLoading, error, fetchProjects, removeProject } = useProjectStore();
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<FilterType>('ALL');
-  const [categoryFilter, setCategoryFilter] = useState<CategoryFilterType>('NONE');
+  const [categoryFilter, setCategoryFilter] = useState<CategoryFilterType>('ALL');
   const [boardFilter, setBoardFilter] = useState<string>('ALL');
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
   const [isNewProjectOpen, setIsNewProjectOpen] = useState(false);
@@ -38,7 +38,7 @@ export default function Projects() {
     const params = {
       search: search.trim() || undefined,
       type: filter === 'ALL' ? undefined : filter,
-      category: categoryFilter === 'NONE' ? undefined : categoryFilter,
+      category: categoryFilter === 'ALL' ? undefined : categoryFilter,
       boardTarget: boardFilter === 'ALL' ? undefined : boardFilter,
     };
 
@@ -57,7 +57,6 @@ export default function Projects() {
   }, [search, filter, categoryFilter, boardFilter, fetchProjects]);
 
   const filtered = projects.filter((_p) => {
-    if (categoryFilter === 'NONE') return false;
     if (categoryFilter === 'HARDWARE' && boardFilter === 'ALL') return false;
     return true;
   });
@@ -83,102 +82,101 @@ export default function Projects() {
         </button>
       </PageHeader>
 
-      {/* Search + Filter Bar (Only show if a selection is made) */}
-      {categoryFilter !== 'NONE' && (
-        <div className="border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-[#0a0a0a] px-6 lg:px-10 py-4 flex flex-col lg:flex-row gap-3 shrink-0">
-          <div className="flex-1 relative">
-            <Search
-              size={15}
-              className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400"
-            />
-            <input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search projects..."
-              className="w-full h-10 pl-10 pr-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-[#1a1a1a] text-sm font-medium text-slate-900 dark:text-white placeholder:text-slate-400 outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
-            />
+      {/* Search + Filter Bar */}
+      <div className="border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-[#0a0a0a] px-6 lg:px-10 py-4 flex flex-col lg:flex-row gap-3 shrink-0">
+        <div className="flex-1 relative">
+          <Search size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+          <input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search projects..."
+            className="w-full h-10 pl-10 pr-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-[#1a1a1a] text-sm font-medium text-slate-900 dark:text-white placeholder:text-slate-400 outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
+          />
+        </div>
+        <div className="flex flex-wrap items-center gap-2 shrink-0">
+          {/* Category Tabs: Hardware | Software */}
+          <div className="flex items-center p-1 bg-white dark:bg-[#1a1a1a] border border-slate-200 dark:border-slate-700 rounded-xl h-10">
+            <button
+              onClick={() => {
+                setCategoryFilter('ALL');
+                setBoardFilter('ALL');
+              }}
+              className={`px-3 py-1 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all ${
+                categoryFilter === 'ALL'
+                  ? 'bg-slate-300 dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm'
+                  : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
+              }`}
+            >
+              All
+            </button>
+            <button
+              onClick={() => {
+                setCategoryFilter('HARDWARE');
+                setBoardFilter('ALL');
+              }}
+              className={`px-3 py-1 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all ${
+                categoryFilter === 'HARDWARE'
+                  ? 'bg-purple-600 text-white shadow-sm'
+                  : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
+              }`}
+            >
+              <Cpu size={13} /> Hardware
+            </button>
+            <button
+              onClick={() => {
+                setCategoryFilter('SOFTWARE');
+                setBoardFilter('ALL');
+              }}
+              className={`px-3 py-1 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all ${
+                categoryFilter === 'SOFTWARE'
+                  ? 'bg-emerald-600 text-white shadow-sm'
+                  : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
+              }`}
+            >
+              <Play size={13} className="fill-current" /> Software
+            </button>
           </div>
-          <div className="flex flex-wrap items-center gap-2 shrink-0">
-            {/* Category Tabs: Hardware | Software */}
-            <div className="flex items-center p-1 bg-white dark:bg-[#1a1a1a] border border-slate-200 dark:border-slate-700 rounded-xl h-10">
+
+          {/* Hardware Board Filter */}
+          {categoryFilter === 'HARDWARE' && (
+            <CustomSelect
+              value={boardFilter}
+              onChange={setBoardFilter}
+              labelPrefix="Board:"
+              options={[
+                { value: 'ALL', label: 'All Hardware Boards' },
+                ...BOARDS.map((b) => ({ value: b.fqbn, label: b.label })),
+              ]}
+            />
+          )}
+
+          {/* Software Engine Indicator */}
+          {categoryFilter === 'SOFTWARE' && (
+            <div className="flex items-center gap-1.5 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-900/50 rounded-xl px-3 py-1.5 text-xs font-semibold text-emerald-700 dark:text-emerald-400">
+              <SlidersHorizontal size={12} /> Engine: Scratch
+            </div>
+          )}
+
+          {/* Code/Block Filter */}
+          <div className="flex gap-1.5 border-l border-slate-200 dark:border-slate-800 pl-2">
+            {(['ALL', 'BLOCK', 'CODE'] as FilterType[]).map((f) => (
               <button
-                onClick={() => {
-                  setCategoryFilter('NONE');
-                  setBoardFilter('ALL');
-                }}
-                className="px-3 py-1 rounded-lg text-xs font-semibold text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white transition-all"
-              >
-                ← Back
-              </button>
-              <button
-                onClick={() => {
-                  setCategoryFilter('HARDWARE');
-                  setBoardFilter('ALL');
-                }}
-                className={`px-3 py-1 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all ${
-                  categoryFilter === 'HARDWARE'
-                    ? 'bg-purple-600 text-white shadow-sm'
-                    : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
+                key={f}
+                onClick={() => setFilter(f)}
+                className={`h-10 px-3 rounded-xl text-xs font-semibold transition-colors flex items-center gap-1 border ${
+                  filter === f
+                    ? 'bg-slate-900 dark:bg-white text-white dark:text-slate-900 border-transparent'
+                    : 'bg-white dark:bg-[#1a1a1a] text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800'
                 }`}
               >
-                <Cpu size={13} /> Hardware
+                {f === 'BLOCK' && <Blocks size={12} />}
+                {f === 'CODE' && <TerminalSquare size={12} />}
+                {f === 'ALL' ? 'All Formats' : f === 'BLOCK' ? 'Blocks' : 'Code'}
               </button>
-              <button
-                onClick={() => {
-                  setCategoryFilter('SOFTWARE');
-                  setBoardFilter('ALL');
-                }}
-                className={`px-3 py-1 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all ${
-                  categoryFilter === 'SOFTWARE'
-                    ? 'bg-emerald-600 text-white shadow-sm'
-                    : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
-                }`}
-              >
-                <Play size={13} className="fill-current" /> Software
-              </button>
-            </div>
-
-            {/* Hardware Board Filter */}
-            {categoryFilter === 'HARDWARE' && (
-              <CustomSelect
-                value={boardFilter}
-                onChange={setBoardFilter}
-                labelPrefix="Board:"
-                options={[
-                  { value: 'ALL', label: 'All Hardware Boards' },
-                  ...BOARDS.map((b) => ({ value: b.fqbn, label: b.label })),
-                ]}
-              />
-            )}
-
-            {/* Software Engine Indicator */}
-            {categoryFilter === 'SOFTWARE' && (
-              <div className="flex items-center gap-1.5 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-900/50 rounded-xl px-3 py-1.5 text-xs font-semibold text-emerald-700 dark:text-emerald-400">
-                <SlidersHorizontal size={12} /> Engine: Scratch
-              </div>
-            )}
-
-            {/* Code/Block Filter */}
-            <div className="flex gap-1.5 border-l border-slate-200 dark:border-slate-800 pl-2">
-              {(['ALL', 'BLOCK', 'CODE'] as FilterType[]).map((f) => (
-                <button
-                  key={f}
-                  onClick={() => setFilter(f)}
-                  className={`h-10 px-3 rounded-xl text-xs font-semibold transition-colors flex items-center gap-1 border ${
-                    filter === f
-                      ? 'bg-slate-900 dark:bg-white text-white dark:text-slate-900 border-transparent'
-                      : 'bg-white dark:bg-[#1a1a1a] text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800'
-                  }`}
-                >
-                  {f === 'BLOCK' && <Blocks size={12} />}
-                  {f === 'CODE' && <TerminalSquare size={12} />}
-                  {f === 'ALL' ? 'All Formats' : f === 'BLOCK' ? 'Blocks' : 'Code'}
-                </button>
-              ))}
-            </div>
+            ))}
           </div>
         </div>
-      )}
+      </div>
 
       {/* Content */}
       <div className="flex-1 overflow-y-auto p-6 lg:p-10 bg-white dark:bg-[#111111]">
@@ -196,7 +194,7 @@ export default function Projects() {
 
         {!isLoading && !error && filtered.length === 0 && (
           <div className="flex flex-col items-center justify-center py-10 w-full">
-            {categoryFilter === 'NONE' ? (
+            {categoryFilter === ('SHOW_WIZARD' as any) ? (
               <div className="flex flex-col items-center w-full max-w-2xl mx-auto">
                 <h3 className="text-2xl font-bold text-slate-900 dark:text-white mb-2">
                   What are you working on?

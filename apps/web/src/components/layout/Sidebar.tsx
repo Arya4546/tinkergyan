@@ -20,9 +20,9 @@ import { useUIStore } from '../../stores/ui.store';
 import { NewProjectDialog } from '../ui/NewProjectDialog';
 
 const NAV_ITEMS = [
-  { label: 'Learning Plan', icon: Home, href: '/dashboard' },
-  { label: 'Events', icon: GraduationCap, href: '/courses' },
-  { label: 'Workspace', icon: FolderCode, href: '/projects' },
+  { label: 'Dashboard', icon: Home, href: '/dashboard' },
+  { label: 'Courses', icon: GraduationCap, href: '/courses' },
+  { label: 'My Projects', icon: FolderCode, href: '/projects' },
   { label: 'Gallery', icon: Globe, href: '/gallery' },
   // Engine is handled specially
   { label: 'Leaderboard', icon: Trophy, href: '/leaderboard' },
@@ -121,7 +121,7 @@ export function Sidebar() {
                       <span
                         className={`font-medium text-sm tracking-wide ml-3 sm:hidden lg:block ${isEngineActive ? 'font-bold' : ''}`}
                       >
-                        Engine
+                        Editor
                       </span>
                     </div>
                     <div className="hidden lg:block text-slate-400">
