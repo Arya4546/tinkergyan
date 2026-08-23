@@ -75,6 +75,7 @@ class AIEngine {
   // Active prediction modes
   private enableImageKNN = false;
   private enablePose = false;
+  private isPredictingCurrently = false;
 
   // Latest results
   private latestPose: any[] = [];
@@ -248,8 +249,14 @@ class AIEngine {
     this.enablePose = enablePose;
 
     const loop = async () => {
+      if (this.isPredictingCurrently) {
+        this.predictionLoopId = requestAnimationFrame(loop);
+        return;
+      }
+
       const now = performance.now();
       if (now - this.lastPredictionTime >= this.PREDICTION_INTERVAL_MS) {
+        this.isPredictingCurrently = true;
         this.lastPredictionTime = now;
 
         if (videoEl.readyState >= 2) {
@@ -262,7 +269,11 @@ class AIEngine {
           ) {
             const embedding = this.mobilenet.infer(videoEl, true);
             try {
-              const result = await this.classifier.predictClass(embedding, 3);
+              const counts = this.classifier.getClassExampleCount();
+              const minSamples = Math.min(...Object.values(counts));
+              const k = Math.min(3, Math.max(1, minSamples));
+
+              const result = await this.classifier.predictClass(embedding, k);
               const allConfidences: Record<string, number> = {};
               for (const [label, conf] of Object.entries(result.confidences)) {
                 allConfidences[label] = Math.round(conf * 100);
@@ -295,6 +306,7 @@ class AIEngine {
             }
           }
         }
+        this.isPredictingCurrently = false;
       }
 
       this.predictionLoopId = requestAnimationFrame(loop);

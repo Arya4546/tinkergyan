@@ -117,7 +117,11 @@ class TextAIEngine {
     const tensor = this.tfRef.tensor1d(flatEmbedding);
 
     try {
-      const result = await this.classifier.predictClass(tensor, 3);
+      const counts = this.classifier.getClassExampleCount();
+      const minSamples = Math.min(...Object.values(counts));
+      const k = Math.min(3, Math.max(1, minSamples));
+
+      const result = await this.classifier.predictClass(tensor, k);
       const allConfidences: Record<string, number> = {};
       for (const [lbl, conf] of Object.entries(result.confidences)) {
         allConfidences[lbl] = Math.round((conf as number) * 100);
