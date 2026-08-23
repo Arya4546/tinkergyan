@@ -177,6 +177,10 @@ class AIEngine {
     return this.videoStream !== null;
   }
 
+  get stream(): MediaStream | null {
+    return this.videoStream;
+  }
+
   // ── Training ──────────────────────────────────────────────────────────────
 
   /**

@@ -1,0 +1,427 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>TinkerGyan AI Studio: Comprehensive Step-by-Step Guide</title>
+    <style>
+      body {
+        font-family:
+          -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+        line-height: 1.8;
+        color: #2c3e50;
+        max-width: 900px;
+        margin: 0 auto;
+        padding: 40px 20px;
+        background-color: #f4f7f6;
+      }
+      h1,
+      h2,
+      h3,
+      h4 {
+        color: #1a252f;
+        margin-top: 1.5em;
+      }
+      h1 {
+        border-bottom: 3px solid #3498db;
+        padding-bottom: 15px;
+        font-size: 2.5em;
+        text-align: center;
+      }
+      h2 {
+        border-bottom: 2px solid #ecf0f1;
+        padding-bottom: 10px;
+        color: #e74c3c;
+        font-size: 1.8em;
+        margin-top: 40px;
+      }
+      h3 {
+        color: #2980b9;
+        font-size: 1.3em;
+      }
+      code {
+        background-color: #e8eaed;
+        padding: 3px 8px;
+        border-radius: 4px;
+        font-family: SFMono-Regular, Consolas, 'Liberation Mono', Menlo, monospace;
+        font-size: 0.9em;
+        font-weight: bold;
+        border: 1px solid #bdc3c7;
+        color: #c0392b;
+      }
+      pre {
+        background-color: #2c3e50;
+        padding: 20px;
+        border-radius: 8px;
+        overflow-x: auto;
+        color: #ecf0f1;
+        margin: 20px 0;
+        font-size: 1em;
+        line-height: 1.5;
+        box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.2);
+      }
+      pre code {
+        background-color: transparent;
+        border: none;
+        padding: 0;
+        color: inherit;
+        font-weight: normal;
+      }
+      ul,
+      ol {
+        padding-left: 25px;
+        margin-bottom: 20px;
+      }
+      li {
+        margin-bottom: 12px;
+      }
+      .card {
+        background: white;
+        padding: 30px;
+        border-radius: 10px;
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
+        margin-bottom: 30px;
+        border: 1px solid #e1e8ed;
+      }
+      .note {
+        background-color: #e8f6f3;
+        padding: 20px;
+        border-left: 5px solid #1abc9c;
+        border-radius: 6px;
+        margin: 25px 0;
+      }
+      .warning {
+        background-color: #fdf2e9;
+        padding: 20px;
+        border-left: 5px solid #e67e22;
+        border-radius: 6px;
+        margin: 25px 0;
+      }
+      .block-type {
+        display: inline-block;
+        padding: 4px 10px;
+        border-radius: 15px;
+        font-size: 0.8em;
+        font-weight: bold;
+        color: white;
+        margin-left: 10px;
+        vertical-align: middle;
+      }
+      .hat-block {
+        background-color: #f39c12;
+      }
+      .reporter-block {
+        background-color: #3498db;
+      }
+      .command-block {
+        background-color: #9b59b6;
+      }
+      .step-number {
+        display: inline-block;
+        width: 30px;
+        height: 30px;
+        background-color: #3498db;
+        color: white;
+        border-radius: 50%;
+        text-align: center;
+        line-height: 30px;
+        margin-right: 10px;
+        font-weight: bold;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="card" style="border-top: 5px solid #3498db">
+      <h1>
+        TinkerGyan AI Studio<br /><span
+          style="font-size: 0.5em; font-weight: normal; color: #7f8c8d"
+          >Comprehensive Step-by-Step Guide</span
+        >
+      </h1>
+      <p>
+        Welcome! This guide is designed to help students, educators, and creators understand exactly
+        how to build smart, interactive projects using the TinkerGyan AI Blocks. By the end of this
+        guide, you will know how to make your projects see objects, hear words, recognize emotions,
+        and even track your fingers in the air.
+      </p>
+
+      <div class="note">
+        <h3>Understanding the Types of AI Blocks</h3>
+        <p>
+          Before we begin, it's important to understand the three main types of blocks you will use:
+        </p>
+        <ul>
+          <li>
+            <span class="block-type command-block">Command Block</span>
+            <strong>(Action Blocks):</strong> These are standard rectangular blocks (like
+            <code>turn AI vision [ON]</code>). They tell the computer to do something immediately.
+          </li>
+          <li>
+            <span class="block-type hat-block">Hat Block</span>
+            <strong>(Event Listeners):</strong> These have a curved top (like
+            <code>when I hear [zero]</code>). They sit by themselves on the canvas. Any blocks you
+            attach underneath them will automatically trigger whenever the AI detects that specific
+            event.
+          </li>
+          <li>
+            <span class="block-type reporter-block">Reporter Block</span>
+            <strong>(Data Blocks):</strong> These have rounded edges (like
+            <code>(AI prediction)</code>). They don't do anything on their own; instead, they hold
+            information (like text or numbers). You drop them inside other blocks to use that data.
+          </li>
+        </ul>
+      </div>
+
+      <div class="warning">
+        <h3>CRITICAL RULE: Always Turn the AI On First!</h3>
+        <p>
+          The system needs your permission to access the computer's camera and microphone. If you do
+          not explicitly turn the AI feature ON, your other AI blocks will not do anything. You
+          should always put the <code>turn [Feature] ON</code> block directly underneath your
+          <code>when ⚑ clicked</code> block.
+        </p>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>1. 📷 Custom AI Vision (Image Classification)</h2>
+      <p>
+        This feature allows you to train the computer to recognize your own custom objects. For
+        example, you can teach it to tell the difference between an Apple and a Banana using your
+        webcam.
+      </p>
+
+      <h3>Step-by-Step Tutorial</h3>
+      <ol>
+        <li>
+          <span class="step-number">1</span><strong>Train your model:</strong> First, go to the
+          <strong>AI Trainer Modal</strong> in the interface. Create two classes (e.g., "Apple" and
+          "Banana"). Use your webcam to take several pictures of an apple for the first class, and
+          pictures of a banana for the second class. Click <strong>Train</strong>.
+        </li>
+        <li>
+          <span class="step-number">2</span><strong>Turn on the Vision:</strong> Go back to the
+          block editor. Drag out a <code>when ⚑ clicked</code> block. Attach a
+          <code>turn AI vision [ON]</code> block under it. This tells the webcam to turn on and
+          start looking at the real world.
+        </li>
+        <li>
+          <span class="step-number">3</span><strong>Create a reaction:</strong> Drag out the hat
+          block <code>when AI sees [Apple]</code>. Attach a block underneath it saying
+          <code>say [It's an Apple!] for (2) seconds</code>.
+        </li>
+        <li>
+          <span class="step-number">4</span><strong>Run the code:</strong> Click the Green Flag. The
+          webcam will appear faintly behind your Stage. Hold up an apple to the camera. The Sprite
+          will instantly say "It's an Apple!".
+        </li>
+      </ol>
+
+      <h3>Example Code Structure:</h3>
+      <pre><code>// Block Group 1: Start the Engine
+when ⚑ clicked
+turn AI vision [ON]
+
+// Block Group 2: Define what happens when it sees an Apple
+when AI sees [Apple]
+say [It's a healthy Apple!] for (2) seconds
+
+// Block Group 3: Define what happens when it sees a Banana
+when AI sees [Banana]
+say [It's a Banana!] for (2) seconds</code></pre>
+    </div>
+
+    <div class="card">
+      <h2>2. 🎤 Speech Commands (Word Recognition)</h2>
+      <p>
+        This feature allows your project to listen for 20 specific, built-in keywords:
+        <em>zero to nine, up, down, left, right, yes, no, go, stop, on, off.</em> It's perfect for
+        making voice-controlled games!
+      </p>
+
+      <h3>Step-by-Step Tutorial</h3>
+      <ol>
+        <li>
+          <span class="step-number">1</span><strong>Turn on the Microphone:</strong> Under
+          <code>when ⚑ clicked</code>, attach the <code>turn microphone [ON]</code> block.
+        </li>
+        <li>
+          <span class="step-number">2</span><strong>Set up the Event:</strong> Drag out the
+          <code>when I hear [up]</code> Hat block.
+        </li>
+        <li>
+          <span class="step-number">3</span><strong>Add an Action:</strong> Under the Hat block,
+          attach a <code>change y by (10)</code> block. Now, every time you say the word "up" out
+          loud, your character will jump up the screen!
+        </li>
+        <li>
+          <span class="step-number">4</span><strong>Add more directions:</strong> Duplicate the
+          event, change the dropdown to <code>down</code>, and attach
+          <code>change y by (-10)</code>. Now you can navigate using your voice.
+        </li>
+      </ol>
+
+      <h3>Example Code Structure:</h3>
+      <pre><code>when ⚑ clicked
+turn microphone [ON]
+
+when I hear [up]
+change y by (10)
+
+when I hear [down]
+change y by (-10)</code></pre>
+    </div>
+
+    <div class="card">
+      <h2>3. 😊 Face & Emotion Detection</h2>
+      <p>
+        This AI feature scans the webcam feed to detect human faces and determine their emotional
+        expression (Happy, Sad, Angry, Surprised, Disgusted, Fearful, or Neutral).
+      </p>
+
+      <h3>Step-by-Step Tutorial</h3>
+      <ol>
+        <li>
+          <span class="step-number">1</span><strong>Turn on Emotion AI:</strong> Under
+          <code>when ⚑ clicked</code>, attach <code>turn emotion detection [ON]</code>.
+        </li>
+        <li>
+          <span class="step-number">2</span><strong>Detect Smiles:</strong> Drag out the
+          <code>when AI detects [happy 😊] face</code> block. Attach
+          <code>say [You look very happy!] for 2 seconds</code> under it.
+        </li>
+        <li>
+          <span class="step-number">3</span><strong>Track the Face (Advanced):</strong> You can make
+          a sprite follow your nose! Use a <code>forever</code> loop. Inside it, put a
+          <code>go to x: () y: ()</code> block. Inside the X and Y slots, drop the
+          <code>(face [x] position)</code> and <code>(face [y] position)</code> Reporter blocks.
+        </li>
+      </ol>
+
+      <h3>Example Code Structure:</h3>
+      <pre><code>when ⚑ clicked
+turn emotion detection [ON]
+
+when AI detects [surprised 😮] face
+change [size] by (10)
+say [Whoa! You look shocked!] for (2) seconds</code></pre>
+    </div>
+
+    <div class="card">
+      <h2>4. ✋ Hand & Finger Tracking</h2>
+      <p>
+        This powerful feature maps the exact coordinates of your hand and fingers, and can recognize
+        specific hand gestures like "Thumbs Up" or "Pinching".
+      </p>
+
+      <h3>Step-by-Step Tutorial</h3>
+      <ol>
+        <li>
+          <span class="step-number">1</span><strong>Turn on Hand Tracking:</strong> Under
+          <code>when ⚑ clicked</code>, attach <code>turn hand tracking [ON]</code>.
+        </li>
+        <li>
+          <span class="step-number">2</span><strong>Gesture Control:</strong> Drag out the
+          <code>when hand is [thumbs up 👍]</code> block. Attach
+          <code>say [Good job!]</code> underneath it.
+        </li>
+        <li>
+          <span class="step-number">3</span><strong>Virtual Drawing (Advanced):</strong> Create a
+          new sprite that looks like a pencil. Write a script:
+          <code
+            >forever -> go to x: (x position of [index finger tip]) y: (y position of [index finger
+            tip])</code
+          >. Your pencil sprite will now perfectly track the tip of your index finger in real time!
+        </li>
+      </ol>
+    </div>
+
+    <div class="card">
+      <h2>5. 🗣️ Speech-to-Text & Text-to-Speech</h2>
+      <p>
+        Unlike simple Speech Commands (which only listen for 20 words), Speech-to-Text can listen to
+        entire conversational sentences. Text-to-Speech allows the computer to talk back to you in a
+        human voice.
+      </p>
+
+      <h3>Step-by-Step Tutorial: Building a Virtual Assistant</h3>
+      <ol>
+        <li>
+          <span class="step-number">1</span><strong>Start listening:</strong> Under
+          <code>when ⚑ clicked</code>, attach <code>start listening for speech</code>.
+        </li>
+        <li>
+          <span class="step-number">2</span><strong>Listen for a phrase:</strong> Use the
+          <code>when speech contains [phrase]</code> Hat block. Type "hello" into the phrase box.
+        </li>
+        <li>
+          <span class="step-number">3</span><strong>Make the computer speak:</strong> Underneath the
+          Hat block, attach the <code>say aloud [Text] in [Language]</code> block. Type "Hello
+          there, how can I assist you?" into the text box and select "English".
+        </li>
+      </ol>
+
+      <h3>Example Code Structure:</h3>
+      <pre><code>when ⚑ clicked
+start listening for speech
+
+when speech contains "hello"
+say aloud "Hello there, how can I assist you?" in [English]
+
+when speech contains "weather"
+say aloud "It looks like a beautiful day outside!" in [English]</code></pre>
+    </div>
+
+    <div class="card">
+      <h2>6. 📝 Text Classification (Custom NLP)</h2>
+      <p>
+        Train the AI to read a sentence and categorize it. For instance, you could train it to read
+        a movie review and decide if it is "Positive" or "Negative".
+      </p>
+
+      <h3>Step-by-Step Tutorial</h3>
+      <ol>
+        <li>
+          <span class="step-number">1</span><strong>Train the Model:</strong> In the AI Studio, type
+          several positive sentences into Class 1 (name it "Positive") and several negative
+          sentences into Class 2 (name it "Negative"). Click Train.
+        </li>
+        <li>
+          <span class="step-number">2</span><strong>Ask for Input:</strong> Under
+          <code>when ⚑ clicked</code>, use the standard Scratch block
+          <code>ask [How are you feeling?] and wait</code>.
+        </li>
+        <li>
+          <span class="step-number">3</span><strong>Classify the Answer:</strong> Use an
+          <code>if <> then</code> block. Check if
+          <code>(classify text (answer)) = "Positive"</code>. If it is, make the sprite jump for
+          joy!
+        </li>
+      </ol>
+    </div>
+
+    <div class="card">
+      <h2>7. 🎵 AI Music Generation</h2>
+      <p>
+        Using Google's Magenta neural network, the computer can listen to a few notes you provide,
+        and dynamically generate a brand new song that matches your style!
+      </p>
+
+      <h3>Step-by-Step Tutorial</h3>
+      <ol>
+        <li>
+          <span class="step-number">1</span><strong>Start the Music:</strong> Grab the
+          <code>🎸 play AI melody from base notes</code> block.
+        </li>
+        <li>
+          <span class="step-number">2</span><strong>Provide base notes:</strong> Provide an array of
+          numbers representing MIDI notes (e.g., [60, 62, 64]).
+        </li>
+        <li>
+          <span class="step-number">3</span><strong>Set Creativity:</strong> Set the "generate
+          steps" to 20 (how many new notes to make) and the "creativity" to 1.5. A higher creativity
+          means the AI will take more risks with the melody!
+        </li>
+      </ol>
+    </div>
+  </body>
+</html>

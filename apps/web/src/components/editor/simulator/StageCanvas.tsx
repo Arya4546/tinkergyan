@@ -1,5 +1,7 @@
 import React, { useRef, useCallback, useState, useEffect } from 'react';
 import { useSimulatorStore, type SimulatorSprite } from '../../../stores/simulator.store';
+import { useAIStore } from '../../../stores/ai.store';
+import { aiEngine } from '../../../lib/ai-engine';
 import { ScratchZoomRail } from './ScratchZoomRail';
 import { scratchEngine, normalizeKeyName } from './ScratchEngine';
 
@@ -305,6 +307,17 @@ export function StageCanvas() {
   const [mouseCoords, setMouseCoords] = useState<{ x: number; y: number } | null>(null);
   const answerInputRef = useRef<HTMLInputElement>(null);
 
+  const isWebcamActive = useAIStore((s) => s.isWebcamActive);
+  const webcamVideoRef = useRef<HTMLVideoElement>(null);
+
+  useEffect(() => {
+    if (isWebcamActive && webcamVideoRef.current) {
+      webcamVideoRef.current.srcObject = aiEngine.stream;
+    } else if (!isWebcamActive && webcamVideoRef.current) {
+      webcamVideoRef.current.srcObject = null;
+    }
+  }, [isWebcamActive]);
+
   // Global keyboard tracking for "key pressed?" sensing + "when key pressed" events.
   useEffect(() => {
     /**
@@ -512,6 +525,27 @@ export function StageCanvas() {
       }}
       onClick={handleStageClick}
     >
+      {/* Background Webcam Feed */}
+      {isWebcamActive && (
+        <video
+          ref={webcamVideoRef}
+          autoPlay
+          playsInline
+          muted
+          style={{
+            position: 'absolute',
+            inset: 0,
+            width: '100%',
+            height: '100%',
+            objectFit: 'cover',
+            transform: 'scaleX(-1)', // Mirror horizontally
+            zIndex: 0,
+            opacity: 0.5, // 50% transparency like Scratch
+            pointerEvents: 'none',
+          }}
+        />
+      )}
+
       {sprites
         .filter((s) => s.visible && s.id === activeSpriteId)
         .map((sprite, index) => {

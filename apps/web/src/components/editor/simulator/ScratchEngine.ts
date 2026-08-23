@@ -255,6 +255,11 @@ export class ScratchEngine {
     this.keyPressedCallbacks = [];
     this.spriteClickedCallbacks = [];
     this.receiveCallbacks = new Map();
+    this.aiPredictedCallbacks = new Map();
+    this.speechCommandCallbacks = new Map();
+    this.emotionCallbacks = new Map();
+    this.handGestureCallbacks = new Map();
+    this.speechContainsCallbacks = [];
 
     const getTargetSprite = () => {
       const store = useSimulatorStore.getState();
