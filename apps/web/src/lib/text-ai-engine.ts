@@ -117,7 +117,7 @@ class TextAIEngine {
     const tensor = this.tfRef.tensor1d(flatEmbedding);
 
     try {
-      const counts = this.classifier.getClassExampleCount();
+      const counts: Record<string, number> = this.classifier.getClassExampleCount();
       const minSamples = Math.min(...Object.values(counts));
       const k = Math.min(3, Math.max(1, minSamples));
 
