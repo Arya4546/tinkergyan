@@ -489,7 +489,7 @@ export const BlocklyWorkspace = forwardRef<BlocklyWorkspaceHandle, BlocklyWorksp
           <div className="absolute inset-0 z-10 flex items-center justify-center pointer-events-none select-none">
             <div className="flex flex-col items-center gap-2 px-6 text-center">
               <img
-                src="/sprites/svg.svg"
+                src="/sprites/robot%20png.png"
                 alt=""
                 className="w-24 h-28 mb-2 opacity-90 drop-shadow-lg animate-bounce"
                 style={{ animationDuration: '2.5s' }}
