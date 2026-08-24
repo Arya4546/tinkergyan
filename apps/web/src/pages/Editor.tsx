@@ -14,7 +14,7 @@
  *   - Compile + run via Wandbox
  */
 import { useRef, useCallback, useEffect, useState } from 'react';
-import { Link, useParams, useNavigate, useSearchParams, useBlocker } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import {
   MoreVertical,
   Terminal,
@@ -209,13 +209,13 @@ function BoardSelect({ value, onChange }: { value: string; onChange: (fqbn: stri
       <Tooltip content="Select Target Microcontroller Board" position="bottom">
         <button
           onClick={() => setOpen(!open)}
-          className="h-11 pl-3 pr-2.5 rounded-xl font-sans text-sm font-semibold flex items-center gap-2 bg-slate-100 dark:bg-dark-border text-slate-700 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:outline-none"
+          className="h-9 pl-3 pr-2.5 rounded-full font-sans text-sm font-bold flex items-center gap-1.5 bg-white/20 text-white hover:bg-white/30 transition-colors focus-visible:ring-2 focus-visible:ring-white focus-visible:outline-none shadow-sm"
         >
-          <Cpu size={15} className="text-primary-500 shrink-0" />
+          <Cpu size={16} className="text-white shrink-0" />
           <span className="max-w-[130px] truncate">{getBoardLabel(value)}</span>
           <ChevronDown
             size={14}
-            className={`shrink-0 text-slate-400 transition-transform duration-150 ${open ? 'rotate-180' : ''}`}
+            className={`shrink-0 text-white/80 transition-transform duration-150 ${open ? 'rotate-180' : ''}`}
           />
         </button>
       </Tooltip>
@@ -357,10 +357,15 @@ export default function Editor() {
   const addToast = useUIStore((s: any) => s.addToast);
   const user = useUser();
 
-  const blocker = useBlocker(
-    ({ currentLocation, nextLocation }) =>
-      isDirty && currentLocation.pathname !== nextLocation.pathname,
-  );
+  const [showLeaveConfirm, setShowLeaveConfirm] = useState(false);
+
+  const handleNavigateHome = () => {
+    if (isDirty) {
+      setShowLeaveConfirm(true);
+    } else {
+      navigate('/dashboard');
+    }
+  };
 
   useEffect(() => {
     const handleBeforeUnload = (e: BeforeUnloadEvent) => {
@@ -443,7 +448,9 @@ export default function Editor() {
   useEffect(() => {
     if (routeProjectId) {
       if (projectId !== routeProjectId) {
-        loadProject(routeProjectId);
+        loadProject(routeProjectId).catch((err: any) => {
+          console.error('Failed to load project:', err);
+        });
         useSimulatorStore.getState().resetSimulator();
       }
     } else {
@@ -1032,421 +1039,407 @@ export default function Editor() {
 
   // ─────────────────────────────────────────────────────────────────────────
   return (
-    <div className="flex h-screen bg-ed-chrome font-sans overflow-hidden">
-      {/* Full-bleed editor — the top bar and toolbox reach the screen edges */}
-      <div className="flex w-full h-full bg-ed-chrome overflow-hidden relative">
-        {/* ── Top Control Bar ─────────────────────────────────────── */}
-        <div className="absolute top-0 left-0 w-full h-16 border-b border-ed-line bg-ed-chrome flex justify-between items-center z-30 px-3 sm:px-4 gap-2">
-          {/* Left: Back + project title + dirty indicator */}
-          <div className="flex items-center gap-2 min-w-0">
-            <Tooltip content="Dashboard" position="bottom">
-              <Link
-                to="/dashboard"
-                className="w-11 h-11 shrink-0 flex items-center justify-center rounded-xl bg-ed-panel text-ed-mid hover:text-ed-hi hover:bg-ed-line transition-colors focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:outline-none"
-              >
-                <Home size={18} strokeWidth={2.5} />
-              </Link>
+    <div className="flex flex-col h-screen bg-white dark:bg-[#11141E] font-sans overflow-hidden">
+      {/* ── Top Control Bar ─────────────────────────────────────── */}
+      <div className="shrink-0 w-full h-[72px] flex justify-between items-center z-30 px-4 sm:px-6 gap-2 bg-gradient-to-r from-orange-400 via-orange-500 to-amber-500 dark:from-[#3D1A00] dark:via-[#7A3300] dark:to-[#994D00] shadow-[0_8px_30px_-4px_rgba(249,115,22,0.4)] dark:shadow-[0_8px_30px_-4px_rgba(0,0,0,0.5)]">
+        {/* Left: Back + project title + dirty indicator */}
+        <div className="flex items-center gap-2 min-w-0">
+          <Tooltip content="Dashboard" position="bottom">
+            <button
+              onClick={handleNavigateHome}
+              className="w-10 h-10 shrink-0 flex items-center justify-center rounded-xl bg-white/20 text-white hover:bg-white/30 hover:scale-105 active:scale-95 transition-all focus-visible:ring-4 focus-visible:ring-white/50 focus-visible:outline-none shadow-sm backdrop-blur-sm"
+            >
+              <Home size={20} strokeWidth={2.5} />
+            </button>
+          </Tooltip>
+
+          <input
+            value={projectTitle}
+            onChange={(e) => setProjectTitle(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                void handleSave();
+                e.currentTarget.blur();
+              }
+            }}
+            className="font-sans font-extrabold text-lg sm:text-xl text-white bg-transparent border-none outline-none w-32 sm:w-64 truncate hover:bg-white/10 focus:bg-white/20 rounded-xl px-3 py-1.5 transition-all placeholder-white/70"
+            spellCheck={false}
+            placeholder="Untitled Project"
+          />
+          {isDirty && (
+            <Tooltip content="Unsaved Changes" position="bottom">
+              <div className="w-2.5 h-2.5 rounded-full bg-warning-400 shrink-0 shadow-[0_0_8px_rgba(251,191,36,0.6)]" />
             </Tooltip>
-
-            <input
-              value={projectTitle}
-              onChange={(e) => setProjectTitle(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  void handleSave();
-                  e.currentTarget.blur();
-                }
-              }}
-              className="font-sans font-semibold text-sm text-ed-hi bg-transparent border-none outline-none w-32 sm:w-44 truncate focus-visible:ring-2 focus-visible:ring-primary-500 rounded px-1"
-              spellCheck={false}
-            />
-            {isDirty && (
-              <Tooltip content="Unsaved Changes" position="bottom">
-                <div className="w-2 h-2 rounded-full bg-warning-500 shrink-0" />
-              </Tooltip>
-            )}
-
-            {/* Gamification surface */}
-            {user && (
-              <div className="hidden lg:flex items-center gap-3 px-3 py-1.5 bg-ed-panel rounded-full border border-ed-line ml-2">
-                <Tooltip content={`${user.streak} day streak!`} position="bottom">
-                  <div className="flex items-center gap-1.5 text-warning-500">
-                    <Zap size={14} fill="currentColor" />
-                    <span className="font-sans font-bold text-xs">{user.streak}</span>
-                  </div>
-                </Tooltip>
-                <div className="w-px h-3 bg-ed-line" />
-                <Tooltip content={`Level ${user.level}`} position="bottom">
-                  <div className="flex items-center gap-1.5 text-celebrate">
-                    <Star size={14} fill="currentColor" />
-                    <span className="font-sans font-bold text-xs">Lvl {user.level}</span>
-                  </div>
-                </Tooltip>
-              </div>
-            )}
-          </div>
-
-          {/* Centre: Mode toggle — hardware only. Software projects are Scratch-style
-              blocks-only; there's no C++ concept for the "C++" generator to speak to. */}
-          {engineMode === 'hardware' && (
-            <div className="flex items-center gap-2 shrink-0">
-              <div className="flex items-center bg-ed-panel rounded-xl p-1">
-                <Tooltip content="Visual Block Editor" position="bottom">
-                  <button
-                    onClick={switchToBlock}
-                    className={`flex items-center gap-1.5 h-9 px-3 rounded-lg font-sans font-semibold text-sm transition-all focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:outline-none ${
-                      mode === 'block'
-                        ? 'bg-ed-raised text-ed-hi shadow-sm'
-                        : 'text-ed-mid hover:text-ed-hi'
-                    }`}
-                  >
-                    <LayoutGrid size={14} /> <span className="hidden sm:inline">Blocks</span>
-                  </button>
-                </Tooltip>
-                <Tooltip content="C++ Text Code Editor" position="bottom">
-                  <button
-                    onClick={switchToCode}
-                    className={`flex items-center gap-1.5 h-9 px-3 rounded-lg font-sans font-semibold text-sm transition-all focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:outline-none ${
-                      mode === 'code'
-                        ? 'bg-ed-raised text-ed-hi shadow-sm'
-                        : 'text-ed-mid hover:text-ed-hi'
-                    }`}
-                  >
-                    <Code2 size={14} /> <span className="hidden sm:inline">C++</span>
-                  </button>
-                </Tooltip>
-              </div>
-              {mode === 'code' && (
-                <Tooltip content="Translate C++ code back to Blockly blocks" position="bottom">
-                  <button
-                    onClick={handleConvertCodeToBlocks}
-                    disabled={isConverting}
-                    className="h-11 px-3 sm:px-4 rounded-xl font-sans font-semibold text-sm flex items-center gap-2 bg-gradient-to-r from-violet-500 to-indigo-600 hover:from-violet-600 hover:to-indigo-700 text-white shadow-md shadow-indigo-500/25 hover:shadow-lg transition-all active:scale-[0.97] disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    {isConverting ? (
-                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                    ) : (
-                      <LayoutGrid size={14} />
-                    )}
-                    <span className="hidden md:inline">
-                      {isConverting ? 'Converting...' : 'Convert to Blocks'}
-                    </span>
-                    <span className="inline md:hidden">{isConverting ? '...' : 'Convert'}</span>
-                  </button>
-                </Tooltip>
-              )}
-            </div>
           )}
 
-          {/* Right: Board + controls + primary actions */}
-          <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
-            {engineMode === 'hardware' && <BoardSelect value={board} onChange={setBoard} />}
-
-            {/* Font size controls (code mode only) */}
-            {mode === 'code' && (
-              <div className="flex items-center bg-ed-panel rounded-lg overflow-hidden">
-                <Tooltip content="Decrease Font Size" position="bottom">
-                  <button
-                    onClick={decreaseFontSize}
-                    className="w-11 h-11 flex items-center justify-center text-ed-mid hover:text-ed-hi hover:bg-ed-line transition-colors focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:outline-none"
-                  >
-                    <Minus size={14} />
-                  </button>
-                </Tooltip>
-                <span className="w-8 h-11 flex items-center justify-center font-sans text-xs font-semibold text-ed-mid">
-                  {fontSize}
-                </span>
-                <Tooltip content="Increase Font Size" position="bottom">
-                  <button
-                    onClick={increaseFontSize}
-                    className="w-11 h-11 flex items-center justify-center text-ed-mid hover:text-ed-hi hover:bg-ed-line transition-colors focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:outline-none"
-                  >
-                    <Plus size={14} />
-                  </button>
-                </Tooltip>
-              </div>
-            )}
-
-            {/* Undo/Redo (block mode only) */}
-            {mode === 'block' && (
-              <div className="flex items-center gap-1">
-                <Tooltip content="Undo (Ctrl+Z)" position="bottom">
-                  <button
-                    onClick={() => blocklyRef.current?.undo()}
-                    className="w-11 h-11 flex items-center justify-center rounded-xl text-ed-mid hover:text-ed-hi hover:bg-ed-panel transition-colors focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:outline-none"
-                  >
-                    <Undo size={16} />
-                  </button>
-                </Tooltip>
-                <Tooltip content="Redo (Ctrl+Y)" position="bottom">
-                  <button
-                    onClick={() => blocklyRef.current?.redo()}
-                    className="w-11 h-11 flex items-center justify-center rounded-xl text-ed-mid hover:text-ed-hi hover:bg-ed-panel transition-colors focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:outline-none"
-                  >
-                    <Redo size={16} />
-                  </button>
-                </Tooltip>
-              </div>
-            )}
-
-            {/* Secondary actions group -> Moved to More Menu */}
-            <div className="relative" ref={moreMenuRef}>
-              <Tooltip content="More Options" position="bottom">
-                <button
-                  onClick={() => setShowMoreMenu(!showMoreMenu)}
-                  className="w-11 h-11 flex items-center justify-center rounded-xl text-ed-mid hover:text-ed-hi hover:bg-ed-panel transition-colors focus-visible:ring-2 focus-visible:ring-primary-500"
-                >
-                  <MoreVertical size={20} />
-                </button>
-              </Tooltip>
-
-              {showMoreMenu && (
-                <div className="absolute right-0 top-full mt-2 w-48 bg-ed-raised border border-ed-line rounded-xl shadow-lg flex flex-col p-1 z-50">
-                  <button
-                    onClick={() => {
-                      setShowTemplates(true);
-                      setShowMoreMenu(false);
-                    }}
-                    className="w-full flex items-center gap-2 px-3 py-2 text-sm text-ed-hi hover:bg-ed-panel rounded-lg text-left"
-                  >
-                    <FileCode size={16} className="shrink-0" />
-                    <span>Templates</span>
-                  </button>
-                  <button
-                    onClick={() => {
-                      handleDownload();
-                      setShowMoreMenu(false);
-                    }}
-                    className="w-full flex items-center gap-2 px-3 py-2 text-sm text-ed-hi hover:bg-ed-panel rounded-lg text-left"
-                  >
-                    <Download size={16} className="shrink-0" />
-                    <span>Download .ino</span>
-                  </button>
-                  <button
-                    onClick={() => {
-                      handleSave();
-                      setShowMoreMenu(false);
-                    }}
-                    disabled={isSaving}
-                    className="w-full flex items-center gap-2 px-3 py-2 text-sm text-ed-hi hover:bg-ed-panel rounded-lg text-left disabled:opacity-50"
-                  >
-                    {isSaving ? (
-                      <Loader2 size={16} className="animate-spin shrink-0" />
-                    ) : (
-                      <Save size={16} className="shrink-0" />
-                    )}
-                    <span>{isSaving ? 'Saving...' : 'Save Project'}</span>
-                  </button>
-                  {projectId && (
-                    <>
-                      <div className="h-px bg-ed-line my-1" />
-                      <button
-                        onClick={() => {
-                          handleDuplicate();
-                          setShowMoreMenu(false);
-                        }}
-                        className="w-full flex items-center gap-2 px-3 py-2 text-sm text-ed-hi hover:bg-ed-panel rounded-lg text-left"
-                      >
-                        <Copy size={16} className="shrink-0" />
-                        <span>Duplicate</span>
-                      </button>
-                      <button
-                        onClick={() => {
-                          handleTogglePublic();
-                          setShowMoreMenu(false);
-                        }}
-                        className="w-full flex items-center gap-2 px-3 py-2 text-sm text-ed-hi hover:bg-ed-panel rounded-lg text-left"
-                      >
-                        <Globe
-                          size={16}
-                          className={`shrink-0 ${isPublic ? 'text-accent-500' : ''}`}
-                        />
-                        <span>{isPublic ? 'Make Private' : 'Share to Gallery'}</span>
-                      </button>
-                    </>
-                  )}
+          {/* Gamification surface */}
+          {user && (
+            <div className="hidden lg:flex items-center gap-3 px-3 py-1.5 bg-white/10 rounded-full border border-white/20 ml-2 shadow-sm">
+              <Tooltip content={`${user.streak} day streak!`} position="bottom">
+                <div className="flex items-center gap-1.5 text-warning-400">
+                  <Zap size={14} fill="currentColor" />
+                  <span className="font-sans font-bold text-xs text-white">{user.streak}</span>
                 </div>
-              )}
-            </div>
-
-            {/* Hardware connection and control buttons */}
-            {engineMode === 'hardware' && (
-              <>
-                {/* Connect Board — second-highest prominence */}
-                <Tooltip
-                  content={
-                    hardwarePort
-                      ? 'Disconnect Hardware Board'
-                      : `Connect ${boardLabel} via Web Serial`
-                  }
-                  position="bottom"
-                >
-                  <button
-                    onClick={handleConnectHardware}
-                    className={`h-11 px-3 sm:px-4 rounded-xl font-sans font-semibold text-sm flex items-center gap-2 transition-all focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:outline-none active:scale-[0.97] ${
-                      hardwarePort
-                        ? 'bg-warning-500 hover:bg-warning-600 text-slate-900'
-                        : 'bg-accent-500 hover:bg-accent-400 text-slate-900'
-                    }`}
-                  >
-                    <Usb size={16} />
-                    <span className="hidden sm:inline">
-                      {hardwarePort ? 'Connected' : 'Connect'}
-                    </span>
-                  </button>
-                </Tooltip>
-
-                {/* Upload firmware — visible only when board connected */}
-                {hardwarePort && (
-                  <Tooltip content={`Compile & Upload firmware to ${boardLabel}`} position="bottom">
-                    <button
-                      onClick={handleUploadToHardware}
-                      disabled={isFlashing || isCompiling}
-                      className="h-11 px-3 sm:px-4 rounded-xl font-sans font-semibold text-sm flex items-center gap-2 bg-blue-500 hover:bg-blue-600 text-white transition-all focus-visible:ring-2 focus-visible:ring-blue-400 focus-visible:outline-none active:scale-[0.97] disabled:opacity-50"
-                    >
-                      {isFlashing ? (
-                        <Loader2 size={16} className="animate-spin" />
-                      ) : (
-                        <Upload size={16} />
-                      )}
-                      <span className="hidden sm:inline">
-                        {isFlashing ? `${flashProgress}%` : 'Upload'}
-                      </span>
-                    </button>
-                  </Tooltip>
-                )}
-
-                {/* Serial Monitor toggle — visible when board connected */}
-                {hardwarePort && (
-                  <Tooltip content="Toggle Hardware Serial Monitor Log" position="bottom">
-                    <button
-                      onClick={() => setShowSerialMonitor(!showSerialMonitor)}
-                      className={`w-11 h-11 rounded-xl flex items-center justify-center transition-all focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:outline-none active:scale-[0.97] ${
-                        showSerialMonitor
-                          ? 'bg-primary-500 text-white'
-                          : 'bg-ed-panel text-ed-mid hover:text-ed-hi'
-                      }`}
-                    >
-                      <Terminal size={16} />
-                    </button>
-                  </Tooltip>
-                )}
-              </>
-            )}
-
-            {/* Code Panel Toggle */}
-            {engineMode === 'hardware' && (
-              <Tooltip
-                content={showCodePanel ? 'Hide C++ Code Preview' : 'Show C++ Code Preview'}
-                position="bottom"
-              >
-                <button
-                  onClick={() => {
-                    setShowCodePanel(!showCodePanel);
-                    if (showSimulator && showCodePanel) setShowSimulator(false);
-                  }}
-                  className={`w-11 h-11 rounded-xl flex items-center justify-center transition-all focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:outline-none active:scale-[0.97] hidden sm:flex ${
-                    showCodePanel && !showSimulator
-                      ? 'bg-ed-line text-ed-hi'
-                      : 'bg-ed-panel text-ed-mid hover:text-ed-hi'
-                  }`}
-                >
-                  <PanelRight size={16} />
-                </button>
               </Tooltip>
-            )}
-
-            {/* AI Studio Button */}
-            <Tooltip content="Open AI Model Studio" position="bottom">
-              <button
-                onClick={() => setShowAITrainer(true)}
-                className="h-11 px-3 sm:px-4 rounded-xl font-sans font-semibold text-sm flex items-center gap-2 transition-all focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:outline-none active:scale-[0.97] bg-ed-panel text-[#FF6F61] hover:bg-[#FF6F61]/10 border border-[#FF6F61]/20"
-              >
-                <Brain size={16} />
-                <span className="hidden md:inline">AI Studio</span>
-              </button>
-            </Tooltip>
-
-            {/* Simulator Panel Toggle — software mode only.
-                It was briefly offered in hardware mode so the LED/servo
-                components had somewhere to render, but this stage is the
-                *Scratch* stage: it brings sprite properties, costumes,
-                backdrops and a cartoon character into the Arduino editor.
-                Client rejected it on sight, and fairly — that is Scratch
-                furniture in a microcontroller tool. Hardware feedback lives in
-                the simulator output panel instead (live pin state + Serial),
-                which is the same information without the Scratch chrome. */}
-            {engineMode === 'software' && (
-              <Tooltip
-                content={showSimulator ? 'Hide Stage Simulator' : 'Show Stage Simulator'}
-                position="bottom"
-              >
-                <button
-                  onClick={() => {
-                    const nextState = !showSimulator;
-                    setShowSimulator(nextState);
-                    if (nextState) {
-                      setShowCodePanel(true);
-                    } else if (engineMode === 'software') {
-                      setShowCodePanel(false);
-                    }
-                  }}
-                  className={`h-11 px-3 sm:px-4 rounded-xl font-sans font-semibold text-sm items-center gap-2 transition-all focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:outline-none active:scale-[0.97] hidden sm:flex ${
-                    showSimulator
-                      ? 'bg-emerald-500 text-white shadow-md shadow-emerald-500/20'
-                      : 'bg-ed-panel text-ed-mid hover:text-ed-hi'
-                  }`}
-                >
-                  <Gamepad2 size={16} />
-                  <span className="hidden md:inline">Stage</span>
-                </button>
+              <div className="w-px h-3 bg-white/30" />
+              <Tooltip content={`Level ${user.level}`} position="bottom">
+                <div className="flex items-center gap-1.5 text-amber-300">
+                  <Star size={14} fill="currentColor" />
+                  <span className="font-sans font-bold text-xs text-white">Lvl {user.level}</span>
+                </div>
               </Tooltip>
-            )}
-
-            {/* ▶ Run / ■ Stop — highest prominence, always rightmost.
-                Becomes Stop while a simulated sketch is running: loop() runs
-                forever now, exactly like the chip, so there has to be a way to
-                end it that isn't "reload the page". */}
-            {engineMode === 'hardware' && (
-              <Tooltip
-                content={isSimRunning ? 'Stop the running program' : 'Run Code (Ctrl+Enter)'}
-                position="bottom"
-              >
-                <button
-                  onClick={isSimRunning ? handleStopSim : handleCompile}
-                  disabled={isCompiling || isFlashing}
-                  className={`h-11 px-4 sm:px-5 rounded-xl font-sans font-bold text-sm flex items-center gap-2 text-white shadow-md hover:shadow-lg transition-all focus-visible:ring-2 focus-visible:ring-offset-1 focus-visible:outline-none active:scale-[0.97] disabled:opacity-50 ${
-                    isSimRunning
-                      ? 'bg-ed-err hover:brightness-110 focus-visible:ring-ed-err'
-                      : 'bg-primary-500 hover:bg-primary-600 focus-visible:ring-primary-500'
-                  }`}
-                >
-                  {isCompiling ? (
-                    <Loader2 size={16} className="animate-spin" />
-                  ) : isSimRunning ? (
-                    <Square size={16} fill="currentColor" />
-                  ) : (
-                    <Play size={16} fill="currentColor" />
-                  )}
-                  <span>{isCompiling ? 'Running...' : isSimRunning ? 'Stop' : 'Run'}</span>
-                </button>
-              </Tooltip>
-            )}
-          </div>
-
-          {/* Flash progress bar */}
-          {isFlashing && (
-            <div className="absolute left-0 right-0 bottom-0 h-1 bg-ed-panel">
-              <div
-                className="h-full bg-blue-500 rounded-full transition-all duration-300 ease-out"
-                style={{ width: `${flashProgress}%` }}
-              />
             </div>
           )}
         </div>
 
-        {/* ── Main Area (below toolbar) ────────────────────────────────── */}
-        <div className="flex w-full h-full pt-16">
+        {engineMode === 'hardware' && (
+          <div className="flex items-center gap-2 shrink-0">
+            <div className="flex items-center bg-white/20 rounded-xl p-1 shadow-inner backdrop-blur-md">
+              <Tooltip content="Visual Block Editor" position="bottom">
+                <button
+                  onClick={switchToBlock}
+                  className={`flex items-center gap-2 h-9 px-5 rounded-lg font-sans font-bold text-[14px] transition-all focus-visible:ring-4 focus-visible:ring-white/50 focus-visible:outline-none ${
+                    mode === 'block'
+                      ? 'bg-white text-orange-500 shadow-sm scale-105'
+                      : 'text-white hover:bg-white/20'
+                  }`}
+                >
+                  <LayoutGrid size={18} strokeWidth={2.5} />{' '}
+                  <span className="hidden sm:inline">Blocks</span>
+                </button>
+              </Tooltip>
+              <Tooltip content="C++ Text Code Editor" position="bottom">
+                <button
+                  onClick={switchToCode}
+                  className={`flex items-center gap-2 h-9 px-4 rounded-lg font-sans font-extrabold text-[14px] transition-all focus-visible:ring-4 focus-visible:ring-white/50 focus-visible:outline-none ${
+                    mode === 'code'
+                      ? 'bg-white text-orange-600 shadow-sm scale-105'
+                      : 'text-white/80 hover:text-white hover:bg-white/20'
+                  }`}
+                >
+                  <Code2 size={16} /> <span className="hidden sm:inline">C++</span>
+                </button>
+              </Tooltip>
+            </div>
+            {mode === 'code' && (
+              <Tooltip content="Translate C++ code back to Blockly blocks" position="bottom">
+                <button
+                  onClick={handleConvertCodeToBlocks}
+                  disabled={isConverting}
+                  className="h-12 px-5 rounded-2xl font-sans font-bold text-sm flex items-center gap-2 bg-gradient-to-b from-amber-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 text-slate-900 shadow-[0_4px_0_#D97706] hover:shadow-[0_2px_0_#D97706] hover:translate-y-[2px] transition-all active:shadow-none active:translate-y-[4px] disabled:opacity-50 disabled:cursor-not-allowed border-2 border-amber-500/50"
+                >
+                  {isConverting ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <LayoutGrid size={16} />
+                  )}
+                  <span className="hidden md:inline">
+                    {isConverting ? 'Converting...' : 'Convert to Blocks'}
+                  </span>
+                  <span className="inline md:hidden">{isConverting ? '...' : 'Convert'}</span>
+                </button>
+              </Tooltip>
+            )}
+          </div>
+        )}
+
+        {/* Right: Board + controls + primary actions */}
+        <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+          {engineMode === 'hardware' && <BoardSelect value={board} onChange={setBoard} />}
+
+          {/* Font size controls (code mode only) */}
+          {mode === 'code' && (
+            <div className="flex items-center bg-white/20 rounded-full overflow-hidden shadow-inner border border-white/10">
+              <Tooltip content="Decrease Font Size" position="bottom">
+                <button
+                  onClick={decreaseFontSize}
+                  className="w-9 h-9 flex items-center justify-center text-white hover:bg-white/20 transition-colors focus-visible:ring-2 focus-visible:ring-white focus-visible:outline-none"
+                >
+                  <Minus size={14} />
+                </button>
+              </Tooltip>
+              <span className="w-6 h-9 flex items-center justify-center font-sans text-xs font-bold text-white">
+                {fontSize}
+              </span>
+              <Tooltip content="Increase Font Size" position="bottom">
+                <button
+                  onClick={increaseFontSize}
+                  className="w-9 h-9 flex items-center justify-center text-white hover:bg-white/20 transition-colors focus-visible:ring-2 focus-visible:ring-white focus-visible:outline-none"
+                >
+                  <Plus size={14} />
+                </button>
+              </Tooltip>
+            </div>
+          )}
+
+          {/* Undo/Redo (block mode only) */}
+          {mode === 'block' && (
+            <div className="flex items-center gap-1">
+              <Tooltip content="Undo (Ctrl+Z)" position="bottom">
+                <button
+                  onClick={() => blocklyRef.current?.undo()}
+                  className="w-9 h-9 flex items-center justify-center rounded-full text-white bg-white/10 hover:bg-white/20 shadow-sm transition-colors focus-visible:ring-2 focus-visible:ring-white focus-visible:outline-none"
+                >
+                  <Undo size={15} />
+                </button>
+              </Tooltip>
+              <Tooltip content="Redo (Ctrl+Y)" position="bottom">
+                <button
+                  onClick={() => blocklyRef.current?.redo()}
+                  className="w-9 h-9 flex items-center justify-center rounded-full text-white bg-white/10 hover:bg-white/20 shadow-sm transition-colors focus-visible:ring-2 focus-visible:ring-white focus-visible:outline-none"
+                >
+                  <Redo size={15} />
+                </button>
+              </Tooltip>
+            </div>
+          )}
+
+          {/* Secondary actions group -> Moved to More Menu */}
+          <div className="relative" ref={moreMenuRef}>
+            <Tooltip content="More Options" position="bottom">
+              <button
+                onClick={() => setShowMoreMenu(!showMoreMenu)}
+                className="w-9 h-9 flex items-center justify-center rounded-full text-white hover:bg-white/20 transition-colors focus-visible:ring-2 focus-visible:ring-white focus-visible:outline-none"
+              >
+                <MoreVertical size={18} />
+              </button>
+            </Tooltip>
+
+            {showMoreMenu && (
+              <div className="absolute right-0 top-full mt-2 w-48 bg-ed-raised border border-ed-line rounded-xl shadow-lg flex flex-col p-1 z-50">
+                <button
+                  onClick={() => {
+                    setShowTemplates(true);
+                    setShowMoreMenu(false);
+                  }}
+                  className="w-full flex items-center gap-2 px-3 py-2 text-sm text-ed-hi hover:bg-ed-panel rounded-lg text-left"
+                >
+                  <FileCode size={16} className="shrink-0" />
+                  <span>Templates</span>
+                </button>
+                <button
+                  onClick={() => {
+                    handleDownload();
+                    setShowMoreMenu(false);
+                  }}
+                  className="w-full flex items-center gap-2 px-3 py-2 text-sm text-ed-hi hover:bg-ed-panel rounded-lg text-left"
+                >
+                  <Download size={16} className="shrink-0" />
+                  <span>Download .ino</span>
+                </button>
+                <button
+                  onClick={() => {
+                    handleSave();
+                    setShowMoreMenu(false);
+                  }}
+                  disabled={isSaving}
+                  className="w-full flex items-center gap-2 px-3 py-2 text-sm text-ed-hi hover:bg-ed-panel rounded-lg text-left disabled:opacity-50"
+                >
+                  {isSaving ? (
+                    <Loader2 size={16} className="animate-spin shrink-0" />
+                  ) : (
+                    <Save size={16} className="shrink-0" />
+                  )}
+                  <span>{isSaving ? 'Saving...' : 'Save Project'}</span>
+                </button>
+                {projectId && (
+                  <>
+                    <div className="h-px bg-ed-line my-1" />
+                    <button
+                      onClick={() => {
+                        handleDuplicate();
+                        setShowMoreMenu(false);
+                      }}
+                      className="w-full flex items-center gap-2 px-3 py-2 text-sm text-ed-hi hover:bg-ed-panel rounded-lg text-left"
+                    >
+                      <Copy size={16} className="shrink-0" />
+                      <span>Duplicate</span>
+                    </button>
+                    <button
+                      onClick={() => {
+                        handleTogglePublic();
+                        setShowMoreMenu(false);
+                      }}
+                      className="w-full flex items-center gap-2 px-3 py-2 text-sm text-ed-hi hover:bg-ed-panel rounded-lg text-left"
+                    >
+                      <Globe
+                        size={16}
+                        className={`shrink-0 ${isPublic ? 'text-accent-500' : ''}`}
+                      />
+                      <span>{isPublic ? 'Make Private' : 'Share to Gallery'}</span>
+                    </button>
+                  </>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Hardware connection and control buttons */}
+          {engineMode === 'hardware' && (
+            <>
+              {/* Connect Board — second-highest prominence */}
+              <Tooltip
+                content={
+                  hardwarePort
+                    ? 'Disconnect Hardware Board'
+                    : `Connect ${boardLabel} via Web Serial`
+                }
+                position="bottom"
+              >
+                <button
+                  onClick={handleConnectHardware}
+                  className={`h-9 px-4 rounded-full font-sans font-bold text-sm flex items-center gap-1.5 transition-all focus-visible:ring-2 focus-visible:ring-white focus-visible:outline-none shadow-sm ${
+                    hardwarePort
+                      ? 'bg-emerald-500 text-white hover:bg-emerald-400'
+                      : 'bg-white text-[#6366F1] hover:bg-white/90'
+                  }`}
+                >
+                  <Usb size={15} />
+                  <span className="hidden sm:inline">{hardwarePort ? 'Connected' : 'Connect'}</span>
+                </button>
+              </Tooltip>
+
+              {/* Upload firmware — visible only when board connected */}
+              {hardwarePort && (
+                <Tooltip content={`Compile & Upload firmware to ${boardLabel}`} position="bottom">
+                  <button
+                    onClick={handleUploadToHardware}
+                    disabled={isFlashing || isCompiling}
+                    className="h-9 px-4 rounded-full font-sans font-bold text-sm flex items-center gap-1.5 bg-blue-500 hover:bg-blue-400 text-white transition-all focus-visible:ring-2 focus-visible:ring-white focus-visible:outline-none shadow-sm disabled:opacity-50"
+                  >
+                    {isFlashing ? (
+                      <Loader2 size={15} className="animate-spin" />
+                    ) : (
+                      <Upload size={15} />
+                    )}
+                    <span className="hidden sm:inline">
+                      {isFlashing ? `${flashProgress}%` : 'Upload'}
+                    </span>
+                  </button>
+                </Tooltip>
+              )}
+
+              {/* Serial Monitor toggle — visible when board connected */}
+              {hardwarePort && (
+                <Tooltip content="Toggle Hardware Serial Monitor Log" position="bottom">
+                  <button
+                    onClick={() => setShowSerialMonitor(!showSerialMonitor)}
+                    className={`w-9 h-9 rounded-full flex items-center justify-center transition-all focus-visible:ring-2 focus-visible:ring-white focus-visible:outline-none ${
+                      showSerialMonitor
+                        ? 'bg-white text-indigo-600 shadow-sm'
+                        : 'bg-white/20 text-white hover:bg-white/30'
+                    }`}
+                  >
+                    <Terminal size={15} />
+                  </button>
+                </Tooltip>
+              )}
+            </>
+          )}
+
+          {/* Code Panel Toggle */}
+          {engineMode === 'hardware' && (
+            <Tooltip
+              content={showCodePanel ? 'Hide C++ Code Preview' : 'Show C++ Code Preview'}
+              position="bottom"
+            >
+              <button
+                onClick={() => {
+                  setShowCodePanel(!showCodePanel);
+                  if (showSimulator && showCodePanel) setShowSimulator(false);
+                }}
+                className={`w-9 h-9 rounded-full flex items-center justify-center transition-all focus-visible:ring-2 focus-visible:ring-white focus-visible:outline-none hidden sm:flex ${
+                  showCodePanel && !showSimulator
+                    ? 'bg-white text-[#6366F1] shadow-sm'
+                    : 'bg-white/20 text-white hover:bg-white/30'
+                }`}
+              >
+                <PanelRight size={15} />
+              </button>
+            </Tooltip>
+          )}
+
+          {/* AI Studio Button */}
+          <Tooltip content="Open AI Model Studio" position="bottom">
+            <button
+              onClick={() => setShowAITrainer(true)}
+              className="h-9 px-4 rounded-full font-sans font-bold text-sm flex items-center gap-1.5 transition-all focus-visible:ring-2 focus-visible:ring-white focus-visible:outline-none bg-white/20 text-white hover:bg-white/30 shadow-sm"
+            >
+              <Brain size={15} />
+              <span className="hidden md:inline">AI Studio</span>
+            </button>
+          </Tooltip>
+
+          {/* Stage toggle (software mode only) */}
+          {engineMode === 'software' && (
+            <Tooltip
+              content={showSimulator ? 'Hide Stage Simulator' : 'Show Stage Simulator'}
+              position="bottom"
+            >
+              <button
+                onClick={() => {
+                  const nextState = !showSimulator;
+                  setShowSimulator(nextState);
+                  if (nextState) {
+                    setShowCodePanel(true);
+                  } else if (engineMode === 'software') {
+                    setShowCodePanel(false);
+                  }
+                }}
+                className={`h-9 px-4 rounded-full font-sans font-bold text-sm items-center gap-1.5 transition-all focus-visible:ring-2 focus-visible:ring-white focus-visible:outline-none hidden sm:flex ${
+                  showSimulator
+                    ? 'bg-white text-emerald-600 shadow-md'
+                    : 'text-white bg-white/20 hover:bg-white/30'
+                }`}
+              >
+                <Gamepad2 size={15} />
+                <span className="hidden md:inline">Stage</span>
+              </button>
+            </Tooltip>
+          )}
+
+          {/* Run / Stop Button */}
+          {engineMode === 'hardware' && (
+            <Tooltip
+              content={isSimRunning ? 'Stop the running program' : 'Run Code (Ctrl+Enter)'}
+              position="bottom"
+            >
+              <button
+                onClick={isSimRunning ? handleStopSim : handleCompile}
+                disabled={isCompiling || isFlashing}
+                className={`h-10 px-6 rounded-full font-sans font-bold text-sm flex items-center gap-2 transition-all focus-visible:ring-2 focus-visible:ring-white focus-visible:outline-none shadow-md ${
+                  isSimRunning
+                    ? 'bg-rose-500 hover:bg-rose-400 text-white'
+                    : 'bg-[#10B981] hover:bg-[#059669] text-white'
+                }`}
+              >
+                {isCompiling ? (
+                  <Loader2 size={16} className="animate-spin" />
+                ) : isSimRunning ? (
+                  <Square size={15} fill="currentColor" />
+                ) : (
+                  <Play size={15} fill="currentColor" />
+                )}
+                <span>{isCompiling ? 'Running...' : isSimRunning ? 'Stop' : 'Run'}</span>
+              </button>
+            </Tooltip>
+          )}
+        </div>
+
+        {/* Flash progress bar */}
+        {isFlashing && (
+          <div className="absolute left-0 right-0 bottom-0 h-1 bg-ed-panel">
+            <div
+              className="h-full bg-blue-500 rounded-full transition-all duration-300 ease-out"
+              style={{ width: `${flashProgress}%` }}
+            />
+          </div>
+        )}
+      </div>
+
+      {/* ── Main Canvas (Seamless Full-Bleed) ────────────────────────────────── */}
+      <div className="flex-1 w-full overflow-hidden relative">
+        <div className="flex w-full h-full bg-white dark:bg-[#11141E] overflow-hidden relative">
           {/* ── Editor Pane ─────────────────────────────────────────────── */}
 
           <div className="flex-1 relative overflow-hidden">
@@ -1480,138 +1473,155 @@ export default function Editor() {
 
           {/* ── Resizer ─────────────────────────────────────────────────── */}
           {showCodePanel && (
-            <div
-              className="w-1.5 bg-ed-line hover:bg-ed-accent cursor-col-resize transition-colors shrink-0 z-10"
-              onMouseDown={() => {
-                isResizing.current = true;
-                document.body.style.cursor = 'col-resize';
-                document.body.style.userSelect = 'none';
-              }}
-            />
+            <div className="py-4 flex flex-col justify-center bg-transparent">
+              <div
+                className="w-1.5 h-16 bg-slate-200 hover:bg-primary-400 cursor-col-resize transition-colors shrink-0 z-10 mx-2 rounded-full"
+                onMouseDown={() => {
+                  isResizing.current = true;
+                  document.body.style.cursor = 'col-resize';
+                  document.body.style.userSelect = 'none';
+                }}
+              />
+            </div>
           )}
 
           {/* ── Output / Compiler Terminal Pane ─────────────────────────── */}
           {showCodePanel && (
-            <div
-              style={{ width: terminalWidth }}
-              className={`flex flex-col shrink-0 border-l ${
-                showSimulator ? 'border-ed-line bg-ed-panel' : 'border-ed-term-line bg-ed-term-bg'
-              }`}
-            >
-              {/* Simulator Stage Panel */}
-              {showSimulator ? (
-                <StagePanel onReset={handleResetProject} />
-              ) : (
-                <>
-                  {/* Serial Monitor (when active and hardware connected) */}
-                  {showSerialMonitor && hardwarePort && !isFlashing ? (
-                    <SerialMonitor
-                      port={hardwarePort}
-                      onDisconnect={() => {
-                        setHardwarePort(null);
-                        setShowSerialMonitor(false);
-                      }}
-                      onClose={() => setShowSerialMonitor(false)}
-                    />
-                  ) : (
-                    <>
-                      {/* C++ preview header (block mode) */}
-                      {mode === 'block' &&
-                        engineMode === 'hardware' &&
-                        !isCompiling &&
-                        !compileResult &&
-                        !isFlashing && (
-                          <div className="border-b border-ed-term-line bg-ed-term-surface px-4 py-2 flex items-center gap-2 shrink-0">
-                            <Code2 size={12} className="text-ed-mid" />
-                            <span className="font-sans text-xs text-ed-mid">
-                              Generated C++ Preview
-                            </span>
+            <div style={{ width: terminalWidth }} className="flex flex-col shrink-0 py-4 pr-4">
+              <div
+                className={`flex-1 flex flex-col rounded-[32px] overflow-hidden shadow-[0_20px_50px_-10px_rgba(0,0,0,0.2)] dark:shadow-[0_20px_50px_-10px_rgba(0,0,0,0.5)] border-[6px] transition-all duration-300 relative ${
+                  showSimulator
+                    ? 'border-white/80 dark:border-slate-800 bg-white dark:bg-[#151821]'
+                    : 'border-slate-800/80 dark:border-slate-700/80 bg-[#0A0A0A]'
+                }`}
+              >
+                {/* Simulator Stage Panel */}
+                {showSimulator ? (
+                  <StagePanel onReset={handleResetProject} />
+                ) : (
+                  <>
+                    {/* Serial Monitor (when active and hardware connected) */}
+                    {showSerialMonitor && hardwarePort && !isFlashing ? (
+                      <SerialMonitor
+                        port={hardwarePort}
+                        onDisconnect={() => {
+                          setHardwarePort(null);
+                          setShowSerialMonitor(false);
+                        }}
+                        onClose={() => setShowSerialMonitor(false)}
+                      />
+                    ) : (
+                      <>
+                        {/* C++ preview header (block mode) */}
+                        {mode === 'block' &&
+                          engineMode === 'hardware' &&
+                          !isCompiling &&
+                          !compileResult &&
+                          !isFlashing && (
+                            <div className="border-b border-white/10 bg-[#1A1D24] px-4 py-2.5 flex items-center gap-2 shrink-0">
+                              <div className="flex gap-1.5 mr-3">
+                                <div className="w-3 h-3 rounded-full bg-rose-500 shadow-[inset_0_1px_3px_rgba(0,0,0,0.3)]"></div>
+                                <div className="w-3 h-3 rounded-full bg-amber-500 shadow-[inset_0_1px_3px_rgba(0,0,0,0.3)]"></div>
+                                <div className="w-3 h-3 rounded-full bg-emerald-500 shadow-[inset_0_1px_3px_rgba(0,0,0,0.3)]"></div>
+                              </div>
+                              <Code2 size={13} className="text-slate-400" />
+                              <span className="font-mono text-[11px] font-semibold text-slate-300 uppercase tracking-wider">
+                                Generated_Cpp_Preview.cpp
+                              </span>
+                            </div>
+                          )}
+
+                        {/* Stdin input for programs that need cin/scanf */}
+                        {mode === 'code' && !isFlashing && (
+                          <div className="border-b border-ed-term-line bg-ed-term-surface shrink-0">
+                            <div className="px-3 py-1.5 flex items-center gap-2">
+                              <span className="font-sans text-xs text-ed-mid">📥 Stdin input</span>
+                            </div>
+                            <textarea
+                              value={stdinInput}
+                              onChange={(e) => setStdinInput(e.target.value)}
+                              placeholder="Enter input here (for cin/scanf programs)..."
+                              spellCheck={false}
+                              className="w-full bg-ed-term-surface text-ed-term-text font-mono text-[11px] px-3 py-2 outline-none resize-none border-none h-16 placeholder:text-ed-hi"
+                            />
                           </div>
                         )}
 
-                      {/* Stdin input for programs that need cin/scanf */}
-                      {mode === 'code' && !isFlashing && (
-                        <div className="border-b border-ed-term-line bg-ed-term-surface shrink-0">
-                          <div className="px-3 py-1.5 flex items-center gap-2">
-                            <span className="font-sans text-xs text-ed-mid">📥 Stdin input</span>
+                        {/* Flash progress overlay */}
+                        {isFlashing && (
+                          <div className="flex-1 flex flex-col items-center justify-center p-6 relative overflow-hidden bg-white dark:bg-[#11141E]">
+                            <div className="absolute inset-0 bg-blue-500/5 dark:bg-blue-500/10 animate-pulse pointer-events-none" />
+                            <div className="w-20 h-20 rounded-[24px] bg-white dark:bg-[#1A1D24] border border-blue-100 dark:border-blue-500/30 shadow-[0_0_40px_rgba(59,130,246,0.3)] flex items-center justify-center mb-6 z-10 relative">
+                              <Upload
+                                size={36}
+                                className="text-blue-500 dark:text-blue-400 animate-bounce"
+                              />
+                            </div>
+                            <p className="font-sans font-bold text-lg text-slate-800 dark:text-blue-400 mb-4 z-10">
+                              Uploading to {boardLabel}...
+                            </p>
+                            <div className="w-full max-w-[240px] h-3 bg-slate-100 dark:bg-slate-800/80 rounded-full overflow-hidden mb-3 border border-slate-200 dark:border-slate-700/50 shadow-inner z-10 relative">
+                              <div
+                                className="h-full bg-gradient-to-r from-blue-400 to-blue-600 dark:from-blue-500 dark:to-blue-400 transition-all duration-300 ease-out rounded-full shadow-[0_0_12px_rgba(59,130,246,0.8)]"
+                                style={{ width: `${flashProgress}%` }}
+                              />
+                            </div>
+                            <p className="font-sans font-medium text-xs text-slate-500 dark:text-blue-200/60 text-center z-10">
+                              {flashMessage || 'Establishing connection...'}
+                            </p>
                           </div>
-                          <textarea
-                            value={stdinInput}
-                            onChange={(e) => setStdinInput(e.target.value)}
-                            placeholder="Enter input here (for cin/scanf programs)..."
-                            spellCheck={false}
-                            className="w-full bg-ed-term-surface text-ed-term-text font-mono text-[11px] px-3 py-2 outline-none resize-none border-none h-16 placeholder:text-ed-hi"
-                          />
-                        </div>
-                      )}
+                        )}
 
-                      {/* Flash progress overlay */}
-                      {isFlashing && (
-                        <div className="flex-1 flex flex-col items-center justify-center p-6">
-                          <div className="w-16 h-16 rounded-full bg-blue-500/10 flex items-center justify-center mb-4">
-                            <Upload size={24} className="text-blue-400 animate-pulse" />
-                          </div>
-                          <p className="font-sans font-semibold text-sm text-blue-400 mb-3">
-                            Uploading to your {boardLabel}...
-                          </p>
-                          <div className="w-full max-w-[200px] h-2 bg-slate-800 rounded-full overflow-hidden mb-2">
-                            <div
-                              className="h-full bg-blue-500 transition-all duration-300 ease-out rounded-full"
-                              style={{ width: `${flashProgress}%` }}
-                            />
-                          </div>
-                          <p className="font-sans text-xs text-slate-500 text-center">
-                            {flashMessage || 'Getting ready...'}
-                          </p>
-                        </div>
-                      )}
-
-                      {/* Simulator output wins the panel whenever a sketch has
+                        {/* Simulator output wins the panel whenever a sketch has
                           run locally — it is live state, so it must not be
                           hidden behind a stale compile result. */}
-                      {!isFlashing && showSimOutput ? <SimulatorOutput /> : null}
+                        {!isFlashing && showSimOutput ? <SimulatorOutput /> : null}
 
-                      {/* Console (has compile result or is compiling) OR code preview */}
-                      {!isFlashing &&
-                        !showSimOutput &&
-                        (isCompiling || compileResult ? (
-                          <CompileConsole isCompiling={isCompiling} compileResult={compileResult} />
-                        ) : (
-                          <div className="flex-1 overflow-y-auto p-4">
-                            {mode === 'block' &&
-                              engineMode === 'hardware' &&
-                              (generatedCode ? (
-                                <pre className="font-mono text-xs text-emerald-400 leading-relaxed whitespace-pre-wrap">
-                                  {generatedCode}
-                                </pre>
-                              ) : (
+                        {/* Console (has compile result or is compiling) OR code preview */}
+                        {!isFlashing &&
+                          !showSimOutput &&
+                          (isCompiling || compileResult ? (
+                            <CompileConsole
+                              isCompiling={isCompiling}
+                              compileResult={compileResult}
+                            />
+                          ) : (
+                            <div className="flex-1 overflow-y-auto p-4">
+                              {mode === 'block' &&
+                                engineMode === 'hardware' &&
+                                (generatedCode ? (
+                                  <pre className="font-mono text-xs text-emerald-400 leading-relaxed whitespace-pre-wrap">
+                                    {generatedCode}
+                                  </pre>
+                                ) : (
+                                  <div className="flex flex-col items-center justify-center h-full text-slate-700">
+                                    <Code2 size={36} className="mb-4 opacity-20" />
+                                    <p className="font-sans text-sm font-semibold text-slate-500 text-center">
+                                      Drag a block to get started
+                                    </p>
+                                    <p className="font-sans text-xs text-slate-600 text-center mt-1">
+                                      Drop blocks on the canvas to preview C++ output
+                                    </p>
+                                  </div>
+                                ))}
+                              {mode === 'code' && (
                                 <div className="flex flex-col items-center justify-center h-full text-slate-700">
-                                  <Code2 size={36} className="mb-4 opacity-20" />
+                                  <Play size={36} className="mb-4 opacity-20" />
                                   <p className="font-sans text-sm font-semibold text-slate-500 text-center">
-                                    Drag a block to get started
+                                    Hit Run to compile!
                                   </p>
                                   <p className="font-sans text-xs text-slate-600 text-center mt-1">
-                                    Drop blocks on the canvas to preview C++ output
+                                    Press Run in the toolbar to compile and run your code
                                   </p>
                                 </div>
-                              ))}
-                            {mode === 'code' && (
-                              <div className="flex flex-col items-center justify-center h-full text-slate-700">
-                                <Play size={36} className="mb-4 opacity-20" />
-                                <p className="font-sans text-sm font-semibold text-slate-500 text-center">
-                                  Hit Run to compile!
-                                </p>
-                                <p className="font-sans text-xs text-slate-600 text-center mt-1">
-                                  Press Run in the toolbar to compile and run your code
-                                </p>
-                              </div>
-                            )}
-                          </div>
-                        ))}
-                    </>
-                  )}
-                </>
-              )}
+                              )}
+                            </div>
+                          ))}
+                      </>
+                    )}
+                  </>
+                )}
+              </div>
             </div>
           )}
         </div>
@@ -1666,10 +1676,10 @@ export default function Editor() {
       )}
 
       {/* ── Unsaved Changes Blocker Overlay ──────────────────────────────── */}
-      {blocker.state === 'blocked' && (
+      {showLeaveConfirm && (
         <div
           className="fixed inset-0 z-[300] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4"
-          onClick={() => blocker.reset()}
+          onClick={() => setShowLeaveConfirm(false)}
         >
           <div
             className="bg-white dark:bg-dark-surface border border-slate-200 dark:border-dark-border rounded-2xl max-w-md w-full shadow-2xl animate-pop p-6 relative flex flex-col gap-6"
@@ -1692,14 +1702,14 @@ export default function Editor() {
                   const xml = blocklyRef.current?.getXml() ?? '';
                   try {
                     await saveProject(xml);
-                    blocker.proceed();
+                    navigate('/dashboard');
                   } catch {
                     addToast({
                       type: 'error',
                       title: 'Save failed',
                       message: 'Could not save project. Navigation cancelled.',
                     });
-                    blocker.reset();
+                    setShowLeaveConfirm(false);
                   }
                 }}
                 className="w-full h-11 bg-emerald-500 hover:bg-emerald-600 text-white font-sans font-bold text-sm rounded-xl flex items-center justify-center gap-2 shadow-md transition-all duration-200 active:scale-[0.98]"
@@ -1709,7 +1719,7 @@ export default function Editor() {
               <button
                 type="button"
                 onClick={() => {
-                  blocker.proceed();
+                  navigate('/dashboard');
                 }}
                 className="w-full h-11 bg-red-500 hover:bg-red-600 text-white font-sans font-bold text-sm rounded-xl flex items-center justify-center gap-2 shadow-md transition-all duration-200 active:scale-[0.98]"
               >
@@ -1718,7 +1728,7 @@ export default function Editor() {
               <button
                 type="button"
                 onClick={() => {
-                  blocker.reset();
+                  setShowLeaveConfirm(false);
                 }}
                 className="w-full h-11 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-sans font-semibold text-sm rounded-xl flex items-center justify-center gap-2 hover:bg-slate-200 dark:hover:bg-slate-700 transition-all duration-200 active:scale-[0.98]"
               >

@@ -108,7 +108,9 @@ export default function Dashboard() {
   const [isNewProjectOpen, setIsNewProjectOpen] = useState(
     () => searchParams.get('new') === 'true',
   );
-  const [categoryFilter, setCategoryFilter] = useState<'ALL' | 'HARDWARE' | 'SOFTWARE'>('ALL');
+  const [categoryFilter, setCategoryFilter] = useState<'SHOW_WIZARD' | 'HARDWARE' | 'SOFTWARE'>(
+    'SHOW_WIZARD',
+  );
   const [boardFilter, setBoardFilter] = useState<string>('ALL');
 
   useEffect(() => {
@@ -124,6 +126,8 @@ export default function Dashboard() {
   }, [isNewProjectOpen, searchParams, setSearchParams]);
 
   const filteredProjects = useMemo(() => {
+    if (categoryFilter === 'SHOW_WIZARD') return [];
+
     return projects.filter((p) => {
       if (categoryFilter === 'HARDWARE' && boardFilter === 'ALL') return false;
 
@@ -143,9 +147,15 @@ export default function Dashboard() {
   }, [projects, categoryFilter, boardFilter]);
 
   return (
-    <div className="w-full h-full flex flex-col font-sans overflow-y-auto">
+    <div className="w-full h-full flex flex-col font-sans overflow-y-auto relative bg-slate-50 dark:bg-[#070913]">
+      {/* Background ambient glow for Dark Mode */}
+      <div className="absolute inset-0 pointer-events-none overflow-hidden -z-10 hidden dark:block">
+        <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-emerald-500/10 blur-[100px] rounded-full mix-blend-screen" />
+        <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-amber-500/10 blur-[100px] rounded-full mix-blend-screen" />
+      </div>
+
       {/* Page Header */}
-      <div className="px-6 md:px-10 pt-8 pb-6 border-b border-slate-200 dark:border-slate-800 flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white dark:bg-[#111111] shrink-0">
+      <div className="px-6 md:px-10 pt-8 pb-6 border-b border-slate-200 dark:border-white/5 flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white/80 dark:bg-[#11141E]/80 backdrop-blur-xl shrink-0 sticky top-0 z-10">
         <div>
           <h1 className="text-2xl font-bold text-slate-900 dark:text-white">
             Welcome back, {user?.name?.split(' ')[0] || 'Maker'}
@@ -156,34 +166,34 @@ export default function Dashboard() {
         </div>
         <button
           onClick={() => setIsNewProjectOpen(true)}
-          className="inline-flex items-center gap-2 bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-semibold px-4 py-2.5 rounded-xl transition-colors shrink-0"
+          className="inline-flex items-center gap-2 bg-gradient-to-r from-emerald-400 to-emerald-500 hover:from-emerald-500 hover:to-emerald-600 shadow-[0_4px_12px_rgba(16,185,129,0.3)] text-white text-sm font-bold px-5 py-2.5 rounded-xl transition-all hover:-translate-y-0.5 active:translate-y-0 shrink-0"
         >
-          <Plus size={16} /> New Project
+          <Plus size={16} strokeWidth={3} /> New Project
         </button>
       </div>
 
       <div className="flex-1 flex flex-col lg:flex-row min-h-0">
         {/* Main: Projects */}
-        <div className="flex-1 px-6 md:px-10 py-8 overflow-y-auto border-r border-slate-200 dark:border-slate-800">
+        <div className="flex-1 px-6 md:px-10 py-8 overflow-y-auto border-r border-slate-200 dark:border-white/5">
           {/* Stats Row */}
           <div className="grid grid-cols-3 gap-4 mb-8">
-            <div className="bg-white dark:bg-[#1A1D24] border border-slate-200 dark:border-slate-800 rounded-2xl p-4">
-              <div className="w-8 h-8 bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 rounded-lg flex items-center justify-center mb-3">
-                <FolderCode size={16} />
+            <div className="bg-white dark:bg-[#1A1D26] border border-slate-200 dark:border-white/5 rounded-2xl p-5 shadow-sm hover:shadow-[0_8px_30px_-4px_rgba(16,185,129,0.2)] dark:hover:shadow-[0_8px_30px_-4px_rgba(16,185,129,0.15)] transition-all duration-300 hover:-translate-y-1">
+              <div className="w-10 h-10 bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 rounded-xl flex items-center justify-center mb-3">
+                <FolderCode size={20} />
               </div>
               <p className="text-2xl font-bold text-slate-900 dark:text-white">{projects.length}</p>
               <p className="text-xs text-slate-500 mt-0.5">Projects</p>
             </div>
-            <div className="bg-white dark:bg-[#1A1D24] border border-slate-200 dark:border-slate-800 rounded-2xl p-4">
-              <div className="w-8 h-8 bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400 rounded-lg flex items-center justify-center mb-3">
-                <TrendingUp size={16} />
+            <div className="bg-white dark:bg-[#1A1D26] border border-slate-200 dark:border-white/5 rounded-2xl p-5 shadow-sm hover:shadow-[0_8px_30px_-4px_rgba(168,85,247,0.2)] dark:hover:shadow-[0_8px_30px_-4px_rgba(168,85,247,0.15)] transition-all duration-300 hover:-translate-y-1">
+              <div className="w-10 h-10 bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400 rounded-xl flex items-center justify-center mb-3">
+                <TrendingUp size={20} />
               </div>
               <p className="text-2xl font-bold text-slate-900 dark:text-white">{user?.xp ?? 0}</p>
               <p className="text-xs text-slate-500 mt-0.5">XP Earned</p>
             </div>
-            <div className="bg-white dark:bg-[#1A1D24] border border-slate-200 dark:border-slate-800 rounded-2xl p-4">
-              <div className="w-8 h-8 bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 rounded-lg flex items-center justify-center mb-3">
-                <Zap size={16} />
+            <div className="bg-white dark:bg-[#1A1D26] border border-slate-200 dark:border-white/5 rounded-2xl p-5 shadow-sm hover:shadow-[0_8px_30px_-4px_rgba(245,158,11,0.2)] dark:hover:shadow-[0_8px_30px_-4px_rgba(245,158,11,0.15)] transition-all duration-300 hover:-translate-y-1">
+              <div className="w-10 h-10 bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 rounded-xl flex items-center justify-center mb-3">
+                <Zap size={20} />
               </div>
               <p className="text-2xl font-bold text-slate-900 dark:text-white">
                 {user?.streak ?? 0}
@@ -206,16 +216,16 @@ export default function Dashboard() {
               <div className="flex items-center p-1 bg-slate-100 dark:bg-[#1A1D24] border border-slate-200 dark:border-slate-800 rounded-xl">
                 <button
                   onClick={() => {
-                    setCategoryFilter('ALL');
+                    setCategoryFilter('SHOW_WIZARD');
                     setBoardFilter('ALL');
                   }}
                   className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all ${
-                    categoryFilter === 'ALL'
+                    categoryFilter === 'SHOW_WIZARD'
                       ? 'bg-slate-300 dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm'
                       : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
                   }`}
                 >
-                  All
+                  Home
                 </button>
                 <button
                   onClick={() => {
@@ -284,10 +294,10 @@ export default function Dashboard() {
               {categoryFilter === ('SHOW_WIZARD' as any) ? (
                 <div className="flex flex-col items-center w-full max-w-2xl mx-auto">
                   <h3 className="text-2xl font-bold text-slate-900 dark:text-white mb-2">
-                    What are you working on?
+                    Select Workspace View
                   </h3>
                   <p className="text-sm text-slate-500 mb-8">
-                    Choose an environment to view or create projects.
+                    Filter your dashboard to view your existing projects.
                   </p>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 w-full">
                     <button
@@ -333,10 +343,10 @@ export default function Dashboard() {
               ) : categoryFilter === 'HARDWARE' && boardFilter === 'ALL' ? (
                 <div className="flex flex-col items-center w-full mx-auto">
                   <h3 className="text-2xl font-bold text-slate-900 dark:text-white mb-2">
-                    Select a Hardware Board
+                    Filter by Hardware Board
                   </h3>
                   <p className="text-sm text-slate-500 mb-8">
-                    Choose the microcontroller you are working with.
+                    Choose a microcontroller to view its projects.
                   </p>
                   <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 w-full max-w-4xl">
                     {BOARDS.map((b) => (
