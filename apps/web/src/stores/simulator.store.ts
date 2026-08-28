@@ -126,7 +126,7 @@ const defaultCatSprite: SimulatorSprite = {
   effects: { color: 0, ghost: 0, brightness: 0 },
   x: 0,
   y: 0,
-  size: 100,
+  size: 150,
   direction: 90,
   visible: true,
   state: {},

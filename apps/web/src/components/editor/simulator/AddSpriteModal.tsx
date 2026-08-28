@@ -253,7 +253,7 @@ export function AddSpriteModal({ onClose }: { onClose: () => void }) {
       ...(preset.image ? { image: preset.image } : {}),
       x,
       y,
-      size: 100,
+      size: isHardware ? 100 : 150,
       direction: 90,
       visible: true,
       costumes: preset.image ? [preset.image] : [],

@@ -486,12 +486,12 @@ export const BlocklyWorkspace = forwardRef<BlocklyWorkspaceHandle, BlocklyWorksp
 
         {/* Friendly empty-canvas hint — clicks pass through to the workspace */}
         {isEmpty && (
-          <div className="absolute inset-0 z-10 flex items-center justify-center pointer-events-none select-none">
+          <div className="absolute inset-y-0 right-0 left-[70px] z-10 flex items-center justify-center pointer-events-none select-none">
             <div className="flex flex-col items-center gap-2 px-6 text-center">
               <img
                 src="/sprites/robot%20png.png"
-                alt=""
-                className="w-24 h-28 mb-2 opacity-90 drop-shadow-lg animate-bounce"
+                alt="Robot Mascot"
+                className="w-24 h-28 mb-2 opacity-90 animate-bounce object-contain"
                 style={{ animationDuration: '2.5s' }}
               />
               <p className="font-sans font-bold text-lg text-ed-mid">Let&apos;s build something!</p>
