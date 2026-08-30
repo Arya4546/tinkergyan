@@ -57,6 +57,22 @@ export interface PredictionResult {
 
 export type PredictionCallback = (result: PredictionResult) => void;
 
+/**
+ * Tunable parameters exposed in the "Advanced" panel of the AI trainer.
+ * Changing these at runtime takes effect on the next prediction cycle.
+ */
+export interface TrainingConfig {
+  /** Number of nearest neighbours for KNN voting (default: 3, range: 1–10). */
+  k: number;
+  /** Minimum confidence (0–1) to emit a prediction result (default: 0.70). */
+  predictionThreshold: number;
+}
+
+export const DEFAULT_TRAINING_CONFIG: TrainingConfig = {
+  k: 3,
+  predictionThreshold: 0.7,
+};
+
 // ─── Singleton AI Engine ──────────────────────────────────────────────────────
 
 class AIEngine {
@@ -84,6 +100,9 @@ class AIEngine {
 
   /** Minimum interval between predictions (ms). ~10 FPS. */
   private readonly PREDICTION_INTERVAL_MS = 100;
+
+  /** Active hyperparameter config — updated each time startPredicting() is called. */
+  private activeConfig: TrainingConfig = DEFAULT_TRAINING_CONFIG;
 
   // ── Lifecycle ─────────────────────────────────────────────────────────────
 
@@ -185,6 +204,7 @@ class AIEngine {
 
   /**
    * Adds an example to the KNN model for a specific class.
+   * Accepts a live <video> element (webcam) or a static <img> element (file upload).
    */
   addExample(videoEl: HTMLVideoElement, label: string): void {
     if (!this.mobilenet || !this.classifier || !tfRef) {
@@ -194,6 +214,28 @@ class AIEngine {
     const embedding = this.mobilenet.infer(videoEl, true);
     this.classifier.addExample(embedding, label);
     // Dispose the intermediate tensor immediately to prevent GPU memory leaks.
+    embedding.dispose();
+  }
+
+  /**
+   * Adds an example from a static image element (e.g. a file the student uploaded
+   * from their computer). The image is run through the same MobileNet embedding
+   * pipeline as webcam frames — the KNN cannot tell the difference.
+   *
+   * @param img  An HTMLImageElement that has already finished loading (complete === true).
+   * @param label  The class this image belongs to.
+   */
+  addExampleFromImage(img: HTMLImageElement, label: string): void {
+    if (!this.mobilenet || !this.classifier) {
+      throw new Error('AI Engine not initialised');
+    }
+    if (!img.complete || img.naturalWidth === 0) {
+      throw new Error('Image has not finished loading — wait for onload before calling this.');
+    }
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const embedding = this.mobilenet.infer(img as any, true);
+    this.classifier.addExample(embedding, label);
     embedding.dispose();
   }
 
@@ -246,11 +288,13 @@ class AIEngine {
     callback?: PredictionCallback,
     enableImage = true,
     enablePose = false,
+    config: TrainingConfig = DEFAULT_TRAINING_CONFIG,
   ): void {
-    if (this.predictionLoopId !== null) return; // already running
-
+    this.activeConfig = config;
     this.enableImageKNN = enableImage;
     this.enablePose = enablePose;
+
+    if (this.predictionLoopId !== null) return; // already running
 
     const loop = async () => {
       if (this.isPredictingCurrently) {
@@ -275,14 +319,17 @@ class AIEngine {
             try {
               const counts = this.classifier.getClassExampleCount();
               const minSamples = Math.min(...Object.values(counts));
-              const k = Math.min(3, Math.max(1, minSamples));
+              // Use the student-configured k, but clamp so it can't exceed sample count.
+              const kClamped = Math.min(this.activeConfig.k, Math.max(1, minSamples));
 
-              const result = await this.classifier.predictClass(embedding, k);
+              const result = await this.classifier.predictClass(embedding, kClamped);
               const allConfidences: Record<string, number> = {};
               for (const [label, conf] of Object.entries(result.confidences)) {
                 allConfidences[label] = Math.round(conf * 100);
               }
-              if (callback) {
+              const topConf = (allConfidences[result.label] ?? 0) / 100;
+              // Only fire callback when confidence clears the student-configured threshold.
+              if (callback && topConf >= this.activeConfig.predictionThreshold) {
                 callback({
                   label: result.label,
                   confidence: allConfidences[result.label] ?? 0,

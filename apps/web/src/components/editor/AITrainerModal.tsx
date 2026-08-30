@@ -18,10 +18,26 @@ import {
   VideoOff,
   Type,
   Image as ImageIcon,
+  Upload,
+  Settings2,
+  ChevronDown,
+  RotateCcw,
+  Download,
+  FolderOpen,
+  Code2,
+  Copy,
+  Check,
+  PackageOpen,
+  Mic,
+  PersonStanding,
+  Table2,
 } from 'lucide-react';
-import { aiEngine } from '../../lib/ai-engine';
+import { aiEngine, type TrainingConfig, DEFAULT_TRAINING_CONFIG } from '../../lib/ai-engine';
 import { useAIStore } from '../../stores/ai.store';
 import { TextTrainerModal } from './TextTrainerModal';
+import { AudioTrainerTab } from './AudioTrainerTab';
+import { PoseTrainerTab } from './PoseTrainerTab';
+import { TabularTrainerTab } from './TabularTrainerTab';
 
 interface AITrainerModalProps {
   isOpen: boolean;
@@ -29,7 +45,9 @@ interface AITrainerModalProps {
 }
 
 export function AITrainerModal({ isOpen, onClose }: AITrainerModalProps) {
-  const [activeTab, setActiveTab] = useState<'image' | 'text'>('image');
+  const [activeTab, setActiveTab] = useState<'image' | 'text' | 'audio' | 'pose' | 'numbers'>(
+    'image',
+  );
   const [classes, setClasses] = useState<string[]>(() => {
     const labels = useAIStore.getState().classLabels.filter((l) => !l.startsWith('text:'));
     return labels.length > 0 ? labels : ['Class 1', 'Class 2'];
@@ -40,9 +58,23 @@ export function AITrainerModal({ isOpen, onClose }: AITrainerModalProps) {
   const [isCapturing, setIsCapturing] = useState<string | null>(null);
   const [isTesting, setIsTesting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Phase 1: Hyperparameter tuning
+  const [trainingConfig, setTrainingConfig] = useState<TrainingConfig>({
+    ...DEFAULT_TRAINING_CONFIG,
+  });
+  const [showAdvanced, setShowAdvanced] = useState(false);
+  // Phase 1: Upload progress per class
+  const [uploadProgress, setUploadProgress] = useState<Record<string, string>>({});
+  // Phase 2: Export / import
+  const [isExporting, setIsExporting] = useState(false);
+  const [isImporting, setIsImporting] = useState(false);
+  const [showExportCode, setShowExportCode] = useState(false);
+  const [snippetCopied, setSnippetCopied] = useState(false);
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const captureIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const fileInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
+  const importZipRef = useRef<HTMLInputElement | null>(null);
 
   const {
     isModelLoaded,
@@ -102,6 +134,22 @@ export function AITrainerModal({ isOpen, onClose }: AITrainerModalProps) {
 
     void initEngine();
   }, [isOpen, activeTab, setModelLoaded]);
+
+  // Cleanup image tab resources when switching to another tab
+  useEffect(() => {
+    if (activeTab !== 'image') {
+      if (isTesting) {
+        aiEngine.stopPredicting();
+        setPredicting(false);
+        clearPrediction();
+        setIsTesting(false);
+      }
+      if (isWebcamActive) {
+        aiEngine.stopWebcam();
+        setWebcamActive(false);
+      }
+    }
+  }, [activeTab, isTesting, isWebcamActive, setPredicting, clearPrediction, setWebcamActive]);
 
   // Start webcam
   const handleStartWebcam = useCallback(async () => {
@@ -200,6 +248,45 @@ export function AITrainerModal({ isOpen, onClose }: AITrainerModalProps) {
     [classes, syncTrainingState],
   );
 
+  // Phase 1: Bulk image upload for a class
+  const handleImageUpload = useCallback(
+    async (className: string, files: FileList) => {
+      if (!files.length) return;
+      const total = files.length;
+      setUploadProgress((p) => ({ ...p, [className]: `0 / ${total}` }));
+
+      for (let i = 0; i < total; i++) {
+        const file = files[i]!;
+        await new Promise<void>((resolve) => {
+          const img = new Image();
+          img.onload = () => {
+            try {
+              aiEngine.addExampleFromImage(img, className);
+            } catch {
+              // Ignore individual failures; keep processing the batch.
+            }
+            URL.revokeObjectURL(img.src);
+            setUploadProgress((p) => ({ ...p, [className]: `${i + 1} / ${total}` }));
+            resolve();
+          };
+          img.onerror = () => {
+            URL.revokeObjectURL(img.src);
+            resolve();
+          };
+          img.src = URL.createObjectURL(file);
+        });
+      }
+
+      syncTrainingState();
+      setUploadProgress((p) => {
+        const n = { ...p };
+        delete n[className];
+        return n;
+      });
+    },
+    [syncTrainingState],
+  );
+
   // Toggle live testing
   const handleToggleTest = useCallback(() => {
     if (!videoRef.current || !isWebcamActive) return;
@@ -210,13 +297,35 @@ export function AITrainerModal({ isOpen, onClose }: AITrainerModalProps) {
       clearPrediction();
       setIsTesting(false);
     } else {
-      aiEngine.startPredicting(videoRef.current, (result) => {
-        updatePrediction(result.label, result.allConfidences);
-      });
+      // Pass active TrainingConfig so k and threshold take effect immediately.
+      aiEngine.startPredicting(
+        videoRef.current,
+        (result) => {
+          updatePrediction(result.label, result.allConfidences);
+        },
+        true,
+        false,
+        trainingConfig,
+      );
       setPredicting(true);
       setIsTesting(true);
     }
-  }, [isWebcamActive, isTesting, setPredicting, clearPrediction, updatePrediction]);
+  }, [isWebcamActive, isTesting, trainingConfig, setPredicting, clearPrediction, updatePrediction]);
+
+  // Sync trainingConfig changes live while testing
+  useEffect(() => {
+    if (isTesting && videoRef.current) {
+      aiEngine.startPredicting(
+        videoRef.current,
+        (result) => {
+          updatePrediction(result.label, result.allConfidences);
+        },
+        true,
+        false,
+        trainingConfig,
+      );
+    }
+  }, [trainingConfig, isTesting, updatePrediction]);
 
   // Reset everything
   const handleResetAll = useCallback(() => {
@@ -232,6 +341,92 @@ export function AITrainerModal({ isOpen, onClose }: AITrainerModalProps) {
     handleStopWebcam();
     onClose();
   }, [handleCaptureStop, handleStopWebcam, onClose]);
+
+  // ── Phase 2: Export Training State (.zip) ────────────────────────────────
+  const handleExportZip = useCallback(async () => {
+    setIsExporting(true);
+    try {
+      const dataset = await aiEngine.serializeDataset();
+      const meta = JSON.stringify({ classes, exportedAt: new Date().toISOString(), version: 1 });
+      const { default: JSZip } = await import('jszip');
+      const zip = new JSZip();
+      zip.file('dataset.json', dataset ?? '{}');
+      zip.file('meta.json', meta);
+      const blob = await zip.generateAsync({ type: 'blob' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'tinkergyan-ai-project.zip';
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      setError(`Export failed: ${err instanceof Error ? err.message : String(err)}`);
+    } finally {
+      setIsExporting(false);
+    }
+  }, [classes]);
+
+  // ── Phase 2: Import Training State (.zip) ────────────────────────────────
+  const handleImportZip = useCallback(
+    async (file: File) => {
+      setIsImporting(true);
+      try {
+        const { default: JSZip } = await import('jszip');
+        const zip = await JSZip.loadAsync(file);
+
+        const datasetFile = zip.file('dataset.json');
+        const metaFile = zip.file('meta.json');
+        if (!datasetFile || !metaFile)
+          throw new Error('Invalid project zip — missing dataset.json or meta.json.');
+
+        const datasetStr = await datasetFile.async('string');
+        const metaStr = await metaFile.async('string');
+        const meta = JSON.parse(metaStr) as { classes: string[] };
+
+        if (!aiEngine.isInitialised) {
+          setIsLoading(true);
+          setLoadingMessage('Loading AI engine...');
+          await aiEngine.init();
+          setModelLoaded(true);
+          setIsLoading(false);
+          setLoadingMessage('');
+        }
+
+        aiEngine.deserializeDataset(datasetStr);
+        setClasses(meta.classes ?? ['Class 1', 'Class 2']);
+        syncTrainingState();
+      } catch (err) {
+        setError(`Import failed: ${err instanceof Error ? err.message : String(err)}`);
+      } finally {
+        setIsImporting(false);
+      }
+    },
+    [syncTrainingState, setModelLoaded],
+  );
+
+  // ── Phase 2: TFJS / Model Export ─────────────────────────────────────────
+  const handleExportModel = useCallback(async () => {
+    setIsExporting(true);
+    try {
+      const dataset = await aiEngine.serializeDataset();
+      if (!dataset) {
+        setError('No training data to export.');
+        return;
+      }
+      const blob = new Blob([dataset], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'tinkergyan-model-dataset.json';
+      a.click();
+      URL.revokeObjectURL(url);
+      setShowExportCode(true);
+    } catch (err) {
+      setError(`Model export failed: ${err instanceof Error ? err.message : String(err)}`);
+    } finally {
+      setIsExporting(false);
+    }
+  }, []);
 
   if (!isOpen) return null;
 
@@ -255,42 +450,112 @@ export function AITrainerModal({ isOpen, onClose }: AITrainerModalProps) {
               </div>
             </div>
             {/* Tabs */}
-            <div className="flex bg-black/20 p-1 rounded-xl">
+            <div className="flex bg-black/20 p-1 rounded-xl flex-wrap gap-1">
               <button
                 onClick={() => setActiveTab('image')}
-                className={`flex items-center gap-2 px-4 py-1.5 rounded-lg text-sm font-bold transition-all ${
-                  activeTab === 'image'
-                    ? 'bg-white/10 text-white shadow'
-                    : 'text-white/40 hover:text-white/80'
-                }`}
+                className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${activeTab === 'image' ? 'bg-white/10 text-white shadow' : 'text-white/40 hover:text-white/80'}`}
               >
-                <ImageIcon size={16} />
-                Image
+                <ImageIcon size={14} /> Image
               </button>
               <button
                 onClick={() => setActiveTab('text')}
-                className={`flex items-center gap-2 px-4 py-1.5 rounded-lg text-sm font-bold transition-all ${
-                  activeTab === 'text'
-                    ? 'bg-white/10 text-white shadow'
-                    : 'text-white/40 hover:text-white/80'
-                }`}
+                className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${activeTab === 'text' ? 'bg-white/10 text-white shadow' : 'text-white/40 hover:text-white/80'}`}
               >
-                <Type size={16} />
-                Text
+                <Type size={14} /> Text
+              </button>
+              <button
+                onClick={() => setActiveTab('audio')}
+                className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${activeTab === 'audio' ? 'bg-white/10 text-white shadow' : 'text-white/40 hover:text-white/80'}`}
+              >
+                <Mic size={14} /> Audio
+              </button>
+              <button
+                onClick={() => setActiveTab('pose')}
+                className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${activeTab === 'pose' ? 'bg-white/10 text-white shadow' : 'text-white/40 hover:text-white/80'}`}
+              >
+                <PersonStanding size={14} /> Pose
+              </button>
+              <button
+                onClick={() => setActiveTab('numbers')}
+                className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${activeTab === 'numbers' ? 'bg-white/10 text-white shadow' : 'text-white/40 hover:text-white/80'}`}
+              >
+                <Table2 size={14} /> Numbers
               </button>
             </div>
           </div>
-          <button
-            onClick={handleClose}
-            className="p-2 rounded-lg text-white/50 hover:text-white hover:bg-white/10 transition-colors"
-          >
-            <X size={20} />
-          </button>
+          {/* Phase 2: Export / Import / Model-Export buttons */}
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => void handleExportZip()}
+              disabled={isExporting || totalSamples === 0}
+              title="Export training project as .zip"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/5 text-white/50 hover:text-white hover:bg-white/10 transition-colors text-xs font-bold disabled:opacity-30 disabled:cursor-not-allowed"
+            >
+              {isExporting ? (
+                <Loader2 size={13} className="animate-spin" />
+              ) : (
+                <Download size={13} />
+              )}
+              Export
+            </button>
+            <button
+              onClick={() => importZipRef.current?.click()}
+              disabled={isImporting}
+              title="Import a saved .zip project"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/5 text-white/50 hover:text-white hover:bg-white/10 transition-colors text-xs font-bold disabled:opacity-30 disabled:cursor-not-allowed"
+            >
+              {isImporting ? (
+                <Loader2 size={13} className="animate-spin" />
+              ) : (
+                <FolderOpen size={13} />
+              )}
+              Import
+            </button>
+            <input
+              ref={importZipRef}
+              type="file"
+              accept=".zip"
+              className="hidden"
+              onChange={(e) => {
+                if (e.target.files?.[0]) {
+                  void handleImportZip(e.target.files[0]);
+                  e.target.value = '';
+                }
+              }}
+            />
+            <button
+              onClick={() => void handleExportModel()}
+              disabled={isExporting || totalSamples === 0}
+              title="Export model dataset as JSON + get usage code"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#FF6F61]/10 text-[#FF6F61]/70 hover:text-[#FF6F61] hover:bg-[#FF6F61]/20 transition-colors text-xs font-bold disabled:opacity-30 disabled:cursor-not-allowed"
+            >
+              <Code2 size={13} />
+              Export Model
+            </button>
+            <button
+              onClick={handleClose}
+              className="p-2 rounded-lg text-white/50 hover:text-white hover:bg-white/10 transition-colors"
+            >
+              <X size={20} />
+            </button>
+          </div>
         </div>
 
         {activeTab === 'text' ? (
           <div className="flex-1 overflow-hidden">
             <TextTrainerModal />
+          </div>
+        ) : activeTab === 'audio' ? (
+          <div className="flex-1 overflow-hidden flex flex-col">
+            <AudioTrainerTab />
+          </div>
+        ) : activeTab === 'pose' ? (
+          <div className="flex-1 overflow-hidden flex flex-col">
+            <PoseTrainerTab />
+          </div>
+        ) : activeTab === 'numbers' ? (
+          <div className="flex-1 overflow-hidden flex flex-col">
+            <TabularTrainerTab />
           </div>
         ) : (
           <>
@@ -324,7 +589,7 @@ export function AITrainerModal({ isOpen, onClose }: AITrainerModalProps) {
                       autoPlay
                       playsInline
                       muted
-                      className="w-full h-full object-cover"
+                      className="w-full h-full object-contain bg-black"
                       style={{ transform: 'scaleX(-1)' }}
                     />
 
@@ -332,7 +597,7 @@ export function AITrainerModal({ isOpen, onClose }: AITrainerModalProps) {
                       <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-[#1a1a2e]">
                         <Camera size={40} className="text-white/30" />
                         <button
-                          onClick={handleStartWebcam}
+                          onClick={() => void handleStartWebcam()}
                           className="px-4 py-2 rounded-lg bg-[#FF6F61] text-white font-bold text-sm hover:bg-[#FF6F61]/90 transition-colors flex items-center gap-2"
                         >
                           <Video size={16} />
@@ -416,6 +681,93 @@ export function AITrainerModal({ isOpen, onClose }: AITrainerModalProps) {
                           : 'Train at least 2 classes first'}
                     </button>
                   )}
+
+                  {/* ── Advanced / Hyperparameter Panel ── */}
+                  <div className="rounded-xl border border-white/10 overflow-hidden">
+                    <button
+                      onClick={() => setShowAdvanced((v) => !v)}
+                      className="w-full flex items-center justify-between px-4 py-2.5 text-white/50 hover:text-white/80 hover:bg-white/5 transition-colors text-xs font-bold uppercase tracking-widest"
+                    >
+                      <span className="flex items-center gap-2">
+                        <Settings2 size={13} /> Advanced Settings
+                      </span>
+                      <ChevronDown
+                        size={14}
+                        className={`transition-transform duration-200 ${showAdvanced ? 'rotate-180' : ''}`}
+                      />
+                    </button>
+
+                    {showAdvanced && (
+                      <div className="px-4 pb-4 pt-1 space-y-4 bg-white/[0.02]">
+                        {/* k Neighbours */}
+                        <div>
+                          <div className="flex justify-between mb-1.5">
+                            <label className="text-white/60 text-xs">
+                              k Neighbours{' '}
+                              <span className="text-white/30">(how many matches to vote)</span>
+                            </label>
+                            <span className="text-[#FF6F61] text-xs font-mono font-bold">
+                              {trainingConfig.k}
+                            </span>
+                          </div>
+                          <input
+                            type="range"
+                            min={1}
+                            max={10}
+                            step={1}
+                            value={trainingConfig.k}
+                            onChange={(e) =>
+                              setTrainingConfig((c) => ({ ...c, k: Number(e.target.value) }))
+                            }
+                            className="w-full h-1.5 rounded-full accent-[#FF6F61] cursor-pointer"
+                          />
+                          <div className="flex justify-between text-white/20 text-[10px] mt-0.5">
+                            <span>1 (precise)</span>
+                            <span>10 (smooth)</span>
+                          </div>
+                        </div>
+
+                        {/* Confidence Threshold */}
+                        <div>
+                          <div className="flex justify-between mb-1.5">
+                            <label className="text-white/60 text-xs">
+                              Confidence Threshold{' '}
+                              <span className="text-white/30">(min % to trigger)</span>
+                            </label>
+                            <span className="text-[#FF6F61] text-xs font-mono font-bold">
+                              {Math.round(trainingConfig.predictionThreshold * 100)}%
+                            </span>
+                          </div>
+                          <input
+                            type="range"
+                            min={0.5}
+                            max={0.99}
+                            step={0.01}
+                            value={trainingConfig.predictionThreshold}
+                            onChange={(e) =>
+                              setTrainingConfig((c) => ({
+                                ...c,
+                                predictionThreshold: Number(e.target.value),
+                              }))
+                            }
+                            className="w-full h-1.5 rounded-full accent-[#FF6F61] cursor-pointer"
+                          />
+                          <div className="flex justify-between text-white/20 text-[10px] mt-0.5">
+                            <span>50% (sensitive)</span>
+                            <span>99% (strict)</span>
+                          </div>
+                        </div>
+
+                        {/* Reset button */}
+                        <button
+                          onClick={() => setTrainingConfig({ ...DEFAULT_TRAINING_CONFIG })}
+                          className="flex items-center gap-1.5 text-white/30 hover:text-white/60 text-xs transition-colors"
+                        >
+                          <RotateCcw size={11} /> Reset to defaults
+                        </button>
+                      </div>
+                    )}
+                  </div>
                 </div>
 
                 {/* Right: Classes */}
@@ -464,6 +816,7 @@ export function AITrainerModal({ isOpen, onClose }: AITrainerModalProps) {
                           </div>
                         </div>
 
+                        {/* Webcam capture button */}
                         <button
                           onMouseDown={() => handleCaptureStart(className)}
                           onMouseUp={handleCaptureStop}
@@ -482,6 +835,42 @@ export function AITrainerModal({ isOpen, onClose }: AITrainerModalProps) {
                           <Camera size={14} />
                           {isCapturing === className ? 'Recording...' : 'Hold to Record'}
                         </button>
+
+                        {/* Phase 1: File upload zone */}
+                        <div
+                          className="relative border border-dashed border-white/20 rounded-lg py-2 px-3 flex items-center justify-center gap-2 hover:border-[#FF6F61]/50 hover:bg-white/5 transition-colors cursor-pointer group"
+                          onClick={() => fileInputRefs.current[className]?.click()}
+                          onDragOver={(e) => e.preventDefault()}
+                          onDrop={(e) => {
+                            e.preventDefault();
+                            const files = e.dataTransfer.files;
+                            if (files.length) void handleImageUpload(className, files);
+                          }}
+                        >
+                          <Upload
+                            size={12}
+                            className="text-white/30 group-hover:text-[#FF6F61]/70 transition-colors shrink-0"
+                          />
+                          <span className="text-white/30 group-hover:text-white/50 text-[11px] transition-colors">
+                            {uploadProgress[className]
+                              ? `Uploading ${uploadProgress[className]}…`
+                              : 'Upload images / drag & drop'}
+                          </span>
+                          <input
+                            ref={(el) => {
+                              fileInputRefs.current[className] = el;
+                            }}
+                            type="file"
+                            accept="image/*"
+                            multiple
+                            className="hidden"
+                            onChange={(e) => {
+                              if (e.target.files?.length)
+                                void handleImageUpload(className, e.target.files);
+                              e.target.value = '';
+                            }}
+                          />
+                        </div>
                       </div>
                     );
                   })}
@@ -519,6 +908,82 @@ export function AITrainerModal({ isOpen, onClose }: AITrainerModalProps) {
           </>
         )}
       </div>
+
+      {/* Phase 2: TFJS code-snippet modal */}
+      {showExportCode &&
+        (() => {
+          const snippet = `<!-- Load TF.js + MobileNet + KNN in any webpage -->
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/mobilenet"></script>
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/knn-classifier"></script>
+<script>
+async function loadMyModel() {
+  const net = await mobilenet.load({ version: 2, alpha: 0.5 });
+  const classifier = knnClassifier.create();
+  // Replace with URL or fetch path to your tinkergyan-model-dataset.json
+  const res = await fetch('tinkergyan-model-dataset.json');
+  const { classes } = await res.json();
+  for (const [label, vectors] of Object.entries(classes)) {
+    classifier.setClassifierDataset({
+      ...classifier.getClassifierDataset(),
+      [label]: tf.tensor2d(vectors)
+    });
+  }
+  return { net, classifier };
+}
+</script>`;
+          return (
+            <div className="absolute inset-0 z-10 bg-black/70 backdrop-blur-sm flex items-center justify-center p-6">
+              <div className="bg-[#12122a] border border-white/10 rounded-2xl w-full max-w-xl shadow-2xl overflow-hidden">
+                <div className="flex items-center justify-between px-5 py-4 border-b border-white/10">
+                  <div className="flex items-center gap-2">
+                    <PackageOpen size={18} className="text-[#FF6F61]" />
+                    <span className="text-white font-bold text-sm">
+                      Model exported! Use it anywhere
+                    </span>
+                  </div>
+                  <button
+                    onClick={() => setShowExportCode(false)}
+                    className="p-1.5 rounded-lg text-white/40 hover:text-white hover:bg-white/10 transition-colors"
+                  >
+                    <X size={16} />
+                  </button>
+                </div>
+                <div className="p-5 space-y-3">
+                  <p className="text-white/60 text-xs leading-relaxed">
+                    Your model dataset (
+                    <code className="text-[#FF6F61]">tinkergyan-model-dataset.json</code>) has been
+                    downloaded. Paste this snippet into any HTML page to load and use it:
+                  </p>
+                  <div className="relative">
+                    <pre className="bg-black/40 border border-white/10 rounded-xl p-4 text-[11px] text-emerald-300 font-mono overflow-x-auto leading-relaxed whitespace-pre-wrap">
+                      {snippet}
+                    </pre>
+                    <button
+                      onClick={() => {
+                        void navigator.clipboard.writeText(snippet);
+                        setSnippetCopied(true);
+                        setTimeout(() => setSnippetCopied(false), 2000);
+                      }}
+                      className="absolute top-2 right-2 flex items-center gap-1 px-2 py-1 rounded-lg bg-white/5 text-white/40 hover:text-white hover:bg-white/10 transition-colors text-[10px] font-bold"
+                    >
+                      {snippetCopied ? (
+                        <Check size={11} className="text-emerald-400" />
+                      ) : (
+                        <Copy size={11} />
+                      )}
+                      {snippetCopied ? 'Copied!' : 'Copy'}
+                    </button>
+                  </div>
+                  <p className="text-white/30 text-[10px]">
+                    Place both files in the same folder and open the HTML file in a browser to run
+                    predictions.
+                  </p>
+                </div>
+              </div>
+            </div>
+          );
+        })()}
     </div>,
     document.body,
   );
