@@ -47,10 +47,13 @@ const renderSpriteVisual = (
 ) => {
   if (sprite.type === 'character') {
     if (sprite.image) {
+      // Visually center the asymmetrical robot mascot
+      const isRobot = sprite.name === 'Stemmantra' || sprite.image.includes('robot');
       return (
         <img
           src={sprite.image}
           alt={sprite.name}
+          className={isRobot ? '-translate-x-2' : ''}
           style={{ width: '100%', height: '100%', objectFit: 'contain', pointerEvents: 'none' }}
         />
       );
