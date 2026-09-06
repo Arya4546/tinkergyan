@@ -21,7 +21,6 @@ import {
 
 import { courseService, type CourseDetail as CourseDetailType } from '../services/course.service';
 import { useUIStore } from '../stores/ui.store';
-import { Button } from '../components/ui/Button';
 import { Loader } from '../components/ui/Loader';
 
 const LESSON_TYPE_ICON = {
@@ -84,65 +83,65 @@ export default function CourseDetail() {
   if (!course) return null;
 
   return (
-    <div className="w-full h-full flex flex-col overflow-y-auto">
+    <div className="w-full h-full flex flex-col font-playful overflow-y-auto bg-transparent">
       {/* Hero Header */}
-      <div className="w-full border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-[#000000] p-6 lg:p-10 shrink-0">
+      <div className="w-full border-b border-slate-200/80 dark:border-white/10 bg-white/80 dark:bg-[#0B1121]/80 backdrop-blur-xl p-6 lg:p-10 shrink-0">
         <div className="max-w-4xl mx-auto">
           {/* Breadcrumb */}
           <Link
             to="/courses"
-            className="inline-flex items-center gap-2 text-sm font-semibold text-slate-400 hover:text-slate-900 dark:hover:text-white mb-4 transition-colors"
+            className="inline-flex items-center gap-2 text-xs font-bold text-slate-500 hover:text-playful-primary dark:hover:text-playful-highlight mb-4 transition-colors group"
           >
-            <ChevronLeft size={16} /> Back to Courses
+            <ChevronLeft size={16} className="group-hover:-translate-x-0.5 transition-transform" />{' '}
+            Back to Courses
           </Link>
 
           <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
             <div>
               <div
-                className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold mb-4 ${
+                className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black tracking-wide mb-3 ${
                   course.difficulty === 'BEGINNER'
-                    ? 'bg-emerald-500/10 text-emerald-500 dark:text-emerald-400 border border-emerald-500/30'
+                    ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200/80 dark:border-emerald-800/60'
                     : course.difficulty === 'INTERMEDIATE'
-                      ? 'bg-yellow-500/10 text-yellow-600 dark:text-yellow-400 border border-yellow-500/30'
-                      : 'bg-red-500/10 text-red-500 dark:text-red-400 border border-red-500/30'
+                      ? 'bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border border-amber-200/80 dark:border-amber-800/60'
+                      : 'bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300 border border-rose-200/80 dark:border-rose-800/60'
                 }`}
               >
-                <Zap size={12} /> {course.difficulty}
+                <Zap size={12} className="fill-current" /> {course.difficulty}
               </div>
-              <h1 className="text-3xl md:text-4xl font-extrabold tracking-tight text-slate-900 dark:text-white mb-3">
+              <h1 className="font-heading font-black text-3xl md:text-4xl tracking-tight text-tg-dark dark:text-white mb-3">
                 {course.title}
               </h1>
-              <p className="text-sm text-slate-500 dark:text-slate-400 leading-relaxed max-w-lg">
+              <p className="text-sm font-medium text-slate-500 dark:text-slate-400 leading-relaxed max-w-lg">
                 {course.description}
               </p>
             </div>
 
             <div className="flex gap-3 shrink-0">
               {!course.isEnrolled ? (
-                <Button
-                  variant="primary"
-                  className="h-12 px-6 rounded-xl font-bold transition-all shadow-lg shadow-emerald-500/20"
+                <button
+                  className="h-12 px-7 rounded-2xl bg-gradient-to-r from-playful-primary to-purple-600 hover:from-purple-600 hover:to-playful-primary text-white font-black text-sm transition-all shadow-[0_4px_16px_rgba(108,92,231,0.35)] flex items-center gap-2 cursor-pointer hover:-translate-y-0.5"
                   onClick={handleEnroll}
                   disabled={isEnrolling}
                 >
                   {isEnrolling ? (
                     <Loader2 size={16} className="animate-spin mr-2" />
                   ) : (
-                    <GraduationCap size={16} className="mr-2" />
+                    <GraduationCap size={18} />
                   )}
                   <span>{isEnrolling ? 'Enrolling...' : 'Enroll Now'}</span>
-                </Button>
+                </button>
               ) : nextLesson ? (
                 <Link
                   to={`/courses/${course.slug}/lessons/${nextLesson.id}`}
-                  className="h-12 px-6 rounded-xl bg-emerald-500 text-white font-bold hover:bg-emerald-600 transition-colors flex items-center gap-2 shadow-lg shadow-emerald-500/20"
+                  className="h-12 px-7 rounded-2xl bg-gradient-to-r from-playful-primary to-purple-600 hover:from-purple-600 hover:to-playful-primary text-white font-black text-sm transition-all shadow-[0_4px_16px_rgba(108,92,231,0.35)] flex items-center gap-2 hover:-translate-y-0.5"
                 >
-                  <BookOpen size={16} />
-                  <span>Continue</span>
+                  <BookOpen size={18} />
+                  <span>Continue Quest</span>
                 </Link>
               ) : (
-                <div className="h-12 px-6 rounded-xl bg-slate-100 dark:bg-slate-800 text-emerald-500 dark:text-emerald-400 border border-slate-200 dark:border-slate-700 flex items-center gap-2 font-bold">
-                  <CheckCircle2 size={16} />
+                <div className="h-12 px-6 rounded-2xl bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800/60 flex items-center gap-2 font-black text-sm">
+                  <CheckCircle2 size={18} />
                   <span>Completed</span>
                 </div>
               )}
@@ -150,28 +149,28 @@ export default function CourseDetail() {
           </div>
 
           {/* Stats strip */}
-          <div className="flex flex-wrap items-center gap-4 sm:gap-6 mt-8 pt-6 border-t border-slate-200 dark:border-slate-800">
-            <div className="flex items-center gap-2 text-sm font-medium text-slate-500 dark:text-slate-400">
+          <div className="flex flex-wrap items-center gap-4 sm:gap-6 mt-8 pt-6 border-t border-slate-200/80 dark:border-white/10">
+            <div className="flex items-center gap-2 text-xs sm:text-sm font-semibold text-slate-500 dark:text-slate-400">
               <BookOpen size={16} /> {course.modules.length} modules
             </div>
-            <div className="flex items-center gap-2 text-sm font-medium text-slate-500 dark:text-slate-400">
+            <div className="flex items-center gap-2 text-xs sm:text-sm font-semibold text-slate-500 dark:text-slate-400">
               <GraduationCap size={16} /> {course.totalLessons} lessons
             </div>
-            <div className="flex items-center gap-2 text-sm font-medium text-slate-500 dark:text-slate-400">
-              <Users size={16} /> {course.enrollmentCount} enrolled
+            <div className="flex items-center gap-2 text-xs sm:text-sm font-semibold text-slate-500 dark:text-slate-400">
+              <Users size={16} /> {course.enrollmentCount} makers enrolled
             </div>
             {course.isEnrolled && (
-              <div className="flex items-center gap-2 text-sm font-bold text-emerald-500 dark:text-emerald-400">
-                <Zap size={16} /> {course.progressPct}% complete
+              <div className="flex items-center gap-2 text-xs sm:text-sm font-black text-playful-primary dark:text-playful-highlight">
+                <Zap size={16} className="fill-current" /> {course.progressPct}% complete
               </div>
             )}
           </div>
 
           {/* Progress bar */}
           {course.isEnrolled && (
-            <div className="mt-4 w-full h-2.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+            <div className="mt-4 w-full h-2.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden p-0.5">
               <div
-                className="h-full bg-emerald-500 rounded-full transition-all duration-500"
+                className="h-full bg-gradient-to-r from-playful-primary via-purple-500 to-playful-highlight rounded-full transition-all duration-500"
                 style={{ width: `${course.progressPct}%` }}
               />
             </div>
@@ -180,22 +179,22 @@ export default function CourseDetail() {
       </div>
 
       {/* Module / Lesson Tree */}
-      <div className="flex-1 p-6 lg:p-10 bg-slate-50 dark:bg-[#0A0A0A]">
+      <div className="flex-1 p-6 lg:p-10 bg-transparent">
         <div className="max-w-4xl mx-auto space-y-6">
           {course.modules.map((mod, mi) => (
             <div
               key={mod.id}
-              className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-[#111111] overflow-hidden shadow-sm"
+              className="rounded-3xl border border-slate-200/80 dark:border-white/10 bg-white/80 dark:bg-[#141824]/90 backdrop-blur-md overflow-hidden shadow-2xs"
             >
               {/* Module header */}
-              <div className="px-5 py-4 border-b border-slate-100 dark:border-slate-800/60 bg-slate-50 dark:bg-[#111111] flex items-center gap-4">
-                <div className="w-8 h-8 rounded-full bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center text-sm font-bold text-emerald-600 dark:text-emerald-400">
+              <div className="px-6 py-4.5 border-b border-slate-100 dark:border-slate-800/60 bg-slate-50/70 dark:bg-[#11141E]/70 flex items-center gap-4">
+                <div className="w-8 h-8 rounded-xl bg-purple-100 dark:bg-purple-950/50 flex items-center justify-center text-xs font-black text-playful-primary dark:text-playful-highlight border border-purple-200/60 dark:border-purple-800/60">
                   {mi + 1}
                 </div>
-                <span className="text-base font-bold text-slate-900 dark:text-white">
+                <span className="font-heading font-black text-base text-tg-dark dark:text-white">
                   {mod.title}
                 </span>
-                <span className="ml-auto text-xs font-semibold text-slate-500 dark:text-slate-400">
+                <span className="ml-auto text-xs font-bold text-slate-400 dark:text-slate-500">
                   {mod.lessons.filter((l) => l.completed).length}/{mod.lessons.length} completed
                 </span>
               </div>
@@ -220,9 +219,9 @@ export default function CourseDetail() {
                           });
                         }
                       }}
-                      className={`flex items-center gap-4 px-5 py-4 transition-colors group ${
+                      className={`flex items-center gap-4 px-6 py-4.5 transition-colors group ${
                         course.isEnrolled
-                          ? 'hover:bg-slate-50 dark:hover:bg-[#1A1D24] cursor-pointer'
+                          ? 'hover:bg-purple-50/40 dark:hover:bg-white/5 cursor-pointer'
                           : 'opacity-60 cursor-not-allowed'
                       }`}
                     >
@@ -232,33 +231,33 @@ export default function CourseDetail() {
                       ) : (
                         <Circle
                           size={20}
-                          className="text-slate-300 dark:text-slate-600 shrink-0 group-hover:text-emerald-400 transition-colors"
+                          className="text-slate-300 dark:text-slate-600 shrink-0 group-hover:text-playful-primary transition-colors"
                         />
                       )}
 
                       {/* Type icon */}
-                      <div className="w-8 h-8 rounded-lg bg-slate-100 dark:bg-slate-800 flex items-center justify-center shrink-0">
+                      <div className="w-9 h-9 rounded-xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center shrink-0">
                         <TypeIcon size={16} className="text-slate-500 dark:text-slate-400" />
                       </div>
 
                       {/* Title */}
                       <span
-                        className={`text-sm font-semibold flex-1 ${
+                        className={`text-sm font-bold flex-1 ${
                           isComplete
-                            ? 'text-slate-500 line-through'
-                            : 'text-slate-700 dark:text-slate-200 group-hover:text-slate-900 dark:group-hover:text-white'
+                            ? 'text-slate-400 line-through'
+                            : 'text-slate-700 dark:text-slate-200 group-hover:text-playful-primary dark:group-hover:text-playful-highlight'
                         }`}
                       >
                         {lesson.title}
                       </span>
 
                       {/* Type badge */}
-                      <span className="text-xs font-medium text-slate-400 dark:text-slate-500 hidden sm:block bg-slate-100 dark:bg-slate-800 px-2 py-1 rounded-md">
+                      <span className="text-xs font-bold text-slate-400 dark:text-slate-500 hidden sm:block bg-slate-100 dark:bg-slate-800/80 px-2.5 py-1 rounded-lg">
                         {lesson.type}
                       </span>
 
                       {/* XP */}
-                      <span className="text-xs font-bold text-amber-500 dark:text-amber-400 flex items-center gap-1 bg-amber-50 dark:bg-amber-900/10 px-2 py-1 rounded-md">
+                      <span className="text-xs font-extrabold text-amber-600 dark:text-amber-400 flex items-center gap-1 bg-amber-50 dark:bg-amber-950/40 border border-amber-200/60 dark:border-amber-800/40 px-2.5 py-1 rounded-lg">
                         <Zap size={12} className="fill-current" /> {lesson.xpReward} XP
                       </span>
                     </Link>

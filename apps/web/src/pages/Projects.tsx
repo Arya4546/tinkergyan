@@ -9,7 +9,6 @@ import {
   Blocks,
   TerminalSquare,
   Zap,
-  Loader2,
   Cpu,
   SlidersHorizontal,
 } from 'lucide-react';
@@ -19,6 +18,7 @@ import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import { NewProjectDialog } from '../components/ui/NewProjectDialog';
 import { CustomSelect } from '../components/ui/CustomSelect';
 import { Tooltip } from '../components/ui/Tooltip';
+import { Loader } from '../components/ui/Loader';
 import { BOARDS, getBoardLabel } from '../lib/boards';
 
 type FilterType = 'ALL' | 'BLOCK' | 'CODE';
@@ -72,36 +72,40 @@ export default function Projects() {
   const deleteProjectTitle = projects.find((p) => p.id === deleteTarget)?.title ?? '';
 
   return (
-    <div className="w-full h-full flex flex-col">
-      <PageHeader icon={FolderCode} title="My Projects" subtitle={`${projects.length} projects`}>
+    <div className="w-full h-full flex flex-col font-playful bg-transparent">
+      <PageHeader
+        icon={FolderCode}
+        title="My Projects"
+        subtitle={`${projects.length} maker projects`}
+      >
         <button
           onClick={() => setIsNewProjectOpen(true)}
-          className="h-9 px-4 bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-semibold rounded-xl transition-colors flex items-center gap-2"
+          className="h-10 px-5 bg-gradient-to-r from-playful-primary to-purple-600 hover:from-purple-600 hover:to-playful-primary text-white text-xs font-black rounded-xl transition-all shadow-[0_4px_12px_rgba(108,92,231,0.3)] flex items-center gap-2 cursor-pointer hover:-translate-y-0.5"
         >
-          <Plus size={16} /> New Project
+          <Plus size={16} strokeWidth={2.5} /> New Project
         </button>
       </PageHeader>
 
       {/* Search + Filter Bar */}
-      <div className="border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-[#0a0a0a] px-6 lg:px-10 py-4 flex flex-col lg:flex-row gap-3 shrink-0">
+      <div className="border-b border-slate-200/80 dark:border-white/10 bg-white/60 dark:bg-[#0B1121]/60 backdrop-blur-md px-6 lg:px-10 py-4 flex flex-col lg:flex-row gap-3 shrink-0">
         <div className="flex-1 relative">
-          <Search size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+          <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search projects..."
-            className="w-full h-10 pl-10 pr-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-[#1a1a1a] text-sm font-medium text-slate-900 dark:text-white placeholder:text-slate-400 outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
+            className="w-full h-10 pl-10 pr-4 rounded-xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-[#141824] text-sm font-medium text-slate-900 dark:text-white placeholder:text-slate-400 outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-playful-primary transition-all"
           />
         </div>
         <div className="flex flex-wrap items-center gap-2 shrink-0">
           {/* Category Tabs: Hardware | Software */}
-          <div className="flex items-center p-1 bg-white dark:bg-[#1a1a1a] border border-slate-200 dark:border-slate-700 rounded-xl h-10">
+          <div className="flex items-center p-1 bg-slate-100 dark:bg-[#141824] border border-slate-200/80 dark:border-slate-800 rounded-xl h-10">
             <button
               onClick={() => {
                 setCategoryFilter('ALL');
                 setBoardFilter('ALL');
               }}
-              className={`px-3 py-1 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all ${
+              className={`px-3 py-1 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all ${
                 categoryFilter === 'ALL'
                   ? 'bg-slate-300 dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm'
                   : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
@@ -114,7 +118,7 @@ export default function Projects() {
                 setCategoryFilter('HARDWARE');
                 setBoardFilter('ALL');
               }}
-              className={`px-3 py-1 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all ${
+              className={`px-3 py-1 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all ${
                 categoryFilter === 'HARDWARE'
                   ? 'bg-purple-600 text-white shadow-sm'
                   : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
@@ -127,9 +131,9 @@ export default function Projects() {
                 setCategoryFilter('SOFTWARE');
                 setBoardFilter('ALL');
               }}
-              className={`px-3 py-1 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all ${
+              className={`px-3 py-1 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all ${
                 categoryFilter === 'SOFTWARE'
-                  ? 'bg-emerald-600 text-white shadow-sm'
+                  ? 'bg-rose-500 text-white shadow-sm'
                   : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
               }`}
             >
@@ -152,7 +156,7 @@ export default function Projects() {
 
           {/* Software Engine Indicator */}
           {categoryFilter === 'SOFTWARE' && (
-            <div className="flex items-center gap-1.5 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-900/50 rounded-xl px-3 py-1.5 text-xs font-semibold text-emerald-700 dark:text-emerald-400">
+            <div className="flex items-center gap-1.5 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/50 rounded-xl px-3 py-1.5 text-xs font-bold text-playful-secondary">
               <SlidersHorizontal size={12} /> Engine: Scratch
             </div>
           )}
@@ -163,10 +167,10 @@ export default function Projects() {
               <button
                 key={f}
                 onClick={() => setFilter(f)}
-                className={`h-10 px-3 rounded-xl text-xs font-semibold transition-colors flex items-center gap-1 border ${
+                className={`h-10 px-3 rounded-xl text-xs font-bold transition-colors flex items-center gap-1 border ${
                   filter === f
-                    ? 'bg-slate-900 dark:bg-white text-white dark:text-slate-900 border-transparent'
-                    : 'bg-white dark:bg-[#1a1a1a] text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800'
+                    ? 'bg-playful-primary text-white border-transparent shadow-xs'
+                    : 'bg-white dark:bg-[#141824] text-slate-600 dark:text-slate-300 border-slate-200/80 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800'
                 }`}
               >
                 {f === 'BLOCK' && <Blocks size={12} />}
@@ -179,10 +183,10 @@ export default function Projects() {
       </div>
 
       {/* Content */}
-      <div className="flex-1 overflow-y-auto p-6 lg:p-10 bg-white dark:bg-[#111111]">
+      <div className="flex-1 overflow-y-auto p-6 lg:p-10 bg-transparent">
         {isLoading && (
           <div className="flex justify-center py-16">
-            <Loader2 className="animate-spin text-emerald-500" size={28} />
+            <Loader message="Loading your projects..." />
           </div>
         )}
 
@@ -302,20 +306,24 @@ export default function Projects() {
               return (
                 <div
                   key={project.id}
-                  className="bg-white dark:bg-[#1a1a1a] border border-slate-200 dark:border-slate-800 rounded-2xl p-5 flex flex-col hover:shadow-md transition-shadow group"
+                  className="bg-white/80 dark:bg-[#141824]/90 border border-slate-200/80 dark:border-white/10 rounded-3xl p-6 flex flex-col hover:border-purple-300 dark:hover:border-purple-500/40 shadow-2xs hover:shadow-lg hover:-translate-y-1 transition-all group"
                 >
                   <div className="flex items-start justify-between mb-4">
                     <div
-                      className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${isBlock ? 'bg-purple-100 dark:bg-purple-900/30 text-purple-600' : 'bg-sky-100 dark:bg-sky-900/30 text-sky-600'}`}
+                      className={`w-11 h-11 rounded-2xl flex items-center justify-center shrink-0 ${
+                        isBlock
+                          ? 'bg-purple-100 dark:bg-purple-950/50 text-playful-primary dark:text-playful-highlight'
+                          : 'bg-amber-100 dark:bg-amber-950/50 text-amber-600 dark:text-amber-400'
+                      }`}
                     >
-                      {isBlock ? <Blocks size={18} /> : <TerminalSquare size={18} />}
+                      {isBlock ? <Blocks size={20} /> : <TerminalSquare size={20} />}
                     </div>
                     <div className="flex items-center gap-2">
                       <span
-                        className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full ${
+                        className={`text-[11px] font-extrabold px-3 py-1 rounded-full ${
                           project.boardTarget === 'software'
-                            ? 'bg-emerald-100 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400'
-                            : 'bg-purple-100 dark:bg-purple-950/40 text-purple-700 dark:text-purple-400'
+                            ? 'bg-rose-50 dark:bg-rose-950/40 text-playful-secondary border border-rose-200/60 dark:border-rose-800/40'
+                            : 'bg-purple-50 dark:bg-purple-950/40 text-purple-700 dark:text-playful-highlight border border-purple-200/60 dark:border-purple-800/40'
                         }`}
                       >
                         {project.boardTarget === 'software'
@@ -323,14 +331,14 @@ export default function Projects() {
                           : `Hardware • ${boardLabel}`}
                       </span>
                       {project.isPublic && (
-                        <span className="text-xs font-semibold px-2 py-0.5 bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 rounded-full flex items-center gap-1">
-                          <Zap size={10} /> Public
+                        <span className="text-[11px] font-extrabold px-2.5 py-0.5 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 border border-emerald-200/60 rounded-full flex items-center gap-1">
+                          <Zap size={10} className="fill-current" /> Public
                         </span>
                       )}
                       <Tooltip content="Delete Project" position="top">
                         <button
                           onClick={() => setDeleteTarget(project.id)}
-                          className="opacity-0 group-hover:opacity-100 transition-opacity w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20"
+                          className="opacity-0 group-hover:opacity-100 transition-opacity w-8 h-8 rounded-xl flex items-center justify-center text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20"
                         >
                           <Trash2 size={14} />
                         </button>
@@ -338,10 +346,10 @@ export default function Projects() {
                     </div>
                   </div>
 
-                  <h3 className="font-bold text-base text-slate-900 dark:text-white leading-tight mb-1 line-clamp-2">
+                  <h3 className="font-heading font-black text-lg text-tg-dark dark:text-white leading-tight mb-1 line-clamp-2">
                     {project.title}
                   </h3>
-                  <p className="text-xs text-slate-500 dark:text-slate-400 mb-4">
+                  <p className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-4">
                     {project.boardTarget === 'software'
                       ? 'Software Coding (Scratch)'
                       : `Hardware (${boardLabel})`}{' '}
@@ -349,11 +357,11 @@ export default function Projects() {
                     {new Date(project.updatedAt).toLocaleDateString()}
                   </p>
 
-                  <div className="mt-auto pt-4 border-t border-slate-100 dark:border-slate-800 flex justify-end">
+                  <div className="mt-auto pt-4 border-t border-slate-100 dark:border-slate-800/60 flex justify-end">
                     <Tooltip content="Open in Workspace Editor" position="top">
                       <Link
                         to={`/editor/${project.id}${project.boardTarget === 'software' ? '?engine=software' : '?engine=hardware'}`}
-                        className="inline-flex items-center gap-2 text-xs font-semibold text-emerald-600 hover:text-emerald-700 transition-colors"
+                        className="inline-flex items-center gap-1.5 text-xs font-extrabold text-playful-primary dark:text-playful-highlight hover:underline transition-all"
                       >
                         Open <Play size={12} className="fill-current" />
                       </Link>

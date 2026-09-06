@@ -196,14 +196,6 @@ export default function Login() {
           >
             {theme === 'dark' ? <Sun size={20} /> : <Moon size={20} />}
           </button>
-
-          <Link
-            to="/"
-            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full border border-slate-200/80 dark:border-white/10 bg-white/80 dark:bg-[#0B1121]/80 backdrop-blur-md text-xs font-bold text-slate-600 dark:text-slate-300 hover:text-playful-primary dark:hover:text-playful-highlight hover:border-playful-primary/40 transition-all duration-200 shadow-sm"
-          >
-            <ArrowLeft size={15} />
-            <span>Home</span>
-          </Link>
         </div>
       </header>
 
@@ -215,6 +207,20 @@ export default function Login() {
             <div className="bg-white/90 dark:bg-[#0B1121]/85 backdrop-blur-2xl border border-slate-200/80 dark:border-white/10 rounded-[2.5rem] p-8 sm:p-10 shadow-[0_20px_50px_rgba(0,0,0,0.06)] dark:shadow-[0_20px_60px_rgba(0,0,0,0.5)] w-full max-w-md relative overflow-hidden">
               {/* Top gradient edge accent */}
               <div className="absolute top-0 left-0 w-full h-1.5 bg-gradient-to-r from-playful-primary via-purple-500 to-playful-highlight" />
+
+              {/* Card Top Left: Home Button */}
+              <div className="mb-5">
+                <Link
+                  to="/"
+                  className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full border border-slate-200/80 dark:border-white/10 bg-slate-50/80 dark:bg-white/5 hover:bg-purple-50/80 dark:hover:bg-purple-950/30 text-xs font-bold text-slate-600 dark:text-slate-300 hover:text-playful-primary dark:hover:text-playful-highlight hover:border-playful-primary/40 transition-all duration-200 shadow-2xs group"
+                >
+                  <ArrowLeft
+                    size={14}
+                    className="group-hover:-translate-x-0.5 transition-transform duration-200"
+                  />
+                  <span>Home</span>
+                </Link>
+              </div>
 
               {/* Mobile Mascot Greeting Banner (< lg screens) */}
               <div className="lg:hidden flex items-center gap-3 p-3 mb-6 bg-purple-50/80 dark:bg-purple-950/40 border border-purple-200/70 dark:border-purple-800/50 rounded-2xl">

@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Globe, GitFork, Blocks, Code2, Search, Loader2 } from 'lucide-react';
+import { Globe, GitFork, Blocks, Code2, Search } from 'lucide-react';
 import { PageHeader } from '../components/ui/PageHeader';
+import { Loader } from '../components/ui/Loader';
 import { api } from '../services/api';
 
 interface GalleryProject {
@@ -65,71 +66,77 @@ export default function Gallery() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <Loader2 className="animate-spin text-emerald-500" size={28} />
+        <Loader message="Exploring community builds..." />
       </div>
     );
   }
 
   return (
-    <div className="w-full h-full flex flex-col">
+    <div className="w-full h-full flex flex-col font-playful bg-transparent">
       <PageHeader icon={Globe} title="Gallery" subtitle="Browse and remix community projects" />
 
-      <div className="flex-1 overflow-y-auto p-6 lg:p-10 bg-white dark:bg-[#111111]">
+      <div className="flex-1 overflow-y-auto p-6 lg:p-10 bg-transparent">
         {/* Search */}
-        <div className="relative mb-6">
+        <div className="relative mb-6 max-w-2xl">
           <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search projects or creators..."
-            className="w-full h-11 pl-10 pr-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-[#1a1a1a] text-sm font-medium text-slate-900 dark:text-white placeholder:text-slate-400 outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
+            className="w-full h-11 pl-10 pr-4 rounded-xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-[#141824] text-sm font-medium text-slate-900 dark:text-white placeholder:text-slate-400 outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-playful-primary transition-all"
           />
         </div>
 
         {filtered.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-20 text-center">
-            <div className="w-14 h-14 bg-slate-100 dark:bg-slate-800 rounded-2xl flex items-center justify-center mb-4">
-              <Globe size={24} className="text-slate-400" />
+            <div className="w-16 h-16 bg-purple-50 dark:bg-purple-950/40 text-playful-primary dark:text-playful-highlight border border-purple-200/60 dark:border-purple-800/60 rounded-3xl flex items-center justify-center mb-4">
+              <Globe size={28} />
             </div>
-            <p className="font-semibold text-slate-700 dark:text-slate-300 mb-1">
+            <p className="font-heading font-black text-xl text-tg-dark dark:text-white mb-1">
               No projects found
             </p>
-            <p className="text-sm text-slate-400">
+            <p className="text-sm font-medium text-slate-400">
               Published projects from the community will appear here.
             </p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
             {filtered.map((p) => (
               <div
                 key={p.id}
-                className="bg-white dark:bg-[#1a1a1a] border border-slate-200 dark:border-slate-800 rounded-2xl p-5 flex flex-col hover:shadow-md hover:border-emerald-300 dark:hover:border-emerald-800 transition-all"
+                className="bg-white/80 dark:bg-[#141824]/90 border border-slate-200/80 dark:border-white/10 rounded-3xl p-6 flex flex-col hover:shadow-xl hover:border-purple-300 dark:hover:border-purple-500/40 hover:-translate-y-1 transition-all"
               >
-                <div className="flex items-center gap-2 mb-4">
+                <div className="flex items-center gap-2.5 mb-4">
                   <div
-                    className={`w-8 h-8 rounded-lg flex items-center justify-center ${p.type === 'BLOCK' ? 'bg-purple-100 dark:bg-purple-900/30 text-purple-600' : 'bg-sky-100 dark:bg-sky-900/30 text-sky-600'}`}
+                    className={`w-9 h-9 rounded-xl flex items-center justify-center ${
+                      p.type === 'BLOCK'
+                        ? 'bg-purple-100 dark:bg-purple-950/50 text-playful-primary dark:text-playful-highlight'
+                        : 'bg-amber-100 dark:bg-amber-950/50 text-amber-600 dark:text-amber-400'
+                    }`}
                   >
-                    {p.type === 'BLOCK' ? <Blocks size={16} /> : <Code2 size={16} />}
+                    {p.type === 'BLOCK' ? <Blocks size={18} /> : <Code2 size={18} />}
                   </div>
-                  <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">
+                  <span className="text-xs font-bold text-slate-500 dark:text-slate-400">
                     {p.type === 'BLOCK' ? 'Block Logic' : 'C++ Code'} &bull;{' '}
                     {p.boardTarget.split(':').pop()}
                   </span>
                 </div>
 
-                <h3 className="font-bold text-base text-slate-900 dark:text-white mb-1 line-clamp-2">
+                <h3 className="font-heading font-black text-lg text-tg-dark dark:text-white mb-1 line-clamp-2">
                   {p.title}
                 </h3>
-                <p className="text-sm text-slate-500 dark:text-slate-400 mb-4">by {p.user.name}</p>
+                <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 mb-5">
+                  by {p.user.name}
+                </p>
 
-                <div className="mt-auto flex items-center justify-between pt-4 border-t border-slate-100 dark:border-slate-800">
-                  <span className="text-xs text-slate-400 flex items-center gap-1">
-                    <GitFork size={12} /> {p.forkCount} forks
+                <div className="mt-auto flex items-center justify-between pt-4 border-t border-slate-100 dark:border-slate-800/60">
+                  <span className="text-xs font-semibold text-slate-400 flex items-center gap-1">
+                    <GitFork size={13} /> {p.forkCount} forks
                   </span>
                   <div className="flex items-center gap-3">
                     <Link
                       to={`/editor/${p.id}${p.boardTarget === 'software' ? '?engine=software' : '?engine=hardware'}`}
-                      className="text-xs font-semibold text-emerald-600 hover:text-emerald-700 transition-colors"
+                      className="text-xs font-extrabold text-playful-primary dark:text-playful-highlight hover:underline transition-colors"
                     >
                       View
                     </Link>
@@ -138,9 +145,9 @@ export default function Gallery() {
                         void fork(p.id);
                       }}
                       disabled={forking === p.id}
-                      className="text-xs font-semibold px-3 py-1.5 bg-slate-900 dark:bg-white text-white dark:text-slate-900 rounded-lg hover:bg-emerald-500 hover:text-white transition-colors disabled:opacity-50"
+                      className="text-xs font-black px-4 py-2 bg-gradient-to-r from-playful-primary to-purple-600 hover:from-purple-600 hover:to-playful-primary text-white rounded-xl shadow-xs hover:-translate-y-0.5 transition-all disabled:opacity-50 cursor-pointer"
                     >
-                      {forking === p.id ? '...' : 'Remix'}
+                      {forking === p.id ? '...' : 'Remix 🛠️'}
                     </button>
                   </div>
                 </div>

@@ -41,17 +41,21 @@ function ToggleSwitch({
   return (
     <button
       onClick={() => onChange(!checked)}
-      className="flex items-center justify-between w-full py-4 text-left"
+      className="flex items-center justify-between w-full py-4 text-left cursor-pointer"
     >
       <div>
-        <p className="text-sm font-semibold text-slate-900 dark:text-white">{label}</p>
-        {description && <p className="text-xs text-slate-500 mt-0.5">{description}</p>}
+        <p className="text-sm font-bold text-tg-dark dark:text-white">{label}</p>
+        {description && (
+          <p className="text-xs font-medium text-slate-500 dark:text-slate-400 mt-0.5">
+            {description}
+          </p>
+        )}
       </div>
       <div
-        className={`w-10 h-6 rounded-full transition-colors shrink-0 ml-4 relative ${checked ? 'bg-emerald-500' : 'bg-slate-200 dark:bg-slate-700'}`}
+        className={`w-11 h-6 rounded-full transition-colors shrink-0 ml-4 relative ${checked ? 'bg-playful-primary' : 'bg-slate-200 dark:bg-slate-700'}`}
       >
         <div
-          className={`w-4 h-4 bg-white rounded-full absolute top-1 transition-transform shadow-sm ${checked ? 'translate-x-5' : 'translate-x-1'}`}
+          className={`w-4 h-4 bg-white rounded-full absolute top-1 transition-transform shadow-xs ${checked ? 'translate-x-6' : 'translate-x-1'}`}
         />
       </div>
     </button>
@@ -135,37 +139,40 @@ export default function Settings() {
     );
 
   const iClass =
-    'w-full h-10 px-3.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-[#111111] text-sm font-medium text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500';
+    'w-full h-11 px-4 rounded-xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-[#11141E] text-sm font-medium text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-playful-primary transition-all';
   const btnClass = (active: boolean) =>
-    `h-10 px-3 rounded-lg text-sm font-semibold transition-colors border ${active ? 'bg-slate-900 dark:bg-white text-white dark:text-slate-900 border-transparent' : 'bg-white dark:bg-[#111111] text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800'}`;
+    `h-10 px-3.5 rounded-xl text-xs font-bold transition-all border ${active ? 'bg-playful-primary text-white border-transparent shadow-xs' : 'bg-white dark:bg-[#11141E] text-slate-600 dark:text-slate-300 border-slate-200/80 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-white/5'}`;
 
   return (
-    <div className="w-full h-full flex flex-col overflow-y-auto">
-      <PageHeader icon={Settings2} title="Settings" subtitle="Manage your preferences">
+    <div className="w-full h-full flex flex-col font-playful overflow-y-auto bg-transparent">
+      <PageHeader icon={Settings2} title="Settings" subtitle="Manage your workbench preferences">
         <button
           onClick={() => setPrefs(DEFAULTS)}
-          className="h-9 px-4 text-sm font-semibold text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors flex items-center gap-2"
+          className="h-10 px-4 text-xs font-bold text-slate-600 dark:text-slate-300 border border-slate-200/80 dark:border-slate-800 rounded-xl hover:bg-slate-100 dark:hover:bg-white/5 transition-colors flex items-center gap-2 cursor-pointer"
         >
           <RotateCcw size={14} /> Reset
         </button>
         <button
           onClick={handleSave}
           disabled={isSaving}
-          className="h-9 px-4 text-sm font-semibold bg-slate-900 dark:bg-white text-white dark:text-slate-900 rounded-xl hover:bg-emerald-500 hover:text-white transition-colors flex items-center gap-2 disabled:opacity-50"
+          className="h-10 px-5 text-xs font-black bg-gradient-to-r from-playful-primary to-purple-600 hover:from-purple-600 hover:to-playful-primary text-white rounded-xl shadow-xs hover:-translate-y-0.5 transition-all flex items-center gap-2 disabled:opacity-50 cursor-pointer"
         >
-          {isSaving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />} Save
+          {isSaving ? <Loader2 size={14} className="animate-spin" /> : <Save size={15} />} Save
+          Settings
         </button>
       </PageHeader>
 
-      <div className="flex-1 p-6 lg:p-10 bg-white dark:bg-[#111111]">
+      <div className="flex-1 p-6 lg:p-10 bg-transparent">
         <div className="max-w-2xl mx-auto space-y-8">
           <section>
-            <h2 className="text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-4">
+            <h2 className="font-heading font-black text-xs text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-4">
               Appearance
             </h2>
-            <div className="bg-slate-50 dark:bg-[#1a1a1a] border border-slate-200 dark:border-slate-800 rounded-2xl p-5">
-              <p className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-3">Theme</p>
-              <div className="flex gap-2">
+            <div className="bg-white/80 dark:bg-[#141824]/90 border border-slate-200/80 dark:border-white/10 rounded-3xl p-6 shadow-2xs">
+              <p className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-3">
+                Theme
+              </p>
+              <div className="flex gap-2.5">
                 {(
                   [
                     { value: 'LIGHT', icon: Sun, label: 'Light' },
@@ -176,7 +183,7 @@ export default function Settings() {
                   <button
                     key={opt.value}
                     onClick={() => updatePref('theme', opt.value)}
-                    className={`flex-1 h-10 rounded-xl text-sm font-semibold flex items-center justify-center gap-2 transition-colors border ${prefs.theme === opt.value ? 'bg-slate-900 dark:bg-white text-white dark:text-slate-900 border-transparent' : 'bg-white dark:bg-[#111111] text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-50'}`}
+                    className={`flex-1 h-11 rounded-2xl text-xs font-bold flex items-center justify-center gap-2 transition-all border cursor-pointer ${prefs.theme === opt.value ? 'bg-playful-primary text-white border-transparent shadow-xs' : 'bg-white dark:bg-[#11141E] text-slate-600 dark:text-slate-300 border-slate-200/80 dark:border-slate-800 hover:bg-slate-50'}`}
                   >
                     <opt.icon size={15} /> {opt.label}
                   </button>
@@ -186,13 +193,13 @@ export default function Settings() {
           </section>
 
           <section>
-            <h2 className="text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-4">
+            <h2 className="font-heading font-black text-xs text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-4">
               Editor Settings
             </h2>
-            <div className="bg-slate-50 dark:bg-[#1a1a1a] border border-slate-200 dark:border-slate-800 rounded-2xl p-5 space-y-5">
+            <div className="bg-white/80 dark:bg-[#141824]/90 border border-slate-200/80 dark:border-white/10 rounded-3xl p-6 space-y-5 shadow-2xs">
               <div>
-                <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">
-                  Default Board
+                <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-2">
+                  Default Target Board
                 </label>
                 <CustomSelect
                   value={prefs.defaultBoard}
@@ -202,10 +209,13 @@ export default function Settings() {
                 />
               </div>
               <div>
-                <p className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">
-                  Font Size — <span className="text-emerald-600">{prefs.editorFontSize}px</span>
+                <p className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-2">
+                  Font Size —{' '}
+                  <span className="text-playful-primary dark:text-playful-highlight font-black">
+                    {prefs.editorFontSize}px
+                  </span>
                 </p>
-                <div className="flex gap-1.5 flex-wrap">
+                <div className="flex gap-2 flex-wrap">
                   {FONT_SIZES.map((size) => (
                     <button
                       key={size}
@@ -221,25 +231,25 @@ export default function Settings() {
           </section>
 
           <section>
-            <h2 className="text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-4">
+            <h2 className="font-heading font-black text-xs text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-4">
               Behavior
             </h2>
-            <div className="bg-slate-50 dark:bg-[#1a1a1a] border border-slate-200 dark:border-slate-800 rounded-2xl px-5 divide-y divide-slate-200 dark:divide-slate-800">
+            <div className="bg-white/80 dark:bg-[#141824]/90 border border-slate-200/80 dark:border-white/10 rounded-3xl px-6 divide-y divide-slate-100 dark:divide-slate-800 shadow-2xs">
               <ToggleSwitch
                 label="Auto Save"
-                description="Save your work automatically while editing"
+                description="Save your workbench code and blocks automatically"
                 checked={prefs.autoSave}
                 onChange={(v) => updatePref('autoSave', v)}
               />
               <ToggleSwitch
                 label="Code Completion"
-                description="Show code suggestions as you type"
+                description="Show C++ suggestions and pin tooltips while typing"
                 checked={prefs.codeCompletion}
                 onChange={(v) => updatePref('codeCompletion', v)}
               />
               <ToggleSwitch
                 label="Email Notifications"
-                description="Receive updates about courses and achievements"
+                description="Receive alerts about new courses, quest progress, and badges"
                 checked={prefs.emailNotifications}
                 onChange={(v) => updatePref('emailNotifications', v)}
               />
@@ -247,14 +257,14 @@ export default function Settings() {
           </section>
 
           <section>
-            <h2 className="text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-4">
+            <h2 className="font-heading font-black text-xs text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-4">
               Security
             </h2>
-            <div className="bg-slate-50 dark:bg-[#1a1a1a] border border-slate-200 dark:border-slate-800 rounded-2xl p-5">
-              <p className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-4">
+            <div className="bg-white/80 dark:bg-[#141824]/90 border border-slate-200/80 dark:border-white/10 rounded-3xl p-6 shadow-2xs">
+              <p className="font-heading font-bold text-sm text-tg-dark dark:text-white mb-4">
                 Change Password
               </p>
-              <form onSubmit={handleChangePassword} className="space-y-3">
+              <form onSubmit={handleChangePassword} className="space-y-3.5">
                 <input
                   type="password"
                   placeholder="Current password"
@@ -275,12 +285,12 @@ export default function Settings() {
                 <button
                   type="submit"
                   disabled={isChangingPwd || !oldPassword || !newPassword}
-                  className="h-10 px-5 bg-red-500 hover:bg-red-600 text-white text-sm font-semibold rounded-xl transition-colors disabled:opacity-50 flex items-center gap-2"
+                  className="h-11 px-6 bg-rose-500 hover:bg-rose-600 text-white text-xs font-black rounded-xl transition-all disabled:opacity-50 flex items-center gap-2 cursor-pointer shadow-xs"
                 >
                   {isChangingPwd ? (
                     <Loader2 size={14} className="animate-spin" />
                   ) : (
-                    <Lock size={14} />
+                    <Lock size={15} />
                   )}{' '}
                   Update Password
                 </button>

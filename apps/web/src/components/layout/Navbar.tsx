@@ -1,4 +1,5 @@
-import { Moon, Sun, Menu, ChevronDown, LogOut, Settings, UserIcon, Rocket } from 'lucide-react';
+import { Moon, Sun, Menu, ChevronDown, LogOut, Settings, UserIcon } from 'lucide-react';
+import { CartoonRocket } from '@/components/illustrations/CartoonRocket';
 import { useAuthStore } from '../../stores/auth.store';
 import { useUIStore } from '../../stores/ui.store';
 import { useEffect, useState, useRef } from 'react';
@@ -42,24 +43,24 @@ export function Navbar() {
   };
 
   return (
-    <header className="h-16 shrink-0 flex items-center justify-between px-6 lg:px-8 bg-white dark:bg-[#111111] border-b border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white z-30 relative transition-colors duration-300">
+    <header className="h-16 shrink-0 flex items-center justify-between px-6 lg:px-8 bg-white/90 dark:bg-[#0B1121]/90 backdrop-blur-md border-b border-slate-200/80 dark:border-slate-800/80 text-slate-900 dark:text-white z-30 relative transition-colors duration-300">
       <div className="flex items-center gap-4">
         {/* Mobile Menu Button */}
         <button
           type="button"
           onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-          className="sm:hidden w-9 h-9 flex items-center justify-center rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+          className="sm:hidden w-9 h-9 flex items-center justify-center rounded-xl hover:bg-slate-100 dark:hover:bg-white/10 transition-colors"
         >
           <Menu size={20} strokeWidth={2} />
         </button>
 
         {/* Brand Logo */}
-        <div className="flex items-center gap-3">
-          <div className="w-8 h-8 bg-emerald-500 rounded-md flex items-center justify-center shrink-0">
-            <Rocket size={16} className="text-white" />
-          </div>
-          <span className="text-lg font-bold tracking-tight hidden sm:block">Tinkergyan</span>
-        </div>
+        <Link to="/dashboard" className="flex items-center gap-2.5 group">
+          <CartoonRocket className="w-8 h-8 group-hover:scale-110 group-hover:-rotate-6 transition-transform duration-300 drop-shadow-sm" />
+          <span className="font-heading font-black text-xl tracking-tight text-playful-primary dark:text-playful-highlight drop-shadow-xs hidden sm:block">
+            Tinkergyan
+          </span>
+        </Link>
       </div>
 
       <div className="flex items-center gap-2">
@@ -77,10 +78,10 @@ export function Navbar() {
         <div className="relative flex" ref={dropdownRef}>
           <button
             type="button"
-            className="flex items-center gap-2 h-9 pl-2 pr-3 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-[#1A1D24] hover:bg-slate-50 dark:hover:bg-[#252A34] transition-colors group"
+            className="flex items-center gap-2 h-9 pl-2 pr-3 rounded-xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-[#1A1D24] hover:bg-slate-50 dark:hover:bg-[#252A34] transition-colors group shadow-2xs"
             onClick={() => setDropdownOpen(!dropdownOpen)}
           >
-            <div className="h-6 w-6 bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-400 rounded-full flex items-center justify-center font-bold text-xs overflow-hidden">
+            <div className="h-6 w-6 bg-purple-100 dark:bg-purple-950/60 text-purple-700 dark:text-playful-highlight rounded-full flex items-center justify-center font-bold text-xs overflow-hidden border border-purple-200/60 dark:border-purple-800/60">
               {user?.avatar ? (
                 <img src={user.avatar} alt="avatar" className="h-full w-full object-cover" />
               ) : (

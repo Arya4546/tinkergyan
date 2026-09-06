@@ -23,7 +23,6 @@ import {
 import { courseService, type LessonDetail, type CourseDetail } from '../services/course.service';
 import { useUIStore } from '../stores/ui.store';
 import { api } from '../services/api';
-import { Button } from '../components/ui/Button';
 import { Loader } from '../components/ui/Loader';
 
 // ─── Simple Markdown Renderer ─────────────────────────────────────────────────
@@ -178,26 +177,27 @@ export default function LessonView() {
   const isCoding = lesson.type === 'CODING';
 
   return (
-    <div className="w-full h-full flex flex-col overflow-hidden">
+    <div className="w-full h-full flex flex-col font-playful overflow-hidden bg-transparent">
       {/* Top bar */}
-      <div className="border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-[#000000] px-6 py-4 flex items-center gap-3 shrink-0 shadow-sm z-10">
+      <div className="border-b border-slate-200/80 dark:border-white/10 bg-white/80 dark:bg-[#0B1121]/80 backdrop-blur-xl px-6 py-4 flex items-center gap-3 shrink-0 shadow-2xs z-10">
         <Link
           to={`/courses/${course.slug}`}
-          className="flex items-center gap-2 text-sm font-semibold text-slate-500 hover:text-slate-900 dark:hover:text-white transition-colors"
+          className="flex items-center gap-1.5 text-xs font-bold text-slate-500 hover:text-playful-primary dark:hover:text-playful-highlight transition-colors group"
         >
-          <ChevronLeft size={16} /> {course.title}
+          <ChevronLeft size={16} className="group-hover:-translate-x-0.5 transition-transform" />{' '}
+          {course.title}
         </Link>
         <span className="text-slate-300 dark:text-slate-700">/</span>
-        <span className="text-sm font-bold text-slate-900 dark:text-white truncate">
+        <span className="font-heading font-black text-sm text-tg-dark dark:text-white truncate">
           {lesson.title}
         </span>
         <div className="ml-auto flex items-center gap-3">
           {lesson.completed && (
-            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-500/30 text-xs font-bold uppercase tracking-wider">
+            <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-purple-50 dark:bg-purple-950/50 text-playful-primary dark:text-playful-highlight border border-purple-200/80 dark:border-purple-800/60 text-xs font-black tracking-wide">
               <CheckCircle2 size={12} /> Done
             </div>
           )}
-          <div className="flex items-center gap-1.5 text-xs font-bold text-amber-500 dark:text-amber-400 bg-amber-50 dark:bg-amber-500/10 px-2.5 py-1 rounded-md">
+          <div className="flex items-center gap-1.5 text-xs font-extrabold text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 border border-amber-200/60 dark:border-amber-800/40 px-3 py-1 rounded-full">
             <Zap size={12} className="fill-current" /> {lesson.xpReward} XP
           </div>
         </div>
@@ -207,7 +207,7 @@ export default function LessonView() {
       <div className={`flex-1 flex ${isCoding ? 'flex-row' : 'flex-col'} overflow-hidden`}>
         {/* Lesson content (markdown) */}
         <div
-          className={`${isCoding ? 'w-1/2 border-r border-slate-200 dark:border-slate-800' : 'flex-1 max-w-4xl mx-auto'} overflow-y-auto p-6 lg:p-10 bg-white dark:bg-[#0A0A0A]`}
+          className={`${isCoding ? 'w-1/2 border-r border-slate-200/80 dark:border-white/10' : 'flex-1 max-w-4xl mx-auto'} overflow-y-auto p-6 lg:p-10 bg-transparent`}
         >
           <div
             className="lesson-content prose prose-invert max-w-none"
@@ -217,26 +217,25 @@ export default function LessonView() {
 
         {/* Code editor panel (CODING lessons only) */}
         {isCoding && (
-          <div className="w-1/2 flex flex-col bg-[#1e1e1e]">
+          <div className="w-1/2 flex flex-col bg-[#141824]">
             {/* Editor toolbar */}
-            <div className="h-12 border-b border-slate-800 bg-[#111111] flex items-center px-4 gap-3 shrink-0">
-              <Code2 size={16} className="text-emerald-500" />
+            <div className="h-12 border-b border-slate-800 bg-[#0B1121] flex items-center px-4 gap-3 shrink-0">
+              <Code2 size={16} className="text-playful-primary dark:text-playful-highlight" />
               <span className="text-xs font-bold text-slate-400 uppercase tracking-wider flex-1">
                 Sketch Editor
               </span>
-              <Button
-                variant="primary"
-                className="h-8 px-4 rounded-lg bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-bold transition-all shadow-lg shadow-emerald-500/20"
+              <button
+                className="h-8 px-4 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-teal-500 hover:to-emerald-500 text-white text-xs font-black transition-all shadow-xs flex items-center gap-1.5 cursor-pointer hover:-translate-y-0.5"
                 onClick={handleCompile}
                 disabled={isCompiling}
               >
                 {isCompiling ? (
-                  <Loader2 size={14} className="animate-spin mr-1.5" />
+                  <Loader2 size={14} className="animate-spin mr-1" />
                 ) : (
-                  <Play size={14} className="mr-1.5" />
+                  <Play size={13} className="fill-current" />
                 )}
-                <span>{isCompiling ? 'Running' : 'Run Code'}</span>
-              </Button>
+                <span>{isCompiling ? 'Running...' : 'Run Code'}</span>
+              </button>
             </div>
 
             {/* Code textarea */}
@@ -244,13 +243,13 @@ export default function LessonView() {
               value={code}
               onChange={(e) => setCode(e.target.value)}
               spellCheck={false}
-              className="flex-1 w-full bg-[#1e1e1e] text-emerald-400 font-mono text-sm p-4 outline-none resize-none border-none leading-relaxed"
+              className="flex-1 w-full bg-[#141824] text-emerald-400 font-mono text-sm p-4 outline-none resize-none border-none leading-relaxed"
               placeholder="// Write your code here..."
             />
 
             {/* Output panel */}
             {compileOutput !== null && (
-              <div className="h-48 border-t border-slate-800 bg-[#0a0a0a] overflow-y-auto p-5 shrink-0">
+              <div className="h-48 border-t border-slate-800 bg-[#070B12] overflow-y-auto p-5 shrink-0">
                 <div className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">
                   Output Console
                 </div>
@@ -264,14 +263,15 @@ export default function LessonView() {
       </div>
 
       {/* Bottom navigation + complete */}
-      <div className="border-t border-slate-200 dark:border-slate-800 bg-white dark:bg-[#000000] px-6 py-4 flex items-center justify-between shrink-0 shadow-sm z-10">
+      <div className="border-t border-slate-200/80 dark:border-white/10 bg-white/80 dark:bg-[#0B1121]/80 backdrop-blur-xl px-6 py-4 flex items-center justify-between shrink-0 shadow-2xs z-10">
         {/* Prev */}
         {prevLesson ? (
           <Link
             to={`/courses/${course.slug}/lessons/${prevLesson.id}`}
-            className="flex items-center gap-2 text-sm font-semibold text-slate-500 hover:text-slate-900 dark:hover:text-white transition-colors"
+            className="flex items-center gap-2 text-xs font-bold text-slate-500 hover:text-playful-primary dark:hover:text-playful-highlight transition-colors group"
           >
-            <ChevronLeft size={16} /> Previous: {prevLesson.title}
+            <ChevronLeft size={16} className="group-hover:-translate-x-0.5 transition-transform" />{' '}
+            Previous: {prevLesson.title}
           </Link>
         ) : (
           <div />
@@ -280,25 +280,24 @@ export default function LessonView() {
         {/* Complete + Next */}
         <div className="flex items-center gap-3">
           {!lesson.completed && (
-            <Button
-              variant="primary"
-              className="h-10 px-5 rounded-xl font-bold transition-all shadow-lg shadow-emerald-500/20"
+            <button
+              className="h-10 px-5 rounded-xl bg-gradient-to-r from-playful-primary to-purple-600 hover:from-purple-600 hover:to-playful-primary text-white font-black text-xs transition-all shadow-[0_4px_16px_rgba(108,92,231,0.35)] flex items-center gap-2 cursor-pointer hover:-translate-y-0.5"
               onClick={handleComplete}
               disabled={isCompleting}
             >
               {isCompleting ? (
-                <Loader2 size={16} className="animate-spin mr-2" />
+                <Loader2 size={16} className="animate-spin mr-1" />
               ) : (
-                <Award size={16} className="mr-2" />
+                <Award size={16} />
               )}
               <span>Mark Complete</span>
-            </Button>
+            </button>
           )}
 
           {nextLessonItem && (
             <Link
               to={`/courses/${course.slug}/lessons/${nextLessonItem.id}`}
-              className="h-10 px-5 rounded-xl bg-slate-900 dark:bg-white text-white dark:text-slate-900 hover:bg-slate-800 dark:hover:bg-slate-200 flex items-center gap-2 font-bold transition-colors"
+              className="h-10 px-5 rounded-xl bg-slate-900 dark:bg-white text-white dark:text-slate-900 hover:bg-slate-800 dark:hover:bg-slate-200 flex items-center gap-2 font-black text-xs transition-all hover:-translate-y-0.5"
             >
               <span>Next Lesson</span>
               <ChevronRight size={16} />

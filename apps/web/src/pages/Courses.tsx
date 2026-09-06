@@ -16,21 +16,24 @@ import { Loader } from '../components/ui/Loader';
 const DIFFICULTY_STYLES = {
   BEGINNER: {
     label: 'BEGINNER',
-    bg: 'bg-emerald-500/10',
-    text: 'text-emerald-400',
-    border: 'border-emerald-500/30',
+    bg: 'bg-emerald-50 dark:bg-emerald-950/40',
+    text: 'text-emerald-700 dark:text-emerald-300',
+    border: 'border-emerald-200/80 dark:border-emerald-800/60',
+    gradient: 'from-emerald-400 to-teal-500',
   },
   INTERMEDIATE: {
     label: 'INTERMEDIATE',
-    bg: 'bg-yellow-500/10',
-    text: 'text-yellow-400',
-    border: 'border-yellow-500/30',
+    bg: 'bg-amber-50 dark:bg-amber-950/40',
+    text: 'text-amber-700 dark:text-amber-300',
+    border: 'border-amber-200/80 dark:border-amber-800/60',
+    gradient: 'from-amber-400 to-orange-500',
   },
   ADVANCED: {
     label: 'ADVANCED',
-    bg: 'bg-red-500/10',
-    text: 'text-red-400',
-    border: 'border-red-500/30',
+    bg: 'bg-rose-50 dark:bg-rose-950/40',
+    text: 'text-rose-700 dark:text-rose-300',
+    border: 'border-rose-200/80 dark:border-rose-800/60',
+    gradient: 'from-rose-500 to-purple-600',
   },
 } as const;
 
@@ -53,13 +56,17 @@ export default function Courses() {
   }, []);
 
   return (
-    <div className="w-full h-full flex flex-col">
-      <PageHeader icon={GraduationCap} title="Quest Log" subtitle="Learning Modules" />
+    <div className="w-full h-full flex flex-col font-playful bg-transparent">
+      <PageHeader
+        icon={GraduationCap}
+        title="Quest Log"
+        subtitle="Explore maker pathways from beginner electronics to advanced coding"
+      />
 
-      <div className="flex-1 overflow-y-auto p-6 lg:p-10 bg-white dark:bg-[#0A0A0A]">
+      <div className="flex-1 overflow-y-auto p-6 lg:p-10 bg-transparent">
         {isLoading && (
           <div className="flex justify-center py-16">
-            <Loader message="Loading courses..." />
+            <Loader message="Loading quests..." />
           </div>
         )}
 
@@ -73,7 +80,7 @@ export default function Courses() {
           <EmptyState
             icon={GraduationCap}
             title="No Courses Available"
-            subtitle="Courses are being prepared. Check back soon!"
+            subtitle="Courses are being prepared by makers. Check back soon!"
           />
         )}
 
@@ -85,58 +92,50 @@ export default function Courses() {
                 <Link
                   key={course.id}
                   to={`/courses/${course.slug}`}
-                  className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-[#111111] flex flex-col group hover:border-emerald-300 dark:hover:border-emerald-800 hover:shadow-md transition-all overflow-hidden relative"
+                  className="rounded-3xl border border-slate-200/80 dark:border-white/10 bg-white/80 dark:bg-[#141824]/90 backdrop-blur-md flex flex-col group hover:border-purple-300 dark:hover:border-purple-500/40 shadow-2xs hover:shadow-xl hover:-translate-y-1.5 transition-all duration-300 overflow-hidden relative"
                 >
                   {/* Gradient accent bar */}
-                  <div
-                    className={`h-1.5 w-full ${
-                      course.difficulty === 'BEGINNER'
-                        ? 'bg-emerald-500'
-                        : course.difficulty === 'INTERMEDIATE'
-                          ? 'bg-yellow-400'
-                          : 'bg-red-500'
-                    }`}
-                  />
+                  <div className={`h-2 w-full bg-gradient-to-r ${diff.gradient}`} />
 
-                  <div className="p-5 flex flex-col flex-1">
+                  <div className="p-6 flex flex-col flex-1">
                     {/* Header: difficulty + enrolled */}
                     <div className="flex justify-between items-start mb-4">
                       <div
-                        className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold ${diff.bg} ${diff.text} border ${diff.border}`}
+                        className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black tracking-wide ${diff.bg} ${diff.text} border ${diff.border}`}
                       >
-                        <Zap size={12} /> {diff.label}
+                        <Zap size={12} className="fill-current" /> {diff.label}
                       </div>
                       {course.isEnrolled && (
-                        <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold bg-blue-500/10 text-blue-500 dark:text-blue-400 border border-blue-500/30">
+                        <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black bg-purple-50 dark:bg-purple-950/50 text-playful-primary dark:text-playful-highlight border border-purple-200/80 dark:border-purple-800/60">
                           <CheckCircle2 size={12} /> Enrolled
                         </div>
                       )}
                     </div>
 
                     {/* Title */}
-                    <h3 className="font-bold text-lg text-slate-900 dark:text-white leading-tight mb-2 group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors">
+                    <h3 className="font-heading font-black text-xl text-tg-dark dark:text-white leading-snug mb-2 group-hover:text-playful-primary dark:group-hover:text-playful-highlight transition-colors">
                       {course.title}
                     </h3>
 
                     {/* Description */}
-                    <p className="text-sm text-slate-500 dark:text-slate-400 leading-relaxed mb-6 line-clamp-3">
+                    <p className="text-sm font-medium text-slate-500 dark:text-slate-400 leading-relaxed mb-6 line-clamp-3">
                       {course.description}
                     </p>
 
                     {/* Stats */}
                     <div className="mt-auto flex items-center gap-4 pt-4 border-t border-slate-100 dark:border-slate-800/60">
-                      <div className="flex items-center gap-1.5 text-xs font-medium text-slate-500 dark:text-slate-400">
+                      <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-500 dark:text-slate-400">
                         <BookOpen size={14} /> {course.moduleCount} modules
                       </div>
-                      <div className="flex items-center gap-1.5 text-xs font-medium text-slate-500 dark:text-slate-400">
+                      <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-500 dark:text-slate-400">
                         <GraduationCap size={14} /> {course.lessonCount} lessons
                       </div>
-                      <div className="flex items-center gap-1.5 text-xs font-medium text-slate-500 dark:text-slate-400">
+                      <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-500 dark:text-slate-400">
                         <Users size={14} /> {course.enrollmentCount}
                       </div>
                       <ChevronRight
-                        size={16}
-                        className="ml-auto text-slate-300 dark:text-slate-600 group-hover:text-emerald-500 transition-colors"
+                        size={18}
+                        className="ml-auto text-slate-300 dark:text-slate-600 group-hover:text-playful-primary dark:group-hover:text-playful-highlight group-hover:translate-x-1 transition-all"
                       />
                     </div>
                   </div>

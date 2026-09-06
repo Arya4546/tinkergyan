@@ -31,16 +31,16 @@ function ProjectCard({
 }) {
   const isBlock = project.type === 'BLOCK';
   const pastelBgs = [
-    'bg-emerald-50 dark:bg-emerald-900/10 border-emerald-100 dark:border-emerald-900/30',
-    'bg-purple-50 dark:bg-purple-900/10 border-purple-100 dark:border-purple-900/30',
-    'bg-amber-50 dark:bg-amber-900/10 border-amber-100 dark:border-amber-900/30',
-    'bg-sky-50 dark:bg-sky-900/10 border-sky-100 dark:border-sky-900/30',
+    'bg-white/85 dark:bg-[#141824]/90 border-slate-200/80 dark:border-white/10 hover:border-purple-300 dark:hover:border-purple-500/40',
+    'bg-white/85 dark:bg-[#141824]/90 border-slate-200/80 dark:border-white/10 hover:border-amber-300 dark:hover:border-amber-500/40',
+    'bg-white/85 dark:bg-[#141824]/90 border-slate-200/80 dark:border-white/10 hover:border-sky-300 dark:hover:border-sky-500/40',
+    'bg-white/85 dark:bg-[#141824]/90 border-slate-200/80 dark:border-white/10 hover:border-rose-300 dark:hover:border-rose-500/40',
   ];
   const iconBgs = [
-    'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400',
-    'bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400',
-    'bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400',
-    'bg-sky-100 dark:bg-sky-900/30 text-sky-600 dark:text-sky-400',
+    'bg-purple-100 dark:bg-purple-950/50 text-playful-primary dark:text-playful-highlight',
+    'bg-amber-100 dark:bg-amber-950/50 text-amber-600 dark:text-amber-400',
+    'bg-sky-100 dark:bg-sky-950/50 text-sky-600 dark:text-sky-400',
+    'bg-rose-100 dark:bg-rose-950/50 text-playful-secondary',
   ];
   const bg = pastelBgs[index % pastelBgs.length];
   const iconBg = iconBgs[index % iconBgs.length];
@@ -49,18 +49,20 @@ function ProjectCard({
 
   return (
     <div
-      className={`rounded-2xl border p-5 flex flex-col gap-4 hover:shadow-md transition-shadow ${bg}`}
+      className={`rounded-3xl border p-6 flex flex-col gap-4 shadow-2xs hover:shadow-lg transition-all duration-300 hover:-translate-y-1 ${bg}`}
     >
       <div className="flex items-start justify-between">
-        <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${iconBg}`}>
-          {isBlock ? <Beaker size={18} /> : <TerminalSquare size={18} />}
+        <div
+          className={`w-11 h-11 rounded-2xl flex items-center justify-center shrink-0 ${iconBg}`}
+        >
+          {isBlock ? <Beaker size={20} /> : <TerminalSquare size={20} />}
         </div>
         <div className="flex items-center gap-2">
           <span
-            className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full ${
+            className={`text-[11px] font-extrabold px-3 py-1 rounded-full ${
               project.boardTarget === 'software'
-                ? 'bg-emerald-100 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400'
-                : 'bg-purple-100 dark:bg-purple-950/40 text-purple-700 dark:text-purple-400'
+                ? 'bg-rose-50 dark:bg-rose-950/40 text-playful-secondary border border-rose-200/60 dark:border-rose-800/40'
+                : 'bg-purple-50 dark:bg-purple-950/40 text-purple-700 dark:text-playful-highlight border border-purple-200/60 dark:border-purple-800/40'
             }`}
           >
             {project.boardTarget === 'software' ? 'Software • Scratch' : `Hardware • ${boardLabel}`}
@@ -70,19 +72,19 @@ function ProjectCard({
               e.preventDefault();
               void onDelete(project.id);
             }}
-            className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+            className="w-8 h-8 rounded-xl flex items-center justify-center text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
             title="Delete project"
           >
-            <Trash2 size={14} />
+            <Trash2 size={15} />
           </button>
         </div>
       </div>
 
       <div className="flex-1">
-        <h3 className="font-semibold text-base text-slate-900 dark:text-white leading-tight mb-1 line-clamp-2">
+        <h3 className="font-heading font-black text-lg text-slate-900 dark:text-white leading-snug mb-1 line-clamp-2">
           {project.title}
         </h3>
-        <p className="text-xs text-slate-500 dark:text-slate-400">
+        <p className="text-xs font-medium text-slate-500 dark:text-slate-400">
           {project.boardTarget === 'software'
             ? 'Software Coding (Scratch)'
             : `Hardware (${boardLabel})`}{' '}
@@ -93,9 +95,9 @@ function ProjectCard({
 
       <Link
         to={`/editor/${project.id}${project.boardTarget === 'software' ? '?engine=software' : '?engine=hardware'}`}
-        className="inline-flex items-center gap-2 text-xs font-semibold text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white transition-colors"
+        className="inline-flex items-center gap-2 text-xs font-extrabold text-playful-primary dark:text-playful-highlight hover:underline transition-all"
       >
-        <Play size={12} className="fill-current" /> Open in Editor
+        <Play size={13} className="fill-current" /> Open in Editor
       </Link>
     </div>
   );
@@ -147,26 +149,29 @@ export default function Dashboard() {
   }, [projects, categoryFilter, boardFilter]);
 
   return (
-    <div className="w-full h-full flex flex-col font-sans overflow-y-auto relative bg-slate-50 dark:bg-[#070913]">
+    <div className="w-full h-full flex flex-col font-playful overflow-y-auto relative bg-transparent">
       {/* Background ambient glow for Dark Mode */}
       <div className="absolute inset-0 pointer-events-none overflow-hidden -z-10 hidden dark:block">
-        <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-emerald-500/10 blur-[100px] rounded-full mix-blend-screen" />
-        <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-amber-500/10 blur-[100px] rounded-full mix-blend-screen" />
+        <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-purple-500/10 blur-[100px] rounded-full mix-blend-screen" />
+        <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-playful-highlight/10 blur-[100px] rounded-full mix-blend-screen" />
       </div>
 
       {/* Page Header */}
-      <div className="px-6 md:px-10 pt-8 pb-6 border-b border-slate-200 dark:border-white/5 flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white/80 dark:bg-[#11141E]/80 backdrop-blur-xl shrink-0 sticky top-0 z-10">
+      <div className="px-6 md:px-10 pt-8 pb-6 border-b border-slate-200/80 dark:border-white/10 flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white/70 dark:bg-[#0B1121]/70 backdrop-blur-xl shrink-0 sticky top-0 z-10">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900 dark:text-white">
-            Welcome back, {user?.name?.split(' ')[0] || 'Maker'}
+          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-purple-50 dark:bg-purple-950/50 border border-purple-200/80 dark:border-purple-800/60 text-purple-700 dark:text-playful-highlight text-xs font-black tracking-wide mb-2">
+            <span>MAKER WORKBENCH</span>
+          </div>
+          <h1 className="font-heading font-black text-2xl sm:text-3xl text-tg-dark dark:text-white tracking-tight">
+            Welcome back, {user?.name?.split(' ')[0] || 'Maker'} 👋
           </h1>
-          <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">
-            Here's what's happening with your workspace.
+          <p className="text-sm font-medium text-slate-500 dark:text-slate-400 mt-1">
+            Here's what's happening with your projects and circuits today.
           </p>
         </div>
         <button
           onClick={() => setIsNewProjectOpen(true)}
-          className="inline-flex items-center gap-2 bg-gradient-to-r from-emerald-400 to-emerald-500 hover:from-emerald-500 hover:to-emerald-600 shadow-[0_4px_12px_rgba(16,185,129,0.3)] text-white text-sm font-bold px-5 py-2.5 rounded-xl transition-all hover:-translate-y-0.5 active:translate-y-0 shrink-0"
+          className="inline-flex items-center gap-2 bg-gradient-to-r from-playful-primary to-purple-600 hover:from-purple-600 hover:to-playful-primary shadow-[0_4px_16px_rgba(108,92,231,0.35)] text-white text-sm font-black px-6 py-3 rounded-2xl transition-all duration-200 hover:-translate-y-0.5 active:translate-y-0 shrink-0 cursor-pointer"
         >
           <Plus size={16} strokeWidth={3} /> New Project
         </button>
@@ -174,31 +179,35 @@ export default function Dashboard() {
 
       <div className="flex-1 flex flex-col lg:flex-row min-h-0">
         {/* Main: Projects */}
-        <div className="flex-1 px-6 md:px-10 py-8 overflow-y-auto border-r border-slate-200 dark:border-white/5">
+        <div className="flex-1 px-6 md:px-10 py-8 overflow-y-auto border-r border-slate-200/80 dark:border-white/10">
           {/* Stats Row */}
           <div className="grid grid-cols-3 gap-4 mb-8">
-            <div className="bg-white dark:bg-[#1A1D26] border border-slate-200 dark:border-white/5 rounded-2xl p-5 shadow-sm hover:shadow-[0_8px_30px_-4px_rgba(16,185,129,0.2)] dark:hover:shadow-[0_8px_30px_-4px_rgba(16,185,129,0.15)] transition-all duration-300 hover:-translate-y-1">
-              <div className="w-10 h-10 bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 rounded-xl flex items-center justify-center mb-3">
+            <div className="bg-white/80 dark:bg-[#141824]/90 border border-slate-200/80 dark:border-white/10 rounded-3xl p-5 shadow-2xs hover:shadow-lg transition-all duration-300 hover:-translate-y-1">
+              <div className="w-10 h-10 bg-purple-100 dark:bg-purple-950/50 text-playful-primary dark:text-playful-highlight rounded-2xl flex items-center justify-center mb-3">
                 <FolderCode size={20} />
               </div>
-              <p className="text-2xl font-bold text-slate-900 dark:text-white">{projects.length}</p>
-              <p className="text-xs text-slate-500 mt-0.5">Projects</p>
+              <p className="font-heading font-black text-2xl text-tg-dark dark:text-white">
+                {projects.length}
+              </p>
+              <p className="text-xs font-semibold text-slate-500 mt-0.5">Projects Built</p>
             </div>
-            <div className="bg-white dark:bg-[#1A1D26] border border-slate-200 dark:border-white/5 rounded-2xl p-5 shadow-sm hover:shadow-[0_8px_30px_-4px_rgba(168,85,247,0.2)] dark:hover:shadow-[0_8px_30px_-4px_rgba(168,85,247,0.15)] transition-all duration-300 hover:-translate-y-1">
-              <div className="w-10 h-10 bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400 rounded-xl flex items-center justify-center mb-3">
+            <div className="bg-white/80 dark:bg-[#141824]/90 border border-slate-200/80 dark:border-white/10 rounded-3xl p-5 shadow-2xs hover:shadow-lg transition-all duration-300 hover:-translate-y-1">
+              <div className="w-10 h-10 bg-amber-100 dark:bg-amber-950/50 text-amber-600 dark:text-amber-400 rounded-2xl flex items-center justify-center mb-3">
                 <TrendingUp size={20} />
               </div>
-              <p className="text-2xl font-bold text-slate-900 dark:text-white">{user?.xp ?? 0}</p>
-              <p className="text-xs text-slate-500 mt-0.5">XP Earned</p>
+              <p className="font-heading font-black text-2xl text-tg-dark dark:text-white">
+                {user?.xp ?? 0}
+              </p>
+              <p className="text-xs font-semibold text-slate-500 mt-0.5">XP Earned</p>
             </div>
-            <div className="bg-white dark:bg-[#1A1D26] border border-slate-200 dark:border-white/5 rounded-2xl p-5 shadow-sm hover:shadow-[0_8px_30px_-4px_rgba(245,158,11,0.2)] dark:hover:shadow-[0_8px_30px_-4px_rgba(245,158,11,0.15)] transition-all duration-300 hover:-translate-y-1">
-              <div className="w-10 h-10 bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 rounded-xl flex items-center justify-center mb-3">
+            <div className="bg-white/80 dark:bg-[#141824]/90 border border-slate-200/80 dark:border-white/10 rounded-3xl p-5 shadow-2xs hover:shadow-lg transition-all duration-300 hover:-translate-y-1">
+              <div className="w-10 h-10 bg-rose-100 dark:bg-rose-950/50 text-playful-secondary rounded-2xl flex items-center justify-center mb-3">
                 <Zap size={20} />
               </div>
-              <p className="text-2xl font-bold text-slate-900 dark:text-white">
+              <p className="font-heading font-black text-2xl text-tg-dark dark:text-white">
                 {user?.streak ?? 0}
               </p>
-              <p className="text-xs text-slate-500 mt-0.5">Day Streak</p>
+              <p className="text-xs font-semibold text-slate-500 mt-0.5">Day Streak</p>
             </div>
           </div>
 
@@ -397,63 +406,63 @@ export default function Dashboard() {
         </div>
 
         {/* Right: Quick Actions / Info Panel */}
-        <div className="w-full lg:w-72 xl:w-80 px-6 py-8 bg-slate-50 dark:bg-[#0A0A0A] shrink-0 flex flex-col gap-6">
+        <div className="w-full lg:w-72 xl:w-80 px-6 py-8 shrink-0 flex flex-col gap-6">
           <div>
-            <h2 className="text-sm font-bold text-slate-900 dark:text-white mb-4 uppercase tracking-wider">
+            <h2 className="font-heading font-black text-xs text-slate-400 dark:text-slate-500 mb-4 uppercase tracking-wider">
               Quick Actions
             </h2>
-            <div className="flex flex-col gap-2">
+            <div className="flex flex-col gap-2.5">
               <button
                 onClick={() => setIsNewProjectOpen(true)}
-                className="w-full flex items-center gap-3 px-4 py-3 bg-white dark:bg-[#111111] border border-slate-200 dark:border-slate-800 rounded-xl text-sm font-medium text-slate-700 dark:text-slate-300 hover:border-emerald-300 dark:hover:border-emerald-800 hover:text-slate-900 dark:hover:text-white transition-all text-left"
+                className="w-full flex items-center gap-3 px-4 py-3.5 bg-white/80 dark:bg-[#141824]/90 border border-slate-200/80 dark:border-white/10 rounded-2xl text-sm font-bold text-slate-700 dark:text-slate-200 hover:border-purple-300 dark:hover:border-purple-500/50 hover:text-playful-primary dark:hover:text-playful-highlight transition-all text-left shadow-2xs group"
               >
-                <div className="w-7 h-7 bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 rounded-lg flex items-center justify-center shrink-0">
-                  <Plus size={14} />
+                <div className="w-8 h-8 bg-purple-100 dark:bg-purple-950/50 text-playful-primary dark:text-playful-highlight rounded-xl flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
+                  <Plus size={16} strokeWidth={2.5} />
                 </div>
-                New Project
+                <span>New Project</span>
               </button>
               <Link
                 to="/courses"
-                className="flex items-center gap-3 px-4 py-3 bg-white dark:bg-[#111111] border border-slate-200 dark:border-slate-800 rounded-xl text-sm font-medium text-slate-700 dark:text-slate-300 hover:border-purple-300 dark:hover:border-purple-800 hover:text-slate-900 dark:hover:text-white transition-all"
+                className="flex items-center gap-3 px-4 py-3.5 bg-white/80 dark:bg-[#141824]/90 border border-slate-200/80 dark:border-white/10 rounded-2xl text-sm font-bold text-slate-700 dark:text-slate-200 hover:border-purple-300 dark:hover:border-purple-500/50 hover:text-playful-primary dark:hover:text-playful-highlight transition-all shadow-2xs group"
               >
-                <div className="w-7 h-7 bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400 rounded-lg flex items-center justify-center shrink-0">
-                  <Award size={14} />
+                <div className="w-8 h-8 bg-blue-100 dark:bg-blue-950/50 text-blue-600 dark:text-blue-400 rounded-xl flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
+                  <Award size={16} strokeWidth={2.5} />
                 </div>
-                Browse Courses
+                <span>Browse Courses</span>
               </Link>
               <Link
                 to="/leaderboard"
-                className="flex items-center gap-3 px-4 py-3 bg-white dark:bg-[#111111] border border-slate-200 dark:border-slate-800 rounded-xl text-sm font-medium text-slate-700 dark:text-slate-300 hover:border-amber-300 dark:hover:border-amber-800 hover:text-slate-900 dark:hover:text-white transition-all"
+                className="flex items-center gap-3 px-4 py-3.5 bg-white/80 dark:bg-[#141824]/90 border border-slate-200/80 dark:border-white/10 rounded-2xl text-sm font-bold text-slate-700 dark:text-slate-200 hover:border-amber-300 dark:hover:border-amber-500/50 hover:text-amber-600 dark:hover:text-amber-400 transition-all shadow-2xs group"
               >
-                <div className="w-7 h-7 bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 rounded-lg flex items-center justify-center shrink-0">
-                  <TrendingUp size={14} />
+                <div className="w-8 h-8 bg-amber-100 dark:bg-amber-950/50 text-amber-600 dark:text-amber-400 rounded-xl flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
+                  <TrendingUp size={16} strokeWidth={2.5} />
                 </div>
-                Leaderboard
+                <span>Leaderboard</span>
               </Link>
             </div>
           </div>
 
           {user?.level !== undefined && (
             <div>
-              <h2 className="text-sm font-bold text-slate-900 dark:text-white mb-4 uppercase tracking-wider">
+              <h2 className="font-heading font-black text-xs text-slate-400 dark:text-slate-500 mb-4 uppercase tracking-wider">
                 Your Progress
               </h2>
-              <div className="bg-white dark:bg-[#111111] border border-slate-200 dark:border-slate-800 rounded-xl p-4">
+              <div className="bg-white/80 dark:bg-[#141824]/90 border border-slate-200/80 dark:border-white/10 rounded-3xl p-5 shadow-2xs">
                 <div className="flex items-center justify-between mb-3">
-                  <span className="text-xs font-semibold text-slate-600 dark:text-slate-400">
+                  <span className="font-heading font-bold text-xs text-slate-600 dark:text-slate-300">
                     Level {user.level}
                   </span>
-                  <span className="text-xs font-semibold text-emerald-600 dark:text-emerald-400">
+                  <span className="font-heading font-black text-xs text-playful-primary dark:text-playful-highlight">
                     {user.xp ?? 0} XP
                   </span>
                 </div>
-                <div className="w-full h-2 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+                <div className="w-full h-2.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden p-0.5">
                   <div
-                    className="h-full bg-emerald-500 rounded-full transition-all duration-500"
+                    className="h-full bg-gradient-to-r from-playful-primary via-purple-500 to-playful-highlight rounded-full transition-all duration-500"
                     style={{ width: `${Math.min((user.xp ?? 0) % 100, 100)}%` }}
                   />
                 </div>
-                <p className="text-xs text-slate-400 mt-2">
+                <p className="text-[11px] font-semibold text-slate-400 mt-2.5">
                   {100 - ((user.xp ?? 0) % 100)} XP to next level
                 </p>
               </div>

@@ -1,33 +1,45 @@
 import { Link } from 'react-router-dom';
-import { Search, ArrowLeft } from 'lucide-react';
+import { ArrowLeft } from 'lucide-react';
+import { CartoonRocket } from '@/components/illustrations/CartoonRocket';
 import { useIsAuthenticated } from '../stores/auth.store';
 
 export default function NotFound() {
   const isAuthenticated = useIsAuthenticated();
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-[#0A0A0A] p-6 text-center font-sans">
-      <div className="max-w-md w-full bg-white dark:bg-[#111111] rounded-3xl border border-slate-200 dark:border-slate-800 shadow-xl flex flex-col relative overflow-hidden">
-        <div className="h-1 w-full bg-gradient-to-r from-emerald-500 to-teal-400 block absolute top-0 left-0"></div>
+    <div className="min-h-screen flex items-center justify-center bg-playful-light-bg dark:bg-[#050B14] p-6 text-center font-playful relative overflow-hidden">
+      {/* Decorative ambient background glows */}
+      <div className="absolute -top-32 -left-32 w-96 h-96 bg-playful-primary/15 rounded-full blur-[140px] pointer-events-none" />
+      <div className="absolute -bottom-32 -right-32 w-96 h-96 bg-playful-highlight/15 rounded-full blur-[140px] pointer-events-none" />
 
-        <div className="p-10 flex flex-col items-center">
-          <div className="w-16 h-16 bg-slate-100 dark:bg-slate-800 rounded-2xl flex items-center justify-center mx-auto mb-6">
-            <Search size={24} strokeWidth={2} className="text-slate-400" />
+      <div className="max-w-md w-full bg-white/85 dark:bg-[#0B1121]/90 backdrop-blur-2xl rounded-[2.5rem] border border-slate-200/80 dark:border-white/10 shadow-[0_20px_50px_rgba(0,0,0,0.08)] dark:shadow-[0_20px_60px_rgba(0,0,0,0.6)] flex flex-col relative overflow-hidden">
+        <div className="h-1.5 w-full bg-gradient-to-r from-playful-primary via-purple-500 to-playful-highlight block absolute top-0 left-0" />
+
+        <div className="p-8 sm:p-10 flex flex-col items-center">
+          {/* Animated Rocket Container */}
+          <div className="w-24 h-24 relative flex items-center justify-center mb-5">
+            <div className="absolute inset-0 rounded-full bg-playful-primary/10 dark:bg-playful-primary/20 blur-lg animate-pulse" />
+            <CartoonRocket className="w-20 h-20 animate-bounce-gentle drop-shadow-md" />
           </div>
 
-          <h1 className="text-3xl font-extrabold text-slate-900 dark:text-white mb-2 tracking-tight">
+          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-purple-50 dark:bg-purple-950/50 border border-purple-200/80 dark:border-purple-800/60 text-purple-700 dark:text-playful-highlight text-xs font-black tracking-wide mb-3">
+            <span>LOST IN ORBIT &bull; 404</span>
+          </div>
+
+          <h1 className="font-heading font-black text-3xl sm:text-4xl text-tg-dark dark:text-white mb-2 tracking-tight">
             Page Not Found
           </h1>
-          <p className="text-sm text-slate-500 dark:text-slate-400 mb-8 leading-relaxed">
-            We couldn't find the page you're looking for. It might have been moved or doesn't exist.
+          <p className="text-sm font-medium text-slate-500 dark:text-slate-400 mb-8 leading-relaxed">
+            We couldn't locate that sector or circuit. The coordinates might have moved or don't
+            exist.
           </p>
 
           <Link
             to={isAuthenticated ? '/dashboard' : '/'}
-            className="w-full h-12 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl font-bold flex items-center justify-center transition-colors shadow-lg shadow-emerald-500/20"
+            className="w-full h-12 bg-gradient-to-r from-playful-primary to-purple-600 hover:from-purple-600 hover:to-playful-primary text-white rounded-2xl font-black text-sm flex items-center justify-center transition-all shadow-[0_4px_16px_rgba(108,92,231,0.35)] hover:-translate-y-0.5"
           >
             <ArrowLeft size={16} className="mr-2" />
-            {isAuthenticated ? 'Back to Dashboard' : 'Back to Home'}
+            {isAuthenticated ? 'Return to Workbench' : 'Back to Home'}
           </Link>
         </div>
       </div>

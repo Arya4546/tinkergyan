@@ -51,7 +51,7 @@ export function Sidebar() {
       <aside
         className={`
         fixed sm:relative top-0 left-0 h-full z-40 
-        w-64 
+        w-64 font-playful
         bg-white dark:bg-[#0B1121] text-slate-700 dark:text-slate-200
         border-r border-slate-200 dark:border-slate-800/80
         shadow-[2px_0_12px_rgba(0,0,0,0.03)] dark:shadow-[2px_0_20px_rgba(0,0,0,0.4)]
@@ -163,17 +163,33 @@ export function Sidebar() {
           <Link
             to="/profile"
             onClick={() => setMobileMenuOpen(false)}
-            className="h-11 w-full flex items-center px-4 rounded-xl transition-all duration-200 text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-white/5 font-semibold text-sm"
+            className={`h-11 w-full flex items-center px-4 rounded-xl transition-all duration-200 ${
+              location.pathname.startsWith('/profile')
+                ? 'bg-purple-50 dark:bg-purple-950/40 text-purple-700 dark:text-playful-highlight font-bold border-l-4 border-purple-600 dark:border-playful-highlight shadow-sm'
+                : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-white/5 font-semibold text-sm'
+            }`}
           >
-            <User size={20} className="shrink-0" />
+            <User
+              size={20}
+              strokeWidth={location.pathname.startsWith('/profile') ? 2.5 : 2}
+              className="shrink-0"
+            />
             <span className="text-sm tracking-wide ml-3.5">Profile</span>
           </Link>
           <Link
             to="/settings"
             onClick={() => setMobileMenuOpen(false)}
-            className="h-11 w-full flex items-center px-4 rounded-xl transition-all duration-200 text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-white/5 font-semibold text-sm"
+            className={`h-11 w-full flex items-center px-4 rounded-xl transition-all duration-200 ${
+              location.pathname.startsWith('/settings')
+                ? 'bg-purple-50 dark:bg-purple-950/40 text-purple-700 dark:text-playful-highlight font-bold border-l-4 border-purple-600 dark:border-playful-highlight shadow-sm'
+                : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-white/5 font-semibold text-sm'
+            }`}
           >
-            <Settings2 size={20} className="shrink-0" />
+            <Settings2
+              size={20}
+              strokeWidth={location.pathname.startsWith('/settings') ? 2.5 : 2}
+              className="shrink-0"
+            />
             <span className="text-sm tracking-wide ml-3.5">Settings</span>
           </Link>
         </div>

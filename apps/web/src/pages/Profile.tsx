@@ -12,6 +12,7 @@ import {
 import { useAuthStore } from '../stores/auth.store';
 import { api } from '../services/api';
 import { PageHeader } from '../components/ui/PageHeader';
+import { Loader } from '../components/ui/Loader';
 import { useUIStore } from '../stores/ui.store';
 import { getAvatarGradient } from '../lib/avatar';
 
@@ -76,7 +77,7 @@ export default function Profile() {
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-full">
-        <Loader2 className="animate-spin text-emerald-500" size={28} />
+        <Loader message="Loading maker identity..." />
       </div>
     );
   }
@@ -100,75 +101,77 @@ export default function Profile() {
       label: 'Total XP',
       value: profile.xp.toLocaleString(),
       icon: TrendingUp,
-      color: 'bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400',
+      color: 'bg-amber-100 dark:bg-amber-950/50 text-amber-600 dark:text-amber-400',
     },
     {
       label: 'Level',
       value: profile.level,
       icon: Zap,
-      color: 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400',
+      color: 'bg-purple-100 dark:bg-purple-950/50 text-playful-primary dark:text-playful-highlight',
     },
     {
       label: 'Day Streak',
       value: profile.streak,
       icon: Zap,
-      color: 'bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400',
+      color: 'bg-rose-100 dark:bg-rose-950/50 text-playful-secondary',
     },
     {
-      label: 'Projects',
+      label: 'Projects Built',
       value: profile.projectCount,
       icon: FolderCode,
-      color: 'bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400',
+      color: 'bg-blue-100 dark:bg-blue-950/50 text-blue-600 dark:text-blue-400',
     },
   ];
 
   return (
-    <div className="w-full h-full flex flex-col overflow-y-auto">
-      <PageHeader icon={User} title="My Profile" subtitle="Manage your account details" />
+    <div className="w-full h-full flex flex-col font-playful overflow-y-auto bg-transparent">
+      <PageHeader icon={User} title="My Profile" subtitle="Manage your maker identity and stats" />
 
-      <div className="flex-1 p-6 lg:p-10 bg-white dark:bg-[#111111]">
+      <div className="flex-1 p-6 lg:p-10 bg-transparent">
         <div className="max-w-2xl mx-auto space-y-8">
           {/* Profile Card */}
-          <div className="bg-slate-50 dark:bg-[#1a1a1a] border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden">
-            <div className="p-6 flex flex-col sm:flex-row gap-6 items-start">
+          <div className="bg-white/80 dark:bg-[#141824]/90 border border-slate-200/80 dark:border-white/10 rounded-3xl overflow-hidden shadow-2xs">
+            <div className="p-6 sm:p-8 flex flex-col sm:flex-row gap-6 items-start">
               {/* Avatar */}
               <div
-                className={`w-16 h-16 rounded-2xl flex items-center justify-center shrink-0 shadow-sm ${!profile.avatar ? getAvatarGradient(profile.name) : 'bg-slate-200 dark:bg-slate-700'}`}
+                className={`w-20 h-20 rounded-3xl flex items-center justify-center shrink-0 shadow-sm border-2 border-white dark:border-slate-800 ${!profile.avatar ? getAvatarGradient(profile.name) : 'bg-slate-200 dark:bg-slate-700'}`}
               >
                 {profile.avatar ? (
                   <img
                     src={profile.avatar}
                     alt=""
-                    className="w-full h-full object-cover rounded-2xl"
+                    className="w-full h-full object-cover rounded-3xl"
                   />
                 ) : (
-                  <span className="text-2xl font-bold">{profile.name.charAt(0).toUpperCase()}</span>
+                  <span className="text-3xl font-heading font-black">
+                    {profile.name.charAt(0).toUpperCase()}
+                  </span>
                 )}
               </div>
 
-              <div className="flex-1 space-y-5">
+              <div className="flex-1 space-y-5 w-full">
                 {/* Name edit */}
                 <div>
-                  <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
+                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 dark:text-slate-300 mb-1.5">
                     Display Name
                   </label>
                   <div className="flex items-center gap-3">
                     <input
                       value={editName}
                       onChange={(e) => setEditName(e.target.value)}
-                      className="flex-1 h-10 px-3.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-[#111111] text-sm font-medium text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
+                      className="flex-1 h-11 px-4 rounded-xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-[#11141E] text-sm font-bold text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-playful-primary transition-all"
                     />
                     <button
                       onClick={() => {
                         void handleSaveName();
                       }}
                       disabled={isSaving || editName === profile.name || !editName.trim()}
-                      className="h-10 px-4 bg-slate-900 dark:bg-white text-white dark:text-slate-900 text-sm font-semibold rounded-xl hover:bg-emerald-500 hover:text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 shrink-0"
+                      className="h-11 px-5 bg-gradient-to-r from-playful-primary to-purple-600 hover:from-purple-600 hover:to-playful-primary text-white text-xs font-black rounded-xl transition-all shadow-xs disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 shrink-0 cursor-pointer"
                     >
                       {isSaving ? (
                         <Loader2 size={14} className="animate-spin" />
                       ) : (
-                        <Save size={14} />
+                        <Save size={15} />
                       )}
                       Save
                     </button>
@@ -177,16 +180,16 @@ export default function Profile() {
 
                 {/* Email */}
                 <div>
-                  <label className="block text-sm font-semibold text-slate-500 dark:text-slate-400 mb-1">
+                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-1">
                     Email Address
                   </label>
-                  <p className="text-sm font-medium text-slate-900 dark:text-white">
+                  <p className="text-sm font-semibold text-slate-900 dark:text-white">
                     {profile.email}
                   </p>
                 </div>
 
                 {/* Join date */}
-                <div className="flex items-center gap-2 text-sm text-slate-400">
+                <div className="flex items-center gap-2 text-xs font-semibold text-slate-400">
                   <Calendar size={14} />
                   Joined {joinDate}
                 </div>
@@ -196,25 +199,27 @@ export default function Profile() {
 
           {/* Stats Grid */}
           <div>
-            <h2 className="text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-4">
+            <h2 className="font-heading font-black text-xs text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-4">
               Your Stats
             </h2>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               {stats.map((stat) => (
                 <div
                   key={stat.label}
-                  className="bg-slate-50 dark:bg-[#1a1a1a] border border-slate-200 dark:border-slate-800 rounded-2xl p-4 flex flex-col gap-3"
+                  className="bg-white/80 dark:bg-[#141824]/90 border border-slate-200/80 dark:border-white/10 rounded-3xl p-5 flex flex-col gap-3 shadow-2xs hover:shadow-lg hover:-translate-y-1 transition-all"
                 >
                   <div
-                    className={`w-8 h-8 rounded-lg flex items-center justify-center ${stat.color}`}
+                    className={`w-9 h-9 rounded-xl flex items-center justify-center ${stat.color}`}
                   >
-                    <stat.icon size={16} />
+                    <stat.icon size={18} />
                   </div>
                   <div>
-                    <p className="text-2xl font-bold text-slate-900 dark:text-white">
+                    <p className="font-heading font-black text-2xl text-tg-dark dark:text-white">
                       {stat.value}
                     </p>
-                    <p className="text-xs text-slate-500 mt-0.5">{stat.label}</p>
+                    <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 mt-0.5">
+                      {stat.label}
+                    </p>
                   </div>
                 </div>
               ))}
@@ -222,24 +227,24 @@ export default function Profile() {
           </div>
 
           {/* Additional Info */}
-          <div className="bg-slate-50 dark:bg-[#1a1a1a] border border-slate-200 dark:border-slate-800 rounded-2xl p-6">
-            <h2 className="text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-5">
+          <div className="bg-white/80 dark:bg-[#141824]/90 border border-slate-200/80 dark:border-white/10 rounded-3xl p-6 sm:p-7 shadow-2xs">
+            <h2 className="font-heading font-black text-xs text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-5">
               Activity
             </h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
               <div>
-                <p className="text-sm font-semibold text-slate-500 dark:text-slate-400 mb-1 flex items-center gap-2">
-                  <GraduationCap size={14} /> Courses Enrolled
+                <p className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1 flex items-center gap-2">
+                  <GraduationCap size={15} /> Quests Enrolled
                 </p>
-                <p className="text-xl font-bold text-slate-900 dark:text-white">
+                <p className="font-heading font-black text-2xl text-tg-dark dark:text-white">
                   {profile.enrollmentCount}
                 </p>
               </div>
               <div>
-                <p className="text-sm font-semibold text-slate-500 dark:text-slate-400 mb-1">
+                <p className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1">
                   Last Active
                 </p>
-                <p className="text-sm font-medium text-slate-900 dark:text-white">
+                <p className="text-sm font-semibold text-slate-900 dark:text-white">
                   {new Date(profile.lastActiveAt).toLocaleString()}
                 </p>
               </div>

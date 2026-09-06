@@ -75,6 +75,7 @@ import { scratchEngine } from '../components/editor/simulator/ScratchEngine';
 import { workspaceToScratchCode } from '../components/editor/scratch-generator';
 import { Tooltip } from '../components/ui/Tooltip';
 import { BOARDS, getBoardLabel } from '../lib/boards';
+import { Loader } from '../components/ui/Loader';
 
 // ─── Template Picker Modal ────────────────────────────────────────────────────
 function TemplatePicker({
@@ -86,25 +87,25 @@ function TemplatePicker({
 }) {
   return (
     <div
-      className="absolute inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4"
+      className="absolute inset-0 z-50 bg-black/60 backdrop-blur-md flex items-center justify-center p-4 font-playful"
       onClick={onClose}
     >
       <div
-        className="bg-white dark:bg-dark-surface rounded-2xl border border-slate-100 dark:border-dark-border shadow-2xl max-w-2xl w-full max-h-[80vh] overflow-y-auto animate-pop"
+        className="bg-white dark:bg-[#0B1121] rounded-3xl border border-border dark:border-white/10 shadow-2xl max-w-2xl w-full max-h-[80vh] overflow-y-auto animate-pop"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="px-6 py-4 border-b border-slate-100 dark:border-dark-border flex justify-between items-center">
-          <h2 className="font-sans font-bold text-base text-slate-800 dark:text-white">
-            Choose a starter
+        <div className="px-6 py-4 border-b border-border dark:border-white/10 flex justify-between items-center">
+          <h2 className="font-heading font-black text-lg text-slate-800 dark:text-white">
+            Choose a Starter
           </h2>
           <button
             onClick={onClose}
-            className="w-8 h-8 rounded-full flex items-center justify-center text-slate-400 hover:text-slate-700 hover:bg-slate-100 dark:hover:bg-dark-border transition-colors focus-visible:ring-2 focus-visible:ring-primary-500"
+            className="w-8 h-8 rounded-full flex items-center justify-center text-slate-400 hover:text-slate-700 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-white/10 transition-colors focus-visible:ring-2 focus-visible:ring-primary-500 font-bold"
           >
             ✕
           </button>
         </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-5">
           {STARTER_TEMPLATES.map((t) => (
             <button
               key={t.id}
@@ -112,17 +113,18 @@ function TemplatePicker({
                 onSelect(t);
                 onClose();
               }}
-              className="text-left p-4 rounded-xl border border-slate-100 dark:border-dark-border bg-slate-50 dark:bg-dark-bg hover:border-primary-500 hover:shadow-md transition-all group focus-visible:ring-2 focus-visible:ring-primary-500"
+              className="text-left p-4 rounded-2xl border border-border dark:border-white/10 bg-slate-50 dark:bg-white/[0.03] hover:border-primary-500 hover:shadow-lg transition-all group focus-visible:ring-2 focus-visible:ring-primary-500 hover:-translate-y-0.5"
             >
               <div className="flex items-center gap-2 mb-2">
-                <FileCode size={14} className="text-primary-500" />
-                <span className="font-sans font-semibold text-sm text-slate-800 dark:text-white">
+                <FileCode
+                  size={16}
+                  className="text-primary-500 group-hover:scale-110 transition-transform"
+                />
+                <span className="font-heading font-black text-sm text-slate-800 dark:text-white">
                   {t.title}
                 </span>
               </div>
-              <p className="font-sans text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
-                {t.desc}
-              </p>
+              <p className="font-playful text-xs text-muted-foreground leading-relaxed">{t.desc}</p>
             </button>
           ))}
         </div>
@@ -1026,20 +1028,15 @@ export default function Editor() {
   // ── Loading state ──────────────────────────────────────────────────────
   if (isLoading) {
     return (
-      <div className="flex h-screen items-center justify-center bg-background dark:bg-dark-bg">
-        <div className="text-center">
-          <Loader2 size={32} className="animate-spin text-primary-500 mx-auto mb-4" />
-          <p className="font-sans text-sm text-slate-500 dark:text-slate-400">
-            Loading your project...
-          </p>
-        </div>
+      <div className="flex h-screen items-center justify-center bg-playful-light-bg dark:bg-[#050B14]">
+        <Loader text="Preparing your workshop..." />
       </div>
     );
   }
 
   // ─────────────────────────────────────────────────────────────────────────
   return (
-    <div className="flex flex-col h-screen bg-white dark:bg-[#11141E] font-sans overflow-hidden">
+    <div className="flex flex-col h-screen bg-white dark:bg-[#080E1A] font-playful overflow-hidden">
       {/* ── Top Control Bar ─────────────────────────────────────── */}
       <div className="shrink-0 w-full h-[72px] flex justify-between items-center z-30 px-4 sm:px-6 gap-2 bg-gradient-to-r from-orange-400 via-orange-500 to-amber-500 dark:from-[#3D1A00] dark:via-[#7A3300] dark:to-[#994D00] shadow-[0_8px_30px_-4px_rgba(249,115,22,0.4)] dark:shadow-[0_8px_30px_-4px_rgba(0,0,0,0.5)]">
         {/* Left: Back + project title + dirty indicator */}
@@ -1640,34 +1637,41 @@ export default function Editor() {
       {/* ── Reset Project Confirmation ───────────────────────────────────── */}
       {showResetConfirm && (
         <div
-          className="fixed inset-0 z-[300] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4"
+          className="fixed inset-0 z-[300] bg-black/60 backdrop-blur-md flex items-center justify-center p-4 font-playful"
           onClick={() => setShowResetConfirm(false)}
         >
           <div
-            className="bg-white dark:bg-dark-surface rounded-2xl border border-rose-100 dark:border-rose-950/30 shadow-2xl max-w-md w-full animate-pop overflow-hidden"
+            className="bg-white dark:bg-[#0B1121] rounded-3xl border border-rose-200 dark:border-rose-900/30 shadow-2xl max-w-md w-full animate-pop overflow-hidden"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="px-6 py-4 border-b border-rose-50 dark:border-rose-950/20 bg-rose-50/50 dark:bg-rose-950/10 flex items-center gap-2">
-              <AlertTriangle size={18} className="text-rose-500 shrink-0" />
-              <h2 className="font-sans font-bold text-base text-rose-700 dark:text-rose-400">
-                Reset Project
+            <div className="px-6 py-4 border-b border-rose-100 dark:border-rose-950/40 bg-rose-50/70 dark:bg-rose-950/20 flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-xl bg-rose-500/10 text-rose-500 flex items-center justify-center shrink-0">
+                <AlertTriangle size={18} />
+              </div>
+              <h2 className="font-heading font-black text-lg text-rose-600 dark:text-rose-400">
+                Reset Project?
               </h2>
             </div>
             <div className="p-6">
-              <p className="font-sans text-sm text-slate-600 dark:text-slate-300 leading-relaxed mb-6">
+              <p className="font-playful text-sm text-muted-foreground leading-relaxed mb-6">
                 This will permanently remove all blocks, code, and sprites, and start this project
                 over from a blank slate. This cannot be undone.
               </p>
-              <div className="flex justify-end gap-2">
-                <Button variant="outline" size="sm" onClick={() => setShowResetConfirm(false)}>
+              <div className="flex justify-end gap-2.5">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowResetConfirm(false)}
+                  className="rounded-xl font-bold"
+                >
                   Cancel
                 </Button>
                 <button
                   type="button"
                   onClick={confirmResetProject}
-                  className="h-9 px-4 rounded-xl bg-rose-500 hover:bg-rose-600 text-white font-sans font-bold text-sm shadow-md transition-all duration-200 active:scale-[0.98]"
+                  className="h-10 px-5 rounded-xl bg-rose-500 hover:bg-rose-600 text-white font-heading font-black text-sm shadow-md transition-all duration-200 active:scale-[0.98]"
                 >
-                  Reset
+                  Reset Project
                 </button>
               </div>
             </div>
@@ -1678,24 +1682,26 @@ export default function Editor() {
       {/* ── Unsaved Changes Blocker Overlay ──────────────────────────────── */}
       {showLeaveConfirm && (
         <div
-          className="fixed inset-0 z-[300] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4"
+          className="fixed inset-0 z-[300] bg-black/60 backdrop-blur-md flex items-center justify-center p-4 font-playful"
           onClick={() => setShowLeaveConfirm(false)}
         >
           <div
-            className="bg-white dark:bg-dark-surface border border-slate-200 dark:border-dark-border rounded-2xl max-w-md w-full shadow-2xl animate-pop p-6 relative flex flex-col gap-6"
+            className="bg-white dark:bg-[#0B1121] border border-border dark:border-white/10 rounded-3xl max-w-md w-full shadow-2xl animate-pop p-6 relative flex flex-col gap-6"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="text-center">
-              <div className="w-12 h-12 rounded-2xl bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 flex items-center justify-center mx-auto mb-4">
-                <AlertTriangle size={24} />
+              <div className="w-14 h-14 rounded-2xl bg-amber-500/10 text-amber-500 flex items-center justify-center mx-auto mb-4 border border-amber-500/20">
+                <AlertTriangle size={28} />
               </div>
-              <h3 className="text-lg font-bold text-slate-900 dark:text-white">Unsaved Changes</h3>
-              <p className="text-sm text-slate-500 dark:text-slate-400 mt-2">
+              <h3 className="text-xl font-heading font-black text-slate-900 dark:text-white">
+                Unsaved Changes
+              </h3>
+              <p className="text-sm font-playful text-muted-foreground mt-2 leading-relaxed">
                 You have unsaved changes in this project. What would you like to do before leaving?
               </p>
             </div>
 
-            <div className="flex flex-col gap-2">
+            <div className="flex flex-col gap-2.5">
               <button
                 type="button"
                 onClick={async () => {
@@ -1712,7 +1718,7 @@ export default function Editor() {
                     setShowLeaveConfirm(false);
                   }
                 }}
-                className="w-full h-11 bg-emerald-500 hover:bg-emerald-600 text-white font-sans font-bold text-sm rounded-xl flex items-center justify-center gap-2 shadow-md transition-all duration-200 active:scale-[0.98]"
+                className="w-full h-11 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-white font-heading font-black text-sm rounded-xl flex items-center justify-center gap-2 shadow-md transition-all duration-200 active:scale-[0.98]"
               >
                 Save & Exit
               </button>
@@ -1721,7 +1727,7 @@ export default function Editor() {
                 onClick={() => {
                   navigate('/dashboard');
                 }}
-                className="w-full h-11 bg-red-500 hover:bg-red-600 text-white font-sans font-bold text-sm rounded-xl flex items-center justify-center gap-2 shadow-md transition-all duration-200 active:scale-[0.98]"
+                className="w-full h-11 bg-rose-500 hover:bg-rose-600 text-white font-heading font-black text-sm rounded-xl flex items-center justify-center gap-2 shadow-md transition-all duration-200 active:scale-[0.98]"
               >
                 Discard Changes
               </button>
@@ -1730,7 +1736,7 @@ export default function Editor() {
                 onClick={() => {
                   setShowLeaveConfirm(false);
                 }}
-                className="w-full h-11 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-sans font-semibold text-sm rounded-xl flex items-center justify-center gap-2 hover:bg-slate-200 dark:hover:bg-slate-700 transition-all duration-200 active:scale-[0.98]"
+                className="w-full h-11 bg-slate-100 dark:bg-white/5 text-slate-700 dark:text-slate-300 font-heading font-black text-sm rounded-xl flex items-center justify-center gap-2 hover:bg-slate-200 dark:hover:bg-white/10 transition-all duration-200 active:scale-[0.98]"
               >
                 Cancel
               </button>
