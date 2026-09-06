@@ -25,18 +25,18 @@ interface UIState {
 }
 
 export const useUIStore = create<UIState>((set) => ({
-  theme: 'system',
+  theme: 'dark',
   sidebarCollapsed: false,
   mobileMenuOpen: false,
   activeModal: null,
   toasts: [],
-  
+
   setTheme: (theme) => set({ theme }),
   toggleSidebar: () => set((state) => ({ sidebarCollapsed: !state.sidebarCollapsed })),
   setMobileMenuOpen: (mobileMenuOpen) => set({ mobileMenuOpen }),
   openModal: (activeModal) => set({ activeModal }),
   closeModal: () => set({ activeModal: null }),
-  
+
   addToast: (toastProps) => {
     const id = Math.random().toString(36).substring(2, 9);
     set((state) => ({ toasts: [...state.toasts, { ...toastProps, id }] }));
@@ -45,6 +45,6 @@ export const useUIStore = create<UIState>((set) => ({
       set((state) => ({ toasts: state.toasts.filter((t) => t.id !== id) }));
     }, 3000);
   },
-  
+
   removeToast: (id) => set((state) => ({ toasts: state.toasts.filter((t) => t.id !== id) })),
 }));
