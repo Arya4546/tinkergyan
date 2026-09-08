@@ -71,7 +71,9 @@ export function CompileConsole({ isCompiling, compileResult }: CompileConsolePro
   useEffect(() => {
     if (!compileResult) return;
     runCount.current++;
-    const isTimeout = compileResult.durationMs >= 29000;
+    const isTimeout = compileResult.errors.some((e: CompileError) =>
+      e.message.includes('COMPILE_TIMEOUT'),
+    );
     const hasWarnings = compileResult.errors.some((e: CompileError) => e.severity === 'warning');
     setHistory((h) => [
       {
@@ -246,7 +248,7 @@ export function CompileConsole({ isCompiling, compileResult }: CompileConsolePro
 // ─── Result Card ──────────────────────────────────────────────────────────────
 
 function ResultCard({ result }: { result: CompileResult }) {
-  const isTimeout = result.durationMs >= 29000;
+  const isTimeout = result.errors.some((e: CompileError) => e.message.includes('COMPILE_TIMEOUT'));
   const hasWarnings = result.errors.some((e: CompileError) => e.severity === 'warning');
   const hasErrors = result.errors.some((e: CompileError) => e.severity === 'error');
 

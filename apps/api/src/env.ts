@@ -17,7 +17,7 @@ const envSchema = z.object({
         .filter(Boolean);
     })
     .default(''),
-  MAX_COMPILE_TIMEOUT: z.coerce.number().default(30_000),
+  MAX_COMPILE_TIMEOUT: z.coerce.number().default(180_000),
   COMPILE_CONCURRENCY: z.coerce.number().default(5),
   /** Path to the arduino-cli binary. Required only when COMPILER_MODE=arduino. */
   ARDUINO_CLI_PATH: z.string().optional(),

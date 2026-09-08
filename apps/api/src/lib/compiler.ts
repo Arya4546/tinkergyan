@@ -402,8 +402,6 @@ async function compileArduino(
       buildDir,
       '--build-cache-path',
       ARDUINO_BUILD_CACHE_PATH,
-      '--jobs',
-      '1',
       sketchDir,
     ];
     const { stdout, stderr: rawStderr } = await spawnWithTimeout(cliPath, args, timeoutMs);
