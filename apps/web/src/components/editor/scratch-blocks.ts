@@ -124,7 +124,7 @@ Blockly.Blocks['scratch_event_broadcast_and_wait'] = {
 
 Blockly.Blocks['scratch_motion_move_steps'] = {
   init(this: Blockly.Block): void {
-    this.appendValueInput('STEPS').setCheck('Number').appendField('move');
+    this.appendValueInput('STEPS').appendField('move');
     this.appendDummyInput().appendField('steps');
     this.setInputsInline(true);
     this.setPreviousStatement(true, null);
@@ -136,7 +136,7 @@ Blockly.Blocks['scratch_motion_move_steps'] = {
 
 Blockly.Blocks['scratch_motion_turn_right'] = {
   init(this: Blockly.Block): void {
-    this.appendValueInput('DEGREES').setCheck('Number').appendField('turn ↻');
+    this.appendValueInput('DEGREES').appendField('turn ↻');
     this.appendDummyInput().appendField('degrees');
     this.setInputsInline(true);
     this.setPreviousStatement(true, null);
@@ -148,8 +148,8 @@ Blockly.Blocks['scratch_motion_turn_right'] = {
 
 Blockly.Blocks['scratch_motion_goto'] = {
   init(this: Blockly.Block): void {
-    this.appendValueInput('X').setCheck('Number').appendField('go to x:');
-    this.appendValueInput('Y').setCheck('Number').appendField('y:');
+    this.appendValueInput('X').appendField('go to x:');
+    this.appendValueInput('Y').appendField('y:');
     this.setInputsInline(true);
     this.setPreviousStatement(true, null);
     this.setNextStatement(true, null);
@@ -160,7 +160,7 @@ Blockly.Blocks['scratch_motion_goto'] = {
 
 Blockly.Blocks['scratch_motion_turn_left'] = {
   init(this: Blockly.Block): void {
-    this.appendValueInput('DEGREES').setCheck('Number').appendField('turn ↺');
+    this.appendValueInput('DEGREES').appendField('turn ↺');
     this.appendDummyInput().appendField('degrees');
     this.setInputsInline(true);
     this.setPreviousStatement(true, null);
@@ -172,11 +172,11 @@ Blockly.Blocks['scratch_motion_turn_left'] = {
 
 Blockly.Blocks['scratch_motion_glide_to'] = {
   init(this: Blockly.Block): void {
-    this.appendValueInput('SECS').setCheck('Number').appendField('glide');
+    this.appendValueInput('SECS').appendField('glide');
     this.appendDummyInput().appendField('secs to x:');
-    this.appendValueInput('X').setCheck('Number');
+    this.appendValueInput('X');
     this.appendDummyInput().appendField('y:');
-    this.appendValueInput('Y').setCheck('Number');
+    this.appendValueInput('Y');
     this.setInputsInline(true);
     this.setPreviousStatement(true, null);
     this.setNextStatement(true, null);
@@ -187,7 +187,7 @@ Blockly.Blocks['scratch_motion_glide_to'] = {
 
 Blockly.Blocks['scratch_motion_point_in_direction'] = {
   init(this: Blockly.Block): void {
-    this.appendValueInput('DEGREES').setCheck('Number').appendField('point in direction');
+    this.appendValueInput('DEGREES').appendField('point in direction');
     this.setInputsInline(true);
     this.setPreviousStatement(true, null);
     this.setNextStatement(true, null);
@@ -210,7 +210,7 @@ Blockly.Blocks['scratch_motion_point_towards_mouse'] = {
 
 Blockly.Blocks['scratch_motion_change_x_by'] = {
   init(this: Blockly.Block): void {
-    this.appendValueInput('DX').setCheck('Number').appendField('change x by');
+    this.appendValueInput('DX').appendField('change x by');
     this.setInputsInline(true);
     this.setPreviousStatement(true, null);
     this.setNextStatement(true, null);
@@ -221,7 +221,7 @@ Blockly.Blocks['scratch_motion_change_x_by'] = {
 
 Blockly.Blocks['scratch_motion_set_x_to'] = {
   init(this: Blockly.Block): void {
-    this.appendValueInput('X').setCheck('Number').appendField('set x to');
+    this.appendValueInput('X').appendField('set x to');
     this.setInputsInline(true);
     this.setPreviousStatement(true, null);
     this.setNextStatement(true, null);
@@ -232,7 +232,7 @@ Blockly.Blocks['scratch_motion_set_x_to'] = {
 
 Blockly.Blocks['scratch_motion_change_y_by'] = {
   init(this: Blockly.Block): void {
-    this.appendValueInput('DY').setCheck('Number').appendField('change y by');
+    this.appendValueInput('DY').appendField('change y by');
     this.setInputsInline(true);
     this.setPreviousStatement(true, null);
     this.setNextStatement(true, null);
@@ -243,7 +243,7 @@ Blockly.Blocks['scratch_motion_change_y_by'] = {
 
 Blockly.Blocks['scratch_motion_set_y_to'] = {
   init(this: Blockly.Block): void {
-    this.appendValueInput('Y').setCheck('Number').appendField('set y to');
+    this.appendValueInput('Y').appendField('set y to');
     this.setInputsInline(true);
     this.setPreviousStatement(true, null);
     this.setNextStatement(true, null);
@@ -284,7 +284,7 @@ Blockly.Blocks['scratch_motion_set_rotation_style'] = {
 Blockly.Blocks['scratch_motion_x_position'] = {
   init(this: Blockly.Block): void {
     this.appendDummyInput().appendField('x position');
-    this.setOutput(true, 'Number');
+    this.setOutput(true);
     this.setColour(COLOR_MOTION);
     this.setTooltip("The sprite's current x position.");
   },
@@ -293,7 +293,7 @@ Blockly.Blocks['scratch_motion_x_position'] = {
 Blockly.Blocks['scratch_motion_y_position'] = {
   init(this: Blockly.Block): void {
     this.appendDummyInput().appendField('y position');
-    this.setOutput(true, 'Number');
+    this.setOutput(true);
     this.setColour(COLOR_MOTION);
     this.setTooltip("The sprite's current y position.");
   },
@@ -302,7 +302,7 @@ Blockly.Blocks['scratch_motion_y_position'] = {
 Blockly.Blocks['scratch_motion_direction'] = {
   init(this: Blockly.Block): void {
     this.appendDummyInput().appendField('direction');
-    this.setOutput(true, 'Number');
+    this.setOutput(true);
     this.setColour(COLOR_MOTION);
     this.setTooltip("The sprite's current direction.");
   },
@@ -312,8 +312,8 @@ Blockly.Blocks['scratch_motion_direction'] = {
 
 Blockly.Blocks['scratch_looks_say_for'] = {
   init(this: Blockly.Block): void {
-    this.appendValueInput('TEXT').setCheck('String').appendField('say');
-    this.appendValueInput('SECS').setCheck('Number').appendField('for');
+    this.appendValueInput('TEXT').appendField('say');
+    this.appendValueInput('SECS').appendField('for');
     this.appendDummyInput().appendField('seconds');
     this.setInputsInline(true);
     this.setPreviousStatement(true, null);
@@ -363,7 +363,7 @@ Blockly.Blocks['scratch_looks_switch_costume_to'] = {
 
 Blockly.Blocks['scratch_looks_say'] = {
   init(this: Blockly.Block): void {
-    this.appendValueInput('TEXT').setCheck('String').appendField('say');
+    this.appendValueInput('TEXT').appendField('say');
     this.setInputsInline(true);
     this.setPreviousStatement(true, null);
     this.setNextStatement(true, null);
@@ -374,8 +374,8 @@ Blockly.Blocks['scratch_looks_say'] = {
 
 Blockly.Blocks['scratch_looks_think_for'] = {
   init(this: Blockly.Block): void {
-    this.appendValueInput('TEXT').setCheck('String').appendField('think');
-    this.appendValueInput('SECS').setCheck('Number').appendField('for');
+    this.appendValueInput('TEXT').appendField('think');
+    this.appendValueInput('SECS').appendField('for');
     this.appendDummyInput().appendField('seconds');
     this.setInputsInline(true);
     this.setPreviousStatement(true, null);
@@ -387,7 +387,7 @@ Blockly.Blocks['scratch_looks_think_for'] = {
 
 Blockly.Blocks['scratch_looks_think'] = {
   init(this: Blockly.Block): void {
-    this.appendValueInput('TEXT').setCheck('String').appendField('think');
+    this.appendValueInput('TEXT').appendField('think');
     this.setInputsInline(true);
     this.setPreviousStatement(true, null);
     this.setNextStatement(true, null);
@@ -430,7 +430,7 @@ Blockly.Blocks['scratch_looks_next_backdrop'] = {
 
 Blockly.Blocks['scratch_looks_change_size_by'] = {
   init(this: Blockly.Block): void {
-    this.appendValueInput('DELTA').setCheck('Number').appendField('change size by');
+    this.appendValueInput('DELTA').appendField('change size by');
     this.setInputsInline(true);
     this.setPreviousStatement(true, null);
     this.setNextStatement(true, null);
@@ -441,7 +441,7 @@ Blockly.Blocks['scratch_looks_change_size_by'] = {
 
 Blockly.Blocks['scratch_looks_set_size_to'] = {
   init(this: Blockly.Block): void {
-    this.appendValueInput('SIZE').setCheck('Number').appendField('set size to');
+    this.appendValueInput('SIZE').appendField('set size to');
     this.appendDummyInput().appendField('%');
     this.setInputsInline(true);
     this.setPreviousStatement(true, null);
@@ -463,7 +463,7 @@ Blockly.Blocks['scratch_looks_change_effect_by'] = {
       .appendField('change')
       .appendField(new Blockly.FieldDropdown(GRAPHIC_EFFECT_OPTIONS), 'EFFECT')
       .appendField('effect by');
-    this.appendValueInput('DELTA').setCheck('Number');
+    this.appendValueInput('DELTA');
     this.setInputsInline(true);
     this.setPreviousStatement(true, null);
     this.setNextStatement(true, null);
@@ -478,7 +478,7 @@ Blockly.Blocks['scratch_looks_set_effect_to'] = {
       .appendField('set')
       .appendField(new Blockly.FieldDropdown(GRAPHIC_EFFECT_OPTIONS), 'EFFECT')
       .appendField('effect to');
-    this.appendValueInput('VALUE').setCheck('Number');
+    this.appendValueInput('VALUE');
     this.setInputsInline(true);
     this.setPreviousStatement(true, null);
     this.setNextStatement(true, null);
@@ -527,7 +527,7 @@ Blockly.Blocks['scratch_looks_change_layers'] = {
         ]),
         'DIRECTION',
       );
-    this.appendValueInput('AMOUNT').setCheck('Number');
+    this.appendValueInput('AMOUNT');
     this.appendDummyInput().appendField('layers');
     this.setInputsInline(true);
     this.setPreviousStatement(true, null);
@@ -540,7 +540,7 @@ Blockly.Blocks['scratch_looks_change_layers'] = {
 Blockly.Blocks['scratch_looks_costume_number'] = {
   init(this: Blockly.Block): void {
     this.appendDummyInput().appendField('costume #');
-    this.setOutput(true, 'Number');
+    this.setOutput(true);
     this.setColour(COLOR_LOOKS);
     this.setTooltip("The sprite's current costume number.");
   },
@@ -549,7 +549,7 @@ Blockly.Blocks['scratch_looks_costume_number'] = {
 Blockly.Blocks['scratch_looks_size'] = {
   init(this: Blockly.Block): void {
     this.appendDummyInput().appendField('size');
-    this.setOutput(true, 'Number');
+    this.setOutput(true);
     this.setColour(COLOR_LOOKS);
     this.setTooltip("The sprite's current size percentage.");
   },
@@ -596,7 +596,7 @@ Blockly.Blocks['scratch_sound_stop_all'] = {
 
 Blockly.Blocks['scratch_sound_change_volume_by'] = {
   init(this: Blockly.Block): void {
-    this.appendValueInput('DELTA').setCheck('Number').appendField('change volume by');
+    this.appendValueInput('DELTA').appendField('change volume by');
     this.setInputsInline(true);
     this.setPreviousStatement(true, null);
     this.setNextStatement(true, null);
@@ -607,7 +607,7 @@ Blockly.Blocks['scratch_sound_change_volume_by'] = {
 
 Blockly.Blocks['scratch_sound_set_volume_to'] = {
   init(this: Blockly.Block): void {
-    this.appendValueInput('VOLUME').setCheck('Number').appendField('set volume to');
+    this.appendValueInput('VOLUME').appendField('set volume to');
     this.appendDummyInput().appendField('%');
     this.setInputsInline(true);
     this.setPreviousStatement(true, null);
@@ -620,7 +620,7 @@ Blockly.Blocks['scratch_sound_set_volume_to'] = {
 Blockly.Blocks['scratch_sound_volume'] = {
   init(this: Blockly.Block): void {
     this.appendDummyInput().appendField('volume');
-    this.setOutput(true, 'Number');
+    this.setOutput(true);
     this.setColour(COLOR_SOUND);
     this.setTooltip('The current volume percentage.');
   },
@@ -630,7 +630,7 @@ Blockly.Blocks['scratch_sound_volume'] = {
 
 Blockly.Blocks['scratch_control_wait'] = {
   init(this: Blockly.Block): void {
-    this.appendValueInput('SECS').setCheck('Number').appendField('wait');
+    this.appendValueInput('SECS').appendField('wait');
     this.appendDummyInput().appendField('seconds');
     this.setInputsInline(true);
     this.setPreviousStatement(true, null);
@@ -653,7 +653,7 @@ Blockly.Blocks['scratch_control_forever'] = {
 
 Blockly.Blocks['scratch_control_wait_until'] = {
   init(this: Blockly.Block): void {
-    this.appendValueInput('CONDITION').setCheck('Boolean').appendField('wait until');
+    this.appendValueInput('CONDITION').appendField('wait until');
     this.setInputsInline(true);
     this.setPreviousStatement(true, null);
     this.setNextStatement(true, null);
@@ -689,7 +689,7 @@ Blockly.Blocks['scratch_sensing_key_pressed'] = {
       .appendField('key')
       .appendField(new Blockly.FieldDropdown(KEY_OPTIONS), 'KEY')
       .appendField('pressed?');
-    this.setOutput(true, 'Boolean');
+    this.setOutput(true);
     this.setColour(COLOR_SENSING);
     this.setTooltip('True while the chosen key is held down.');
   },
@@ -698,7 +698,7 @@ Blockly.Blocks['scratch_sensing_key_pressed'] = {
 Blockly.Blocks['scratch_sensing_mouse_down'] = {
   init(this: Blockly.Block): void {
     this.appendDummyInput().appendField('mouse down?');
-    this.setOutput(true, 'Boolean');
+    this.setOutput(true);
     this.setColour(COLOR_SENSING);
     this.setTooltip('True while the mouse button is held down.');
   },
@@ -707,7 +707,7 @@ Blockly.Blocks['scratch_sensing_mouse_down'] = {
 Blockly.Blocks['scratch_sensing_mouse_x'] = {
   init(this: Blockly.Block): void {
     this.appendDummyInput().appendField('mouse x');
-    this.setOutput(true, 'Number');
+    this.setOutput(true);
     this.setColour(COLOR_SENSING);
     this.setTooltip("The mouse pointer's x position on the stage.");
   },
@@ -716,7 +716,7 @@ Blockly.Blocks['scratch_sensing_mouse_x'] = {
 Blockly.Blocks['scratch_sensing_mouse_y'] = {
   init(this: Blockly.Block): void {
     this.appendDummyInput().appendField('mouse y');
-    this.setOutput(true, 'Number');
+    this.setOutput(true);
     this.setColour(COLOR_SENSING);
     this.setTooltip("The mouse pointer's y position on the stage.");
   },
@@ -725,7 +725,7 @@ Blockly.Blocks['scratch_sensing_mouse_y'] = {
 Blockly.Blocks['scratch_sensing_timer'] = {
   init(this: Blockly.Block): void {
     this.appendDummyInput().appendField('timer');
-    this.setOutput(true, 'Number');
+    this.setOutput(true);
     this.setColour(COLOR_SENSING);
     this.setTooltip('Seconds elapsed since the timer was last reset (or the script started).');
   },
@@ -744,7 +744,7 @@ Blockly.Blocks['scratch_sensing_reset_timer'] = {
 Blockly.Blocks['scratch_sensing_touching_edge'] = {
   init(this: Blockly.Block): void {
     this.appendDummyInput().appendField('touching edge?');
-    this.setOutput(true, 'Boolean');
+    this.setOutput(true);
     this.setColour(COLOR_SENSING);
     this.setTooltip('True if the sprite is touching the edge of the stage.');
   },
@@ -752,7 +752,7 @@ Blockly.Blocks['scratch_sensing_touching_edge'] = {
 
 Blockly.Blocks['scratch_sensing_ask_and_wait'] = {
   init(this: Blockly.Block): void {
-    this.appendValueInput('QUESTION').setCheck('String').appendField('ask');
+    this.appendValueInput('QUESTION').appendField('ask');
     this.appendDummyInput().appendField('and wait');
     this.setInputsInline(true);
     this.setPreviousStatement(true, null);
@@ -765,7 +765,7 @@ Blockly.Blocks['scratch_sensing_ask_and_wait'] = {
 Blockly.Blocks['scratch_sensing_answer'] = {
   init(this: Blockly.Block): void {
     this.appendDummyInput().appendField('answer');
-    this.setOutput(true, 'String');
+    this.setOutput(true);
     this.setColour(COLOR_SENSING);
     this.setTooltip('The most recent answer typed in response to "ask and wait".');
   },

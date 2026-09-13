@@ -77,7 +77,7 @@ Blockly.Blocks['ai_when_predicted'] = {
 Blockly.Blocks['ai_current_prediction'] = {
   init(this: Blockly.Block): void {
     this.appendDummyInput().appendField('AI prediction');
-    this.setOutput(true, 'String');
+    this.setOutput(true);
     this.setColour(COLOR_AI);
     this.setTooltip('The label the AI is most confident about right now.');
   },
@@ -89,7 +89,7 @@ Blockly.Blocks['ai_confidence_of'] = {
     this.appendDummyInput()
       .appendField('AI confidence of')
       .appendField(new Blockly.FieldDropdown(getClassLabels), 'LABEL');
-    this.setOutput(true, 'Number');
+    this.setOutput(true);
     this.setColour(COLOR_AI);
     this.setTooltip('How confident (0–100%) the AI is that it sees this class right now.');
   },
@@ -102,7 +102,7 @@ Blockly.Blocks['ai_is_predicting'] = {
       .appendField('AI sees')
       .appendField(new Blockly.FieldDropdown(getClassLabels), 'LABEL')
       .appendField('?');
-    this.setOutput(true, 'Boolean');
+    this.setOutput(true);
     this.setColour(COLOR_AI);
     this.setTooltip("True if the AI model's current top prediction matches this class.");
   },
@@ -137,7 +137,7 @@ Blockly.Blocks['ai_pose_x'] = {
     this.appendDummyInput()
       .appendField('x position of')
       .appendField(new Blockly.FieldDropdown(POSE_PARTS), 'PART');
-    this.setOutput(true, 'Number');
+    this.setOutput(true);
     this.setColour(COLOR_AI);
     this.setTooltip('Get the horizontal (X) position of a body part (0 to 1).');
   },
@@ -148,7 +148,7 @@ Blockly.Blocks['ai_pose_y'] = {
     this.appendDummyInput()
       .appendField('y position of')
       .appendField(new Blockly.FieldDropdown(POSE_PARTS), 'PART');
-    this.setOutput(true, 'Number');
+    this.setOutput(true);
     this.setColour(COLOR_AI);
     this.setTooltip('Get the vertical (Y) position of a body part (0 to 1).');
   },
@@ -213,7 +213,7 @@ Blockly.Blocks['ai_when_hear_word'] = {
 Blockly.Blocks['ai_latest_word'] = {
   init(this: Blockly.Block): void {
     this.appendDummyInput().appendField('latest word heard');
-    this.setOutput(true, 'String');
+    this.setOutput(true);
     this.setColour(COLOR_AI);
     this.setTooltip('The most recent word recognized by the microphone.');
   },
@@ -269,7 +269,7 @@ Blockly.Blocks['ai_when_emotion'] = {
 Blockly.Blocks['ai_emotion_detected'] = {
   init(this: Blockly.Block): void {
     this.appendDummyInput().appendField('AI emotion');
-    this.setOutput(true, 'String');
+    this.setOutput(true);
     this.setColour(COLOR_AI);
     this.setTooltip('The facial expression the AI currently detects (e.g. "happy", "sad").');
   },
@@ -281,7 +281,7 @@ Blockly.Blocks['ai_emotion_confidence'] = {
     this.appendDummyInput()
       .appendField('emotion confidence of')
       .appendField(new Blockly.FieldDropdown(EMOTION_OPTIONS), 'EMOTION');
-    this.setOutput(true, 'Number');
+    this.setOutput(true);
     this.setColour(COLOR_AI);
     this.setTooltip('How confident (0–100%) the AI is about detecting this emotion.');
   },
@@ -291,7 +291,7 @@ Blockly.Blocks['ai_emotion_confidence'] = {
 Blockly.Blocks['ai_face_detected'] = {
   init(this: Blockly.Block): void {
     this.appendDummyInput().appendField('face detected?');
-    this.setOutput(true, 'Boolean');
+    this.setOutput(true);
     this.setColour(COLOR_AI);
     this.setTooltip('True if the AI can currently see a face in the webcam.');
   },
@@ -310,7 +310,7 @@ Blockly.Blocks['ai_face_position'] = {
         'AXIS',
       )
       .appendField('position');
-    this.setOutput(true, 'Number');
+    this.setOutput(true);
     this.setColour(COLOR_AI);
     this.setTooltip(
       'The horizontal (x) or vertical (y) center position of the detected face (0 to 1).',
@@ -368,7 +368,7 @@ Blockly.Blocks['ai_hand_x'] = {
     this.appendDummyInput()
       .appendField('x position of')
       .appendField(new Blockly.FieldDropdown(HAND_LANDMARKS), 'LANDMARK');
-    this.setOutput(true, 'Number');
+    this.setOutput(true);
     this.setColour(COLOR_AI);
     this.setTooltip('Get the horizontal (X) position of a finger or hand landmark (0 to 1).');
   },
@@ -379,7 +379,7 @@ Blockly.Blocks['ai_hand_y'] = {
     this.appendDummyInput()
       .appendField('y position of')
       .appendField(new Blockly.FieldDropdown(HAND_LANDMARKS), 'LANDMARK');
-    this.setOutput(true, 'Number');
+    this.setOutput(true);
     this.setColour(COLOR_AI);
     this.setTooltip('Get the vertical (Y) position of a finger or hand landmark (0 to 1).');
   },
@@ -401,7 +401,7 @@ Blockly.Blocks['ai_when_hand_gesture'] = {
 Blockly.Blocks['ai_hand_gesture'] = {
   init(this: Blockly.Block): void {
     this.appendDummyInput().appendField('hand gesture');
-    this.setOutput(true, 'String');
+    this.setOutput(true);
     this.setColour(COLOR_AI);
     this.setTooltip('The current hand gesture (e.g. "open", "closed", "pinching").');
   },
@@ -411,7 +411,7 @@ Blockly.Blocks['ai_hand_gesture'] = {
 Blockly.Blocks['ai_hand_detected'] = {
   init(this: Blockly.Block): void {
     this.appendDummyInput().appendField('hand detected?');
-    this.setOutput(true, 'Boolean');
+    this.setOutput(true);
     this.setColour(COLOR_AI);
     this.setTooltip('True if the AI can currently see a hand in the webcam.');
   },
@@ -448,7 +448,7 @@ Blockly.Blocks['ai_speech_stop'] = {
 Blockly.Blocks['ai_speech_heard'] = {
   init(this: Blockly.Block): void {
     this.appendDummyInput().appendField('speech heard');
-    this.setOutput(true, 'String');
+    this.setOutput(true);
     this.setColour(COLOR_AI);
     this.setTooltip('The last phrase or sentence spoken (converted to text).');
   },
@@ -457,7 +457,7 @@ Blockly.Blocks['ai_speech_heard'] = {
 /** Hat block: fires when speech contains a specific word/phrase */
 Blockly.Blocks['ai_when_speech_contains'] = {
   init(this: Blockly.Block): void {
-    this.appendValueInput('PHRASE').setCheck('String').appendField('when speech contains');
+    this.appendValueInput('PHRASE').appendField('when speech contains');
     this.setNextStatement(true, null);
     this.setColour(COLOR_AI);
     this.setTooltip(
@@ -483,7 +483,7 @@ const SPEECH_LANG_OPTIONS = [
 /** Speak a text string aloud */
 Blockly.Blocks['ai_speak'] = {
   init(this: Blockly.Block): void {
-    this.appendValueInput('TEXT').setCheck('String').appendField('say aloud');
+    this.appendValueInput('TEXT').appendField('say aloud');
     this.setPreviousStatement(true, null);
     this.setNextStatement(true, null);
     this.setColour(COLOR_AI);
@@ -495,7 +495,7 @@ Blockly.Blocks['ai_speak'] = {
 Blockly.Blocks['ai_speak_in_lang'] = {
   init(this: Blockly.Block): void {
     this.appendValueInput('TEXT')
-      .setCheck('String')
+
       .appendField('say aloud in')
       .appendField(new Blockly.FieldDropdown(SPEECH_LANG_OPTIONS), 'LANG');
     this.setPreviousStatement(true, null);
@@ -508,7 +508,7 @@ Blockly.Blocks['ai_speak_in_lang'] = {
 /** Set speech speed */
 Blockly.Blocks['ai_set_speech_speed'] = {
   init(this: Blockly.Block): void {
-    this.appendValueInput('SPEED').setCheck('Number').appendField('set speech speed to');
+    this.appendValueInput('SPEED').appendField('set speech speed to');
     this.setPreviousStatement(true, null);
     this.setNextStatement(true, null);
     this.setColour(COLOR_AI);
@@ -541,8 +541,8 @@ const getTextClassLabels = function (this: Blockly.FieldDropdown): [string, stri
 /** Classify a text input and return the matching class label */
 Blockly.Blocks['ai_classify_text'] = {
   init(this: Blockly.Block): void {
-    this.appendValueInput('TEXT').setCheck('String').appendField('classify text');
-    this.setOutput(true, 'String');
+    this.appendValueInput('TEXT').appendField('classify text');
+    this.setOutput(true);
     this.setColour(COLOR_AI);
     this.setTooltip('Run your trained text AI on this text and return the matching class label.');
   },
@@ -552,7 +552,7 @@ Blockly.Blocks['ai_classify_text'] = {
 Blockly.Blocks['ai_when_text_classified'] = {
   init(this: Blockly.Block): void {
     this.appendValueInput('TEXT')
-      .setCheck('String')
+
       .appendField('when')
       .appendField(new Blockly.FieldDropdown(getTextClassLabels), 'LABEL')
       .appendField('detected in');
@@ -567,9 +567,9 @@ Blockly.Blocks['ai_when_text_classified'] = {
 Blockly.Blocks['ai_generate_music'] = {
   init(this: Blockly.Block): void {
     this.appendDummyInput().appendField('🎸 play AI melody from base notes');
-    this.appendValueInput('NOTES').setCheck('Array').appendField('notes:');
-    this.appendValueInput('STEPS').setCheck('Number').appendField('generate steps:');
-    this.appendValueInput('TEMP').setCheck('Number').appendField('creativity (0.1-2.0):');
+    this.appendValueInput('NOTES').appendField('notes:');
+    this.appendValueInput('STEPS').appendField('generate steps:');
+    this.appendValueInput('TEMP').appendField('creativity (0.1-2.0):');
     this.setPreviousStatement(true, null);
     this.setNextStatement(true, null);
     this.setColour(COLOR_AI);
