@@ -118,7 +118,7 @@ Blockly.Blocks['arduino_digital_read'] = {
       .appendField('digitalRead(')
       .appendField(new Blockly.FieldDropdown(getDigitalPins), 'PIN')
       .appendField(')');
-    this.setOutput(true);
+    this.setOutput(true, ['Number', 'String']);
     this.setColour(COLOR_DIGITAL);
     this.setTooltip('Read the digital value (HIGH=1 or LOW=0) from a pin.');
   },
@@ -135,7 +135,7 @@ Blockly.Blocks['arduino_analog_read'] = {
       .appendField('analogRead(')
       .appendField(new Blockly.FieldDropdown(getAnalogPins), 'PIN')
       .appendField(')');
-    this.setOutput(true);
+    this.setOutput(true, ['Number', 'String']);
     this.setColour(COLOR_ANALOG);
     this.setTooltip('Read an analog value from a pin (0–1023).');
   },
@@ -187,7 +187,7 @@ Blockly.Blocks['arduino_delay'] = {
 Blockly.Blocks['arduino_millis'] = {
   init(this: Blockly.Block): void {
     this.appendDummyInput().appendField('millis()');
-    this.setOutput(true);
+    this.setOutput(true, ['Number', 'String']);
     this.setColour(COLOR_CONTROL);
     this.setTooltip('Returns the number of milliseconds since the board started.');
   },

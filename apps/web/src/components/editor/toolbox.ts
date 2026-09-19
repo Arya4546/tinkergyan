@@ -470,7 +470,14 @@ export function getToolbox(engineMode: 'hardware' | 'software') {
       categorystyle: 'text_category',
       contents: [
         { kind: 'block', type: 'text' },
-        { kind: 'block', type: 'text_join' },
+        {
+          kind: 'block',
+          type: 'text_join',
+          inputs: {
+            ADD0: { shadow: { type: 'text', fields: { TEXT: 'hello' } } },
+            ADD1: { shadow: { type: 'text', fields: { TEXT: 'world' } } },
+          },
+        },
         { kind: 'block', type: 'text_append' },
         { kind: 'block', type: 'text_length' },
         { kind: 'block', type: 'text_isEmpty' },

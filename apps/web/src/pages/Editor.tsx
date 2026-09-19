@@ -1038,7 +1038,7 @@ export default function Editor() {
   return (
     <div className="flex flex-col h-screen bg-white dark:bg-[#080E1A] font-playful overflow-hidden">
       {/* ── Top Control Bar ─────────────────────────────────────── */}
-      <div className="shrink-0 w-full h-[72px] flex justify-between items-center z-30 px-4 sm:px-6 gap-2 bg-gradient-to-r from-orange-400 via-orange-500 to-amber-500 dark:from-[#3D1A00] dark:via-[#7A3300] dark:to-[#994D00] shadow-[0_8px_30px_-4px_rgba(249,115,22,0.4)] dark:shadow-[0_8px_30px_-4px_rgba(0,0,0,0.5)]">
+      <div className="shrink-0 w-full h-[72px] flex justify-between items-center z-30 px-4 sm:px-6 gap-2 bg-gradient-to-r from-indigo-600 via-indigo-700 to-blue-700 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900 shadow-[0_8px_30px_-4px_rgba(79,70,229,0.4)] dark:shadow-[0_8px_30px_-4px_rgba(0,0,0,0.5)]">
         {/* Left: Back + project title + dirty indicator */}
         <div className="flex items-center gap-2 min-w-0">
           <Tooltip content="Dashboard" position="bottom">
@@ -1097,7 +1097,7 @@ export default function Editor() {
                   onClick={switchToBlock}
                   className={`flex items-center gap-2 h-9 px-5 rounded-lg font-sans font-bold text-[14px] transition-all focus-visible:ring-4 focus-visible:ring-white/50 focus-visible:outline-none ${
                     mode === 'block'
-                      ? 'bg-white text-orange-500 shadow-sm scale-105'
+                      ? 'bg-white text-indigo-600 shadow-sm scale-105'
                       : 'text-white hover:bg-white/20'
                   }`}
                 >
@@ -1110,7 +1110,7 @@ export default function Editor() {
                   onClick={switchToCode}
                   className={`flex items-center gap-2 h-9 px-4 rounded-lg font-sans font-extrabold text-[14px] transition-all focus-visible:ring-4 focus-visible:ring-white/50 focus-visible:outline-none ${
                     mode === 'code'
-                      ? 'bg-white text-orange-600 shadow-sm scale-105'
+                      ? 'bg-white text-indigo-600 shadow-sm scale-105'
                       : 'text-white/80 hover:text-white hover:bg-white/20'
                   }`}
                 >
@@ -1360,7 +1360,7 @@ export default function Editor() {
           <Tooltip content="Open AI Model Studio" position="bottom">
             <button
               onClick={() => setShowAITrainer(true)}
-              className="h-9 px-4 rounded-full font-sans font-bold text-sm flex items-center gap-1.5 transition-all focus-visible:ring-2 focus-visible:ring-white focus-visible:outline-none bg-white/20 text-white hover:bg-white/30 shadow-sm"
+              className="h-9 px-4 rounded-full font-sans font-bold text-sm flex items-center gap-1.5 transition-all focus-visible:ring-2 focus-visible:ring-white focus-visible:outline-none bg-purple-600 text-white hover:bg-purple-500 shadow-sm"
             >
               <Brain size={15} />
               <span className="hidden md:inline">AI Studio</span>

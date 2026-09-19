@@ -284,7 +284,7 @@ Blockly.Blocks['scratch_motion_set_rotation_style'] = {
 Blockly.Blocks['scratch_motion_x_position'] = {
   init(this: Blockly.Block): void {
     this.appendDummyInput().appendField('x position');
-    this.setOutput(true);
+    this.setOutput(true, ['Number', 'String']);
     this.setColour(COLOR_MOTION);
     this.setTooltip("The sprite's current x position.");
   },
@@ -293,7 +293,7 @@ Blockly.Blocks['scratch_motion_x_position'] = {
 Blockly.Blocks['scratch_motion_y_position'] = {
   init(this: Blockly.Block): void {
     this.appendDummyInput().appendField('y position');
-    this.setOutput(true);
+    this.setOutput(true, ['Number', 'String']);
     this.setColour(COLOR_MOTION);
     this.setTooltip("The sprite's current y position.");
   },
@@ -302,7 +302,7 @@ Blockly.Blocks['scratch_motion_y_position'] = {
 Blockly.Blocks['scratch_motion_direction'] = {
   init(this: Blockly.Block): void {
     this.appendDummyInput().appendField('direction');
-    this.setOutput(true);
+    this.setOutput(true, ['Number', 'String']);
     this.setColour(COLOR_MOTION);
     this.setTooltip("The sprite's current direction.");
   },
@@ -540,7 +540,7 @@ Blockly.Blocks['scratch_looks_change_layers'] = {
 Blockly.Blocks['scratch_looks_costume_number'] = {
   init(this: Blockly.Block): void {
     this.appendDummyInput().appendField('costume #');
-    this.setOutput(true);
+    this.setOutput(true, ['Number', 'String']);
     this.setColour(COLOR_LOOKS);
     this.setTooltip("The sprite's current costume number.");
   },
@@ -549,7 +549,7 @@ Blockly.Blocks['scratch_looks_costume_number'] = {
 Blockly.Blocks['scratch_looks_size'] = {
   init(this: Blockly.Block): void {
     this.appendDummyInput().appendField('size');
-    this.setOutput(true);
+    this.setOutput(true, ['Number', 'String']);
     this.setColour(COLOR_LOOKS);
     this.setTooltip("The sprite's current size percentage.");
   },
@@ -620,7 +620,7 @@ Blockly.Blocks['scratch_sound_set_volume_to'] = {
 Blockly.Blocks['scratch_sound_volume'] = {
   init(this: Blockly.Block): void {
     this.appendDummyInput().appendField('volume');
-    this.setOutput(true);
+    this.setOutput(true, ['Number', 'String']);
     this.setColour(COLOR_SOUND);
     this.setTooltip('The current volume percentage.');
   },
@@ -689,7 +689,7 @@ Blockly.Blocks['scratch_sensing_key_pressed'] = {
       .appendField('key')
       .appendField(new Blockly.FieldDropdown(KEY_OPTIONS), 'KEY')
       .appendField('pressed?');
-    this.setOutput(true);
+    this.setOutput(true, ['Boolean']);
     this.setColour(COLOR_SENSING);
     this.setTooltip('True while the chosen key is held down.');
   },
@@ -698,7 +698,7 @@ Blockly.Blocks['scratch_sensing_key_pressed'] = {
 Blockly.Blocks['scratch_sensing_mouse_down'] = {
   init(this: Blockly.Block): void {
     this.appendDummyInput().appendField('mouse down?');
-    this.setOutput(true);
+    this.setOutput(true, ['Boolean']);
     this.setColour(COLOR_SENSING);
     this.setTooltip('True while the mouse button is held down.');
   },
@@ -707,7 +707,7 @@ Blockly.Blocks['scratch_sensing_mouse_down'] = {
 Blockly.Blocks['scratch_sensing_mouse_x'] = {
   init(this: Blockly.Block): void {
     this.appendDummyInput().appendField('mouse x');
-    this.setOutput(true);
+    this.setOutput(true, ['Number', 'String']);
     this.setColour(COLOR_SENSING);
     this.setTooltip("The mouse pointer's x position on the stage.");
   },
@@ -716,7 +716,7 @@ Blockly.Blocks['scratch_sensing_mouse_x'] = {
 Blockly.Blocks['scratch_sensing_mouse_y'] = {
   init(this: Blockly.Block): void {
     this.appendDummyInput().appendField('mouse y');
-    this.setOutput(true);
+    this.setOutput(true, ['Number', 'String']);
     this.setColour(COLOR_SENSING);
     this.setTooltip("The mouse pointer's y position on the stage.");
   },
@@ -725,7 +725,7 @@ Blockly.Blocks['scratch_sensing_mouse_y'] = {
 Blockly.Blocks['scratch_sensing_timer'] = {
   init(this: Blockly.Block): void {
     this.appendDummyInput().appendField('timer');
-    this.setOutput(true);
+    this.setOutput(true, ['Number', 'String']);
     this.setColour(COLOR_SENSING);
     this.setTooltip('Seconds elapsed since the timer was last reset (or the script started).');
   },
@@ -744,7 +744,7 @@ Blockly.Blocks['scratch_sensing_reset_timer'] = {
 Blockly.Blocks['scratch_sensing_touching_edge'] = {
   init(this: Blockly.Block): void {
     this.appendDummyInput().appendField('touching edge?');
-    this.setOutput(true);
+    this.setOutput(true, ['Boolean']);
     this.setColour(COLOR_SENSING);
     this.setTooltip('True if the sprite is touching the edge of the stage.');
   },
@@ -765,7 +765,7 @@ Blockly.Blocks['scratch_sensing_ask_and_wait'] = {
 Blockly.Blocks['scratch_sensing_answer'] = {
   init(this: Blockly.Block): void {
     this.appendDummyInput().appendField('answer');
-    this.setOutput(true);
+    this.setOutput(true, ['Number', 'String']);
     this.setColour(COLOR_SENSING);
     this.setTooltip('The most recent answer typed in response to "ask and wait".');
   },
