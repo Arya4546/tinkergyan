@@ -313,6 +313,49 @@ export function getToolbox(engineMode: 'hardware' | 'software') {
       name: '🤖 My AI Model',
       categorystyle: 'ai_category',
       contents: [
+        // ── Examples (UX Helpers) ─────────────────────────────────────────
+        { kind: 'label', text: '💡 How to use AI blocks (Examples)' },
+        {
+          kind: 'block',
+          type: 'controls_if',
+          inputs: {
+            IF0: {
+              block: {
+                type: 'logic_compare',
+                fields: { OP: 'EQ' },
+                inputs: {
+                  A: { block: { type: 'ai_current_prediction' } },
+                  B: { shadow: { type: 'text', fields: { TEXT: 'Object 1' } } },
+                },
+              },
+            },
+          },
+        },
+        {
+          kind: 'block',
+          type: 'controls_if',
+          inputs: {
+            IF0: {
+              block: {
+                type: 'logic_compare',
+                fields: { OP: 'GT' },
+                inputs: {
+                  A: { block: { type: 'ai_confidence_of' } },
+                  B: { shadow: { type: 'math_number', fields: { NUM: 80 } } },
+                },
+              },
+            },
+          },
+        },
+
+        {
+          kind: 'block',
+          type: 'controls_if',
+          inputs: {
+            IF0: { block: { type: 'ai_face_detected' } },
+          },
+        },
+
         // ── Image Classification ──────────────────────────────────────────
         { kind: 'label', text: '🎥 Image Classifier' },
         { kind: 'block', type: 'ai_turn_vision' },

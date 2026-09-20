@@ -16,12 +16,10 @@ javascriptGenerator.forBlock['ai_turn_vision'] = function (block) {
 
 // ── AI Event (Hat) Block ────────────────────────────────────────────────────
 
-javascriptGenerator.forBlock['ai_when_predicted'] = function (block) {
+javascriptGenerator.forBlock['ai_when_predicted'] = function (block, generator) {
   const label = block.getFieldValue('LABEL') as string;
-  // Get the body the same way scratch_event_when_flag_clicked does.
-  const nextBlock = block.getNextBlock();
-  const body = nextBlock ? (javascriptGenerator.blockToCode(nextBlock) as string) : '';
-  return `api.onAIPredicted(${JSON.stringify(label)}, async () => {\n${body}});\n`;
+  const body = generator.statementToCode(block, 'DO');
+  return `if (api.getAIPrediction() === ${JSON.stringify(label)}) {\n${body}}\n`;
 };
 
 // ── AI Reporters ────────────────────────────────────────────────────────────
@@ -79,11 +77,10 @@ javascriptGenerator.forBlock['ai_turn_emotion'] = function (block) {
   return state === 'ON' ? `await api.aiStartEmotion();\n` : `await api.aiStopEmotion();\n`;
 };
 
-javascriptGenerator.forBlock['ai_when_emotion'] = function (block) {
+javascriptGenerator.forBlock['ai_when_emotion'] = function (block, generator) {
   const emotion = block.getFieldValue('EMOTION') as string;
-  const nextBlock = block.getNextBlock();
-  const body = nextBlock ? (javascriptGenerator.blockToCode(nextBlock) as string) : '';
-  return `api.onAIEmotion(${JSON.stringify(emotion)}, async () => {\n${body}});\n`;
+  const body = generator.statementToCode(block, 'DO');
+  return `if (api.getAIEmotion() === ${JSON.stringify(emotion)}) {\n${body}}\n`;
 };
 
 javascriptGenerator.forBlock['ai_emotion_detected'] = function () {

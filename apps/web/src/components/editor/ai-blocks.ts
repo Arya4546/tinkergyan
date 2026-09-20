@@ -59,8 +59,10 @@ Blockly.Blocks['ai_turn_vision'] = {
 Blockly.Blocks['ai_when_predicted'] = {
   init(this: Blockly.Block): void {
     this.appendDummyInput()
-      .appendField('when AI sees')
+      .appendField('if AI sees')
       .appendField(new Blockly.FieldDropdown(getClassLabels), 'LABEL');
+    this.appendStatementInput('DO').appendField('then');
+    this.setPreviousStatement(true, null);
     this.setNextStatement(true, null);
     this.setColour(COLOR_AI);
     this.setTooltip(
@@ -79,7 +81,9 @@ Blockly.Blocks['ai_current_prediction'] = {
     this.appendDummyInput().appendField('AI prediction');
     this.setOutput(true, ['Number', 'String']);
     this.setColour(COLOR_AI);
-    this.setTooltip('The label the AI is most confident about right now.');
+    this.setTooltip(
+      'The label the AI is most confident about right now. \n💡 TIP: Put this inside a [ ] = [ ] block, or print it!',
+    );
   },
 };
 
@@ -91,7 +95,9 @@ Blockly.Blocks['ai_confidence_of'] = {
       .appendField(new Blockly.FieldDropdown(getClassLabels), 'LABEL');
     this.setOutput(true, ['Number', 'String']);
     this.setColour(COLOR_AI);
-    this.setTooltip('How confident (0–100%) the AI is that it sees this class right now.');
+    this.setTooltip(
+      'How confident (0–100%) the AI is that it sees this class right now. \n💡 TIP: Put this inside a [ ] > [ ] block to check if confidence is high!',
+    );
   },
 };
 
@@ -202,8 +208,10 @@ Blockly.Blocks['ai_audio_listen'] = {
 Blockly.Blocks['ai_when_hear_word'] = {
   init(this: Blockly.Block): void {
     this.appendDummyInput()
-      .appendField('when I hear')
+      .appendField('if I hear')
       .appendField(new Blockly.FieldDropdown(AUDIO_WORDS), 'WORD');
+    this.appendStatementInput('DO').appendField('then');
+    this.setPreviousStatement(true, null);
     this.setNextStatement(true, null);
     this.setColour(COLOR_AI);
     this.setTooltip('Runs when the chosen word is spoken.');
@@ -256,9 +264,11 @@ Blockly.Blocks['ai_turn_emotion'] = {
 Blockly.Blocks['ai_when_emotion'] = {
   init(this: Blockly.Block): void {
     this.appendDummyInput()
-      .appendField('when AI detects')
+      .appendField('if AI detects')
       .appendField(new Blockly.FieldDropdown(EMOTION_OPTIONS), 'EMOTION')
       .appendField('face');
+    this.appendStatementInput('DO').appendField('then');
+    this.setPreviousStatement(true, null);
     this.setNextStatement(true, null);
     this.setColour(COLOR_AI);
     this.setTooltip('Runs this script when the AI detects the chosen facial expression.');
@@ -293,7 +303,9 @@ Blockly.Blocks['ai_face_detected'] = {
     this.appendDummyInput().appendField('face detected?');
     this.setOutput(true, ['Boolean']);
     this.setColour(COLOR_AI);
-    this.setTooltip('True if the AI can currently see a face in the webcam.');
+    this.setTooltip(
+      "True if the AI can currently see a face in the webcam. \n💡 TIP: Snap this directly into an 'if' block!",
+    );
   },
 };
 
@@ -389,8 +401,10 @@ Blockly.Blocks['ai_hand_y'] = {
 Blockly.Blocks['ai_when_hand_gesture'] = {
   init(this: Blockly.Block): void {
     this.appendDummyInput()
-      .appendField('when hand is')
+      .appendField('if hand is')
       .appendField(new Blockly.FieldDropdown(HAND_GESTURES), 'GESTURE');
+    this.appendStatementInput('DO').appendField('then');
+    this.setPreviousStatement(true, null);
     this.setNextStatement(true, null);
     this.setColour(COLOR_AI);
     this.setTooltip('Runs this script when the chosen hand gesture is detected.');
@@ -457,7 +471,9 @@ Blockly.Blocks['ai_speech_heard'] = {
 /** Hat block: fires when speech contains a specific word/phrase */
 Blockly.Blocks['ai_when_speech_contains'] = {
   init(this: Blockly.Block): void {
-    this.appendValueInput('PHRASE').appendField('when speech contains');
+    this.appendValueInput('PHRASE').appendField('if speech contains');
+    this.appendStatementInput('DO').appendField('then');
+    this.setPreviousStatement(true, null);
     this.setNextStatement(true, null);
     this.setColour(COLOR_AI);
     this.setTooltip(
@@ -553,9 +569,11 @@ Blockly.Blocks['ai_when_text_classified'] = {
   init(this: Blockly.Block): void {
     this.appendValueInput('TEXT')
 
-      .appendField('when')
+      .appendField('if')
       .appendField(new Blockly.FieldDropdown(getTextClassLabels), 'LABEL')
       .appendField('detected in');
+    this.appendStatementInput('DO').appendField('then');
+    this.setPreviousStatement(true, null);
     this.setNextStatement(true, null);
     this.setColour(COLOR_AI);
     this.setTooltip('Runs this script when the text AI classifies input as the chosen class.');
