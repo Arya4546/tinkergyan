@@ -1357,13 +1357,13 @@ export default function Editor() {
           )}
 
           {/* AI Studio Button */}
-          <Tooltip content="Open AI Model Studio" position="bottom">
+          <Tooltip content="Train AI Model" position="bottom">
             <button
               onClick={() => setShowAITrainer(true)}
               className="h-9 px-4 rounded-full font-sans font-bold text-sm flex items-center gap-1.5 transition-all focus-visible:ring-2 focus-visible:ring-white focus-visible:outline-none bg-purple-600 text-white hover:bg-purple-500 shadow-sm"
             >
               <Brain size={15} />
-              <span className="hidden md:inline">AI Studio</span>
+              <span className="hidden md:inline">Train AI</span>
             </button>
           </Tooltip>
 
