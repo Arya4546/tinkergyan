@@ -171,16 +171,25 @@ class AIEngine {
 
   // ── Webcam ────────────────────────────────────────────────────────────────
 
-  async startWebcam(videoEl: HTMLVideoElement): Promise<void> {
+  /** @param deviceId  Optional specific camera to use (from `enumerateDevices()`). */
+  async startWebcam(videoEl: HTMLVideoElement, deviceId?: string): Promise<void> {
     if (this.videoStream) return; // already running
 
     this.videoStream = await navigator.mediaDevices.getUserMedia({
-      video: { facingMode: 'user', width: 224, height: 224 },
+      video: deviceId
+        ? { deviceId: { exact: deviceId }, width: 224, height: 224 }
+        : { facingMode: 'user', width: 224, height: 224 },
       audio: false,
     });
 
     videoEl.srcObject = this.videoStream;
     await videoEl.play();
+  }
+
+  /** Restarts the webcam on a different device — used when the student switches cameras. */
+  async switchWebcam(videoEl: HTMLVideoElement, deviceId: string): Promise<void> {
+    this.stopWebcam();
+    await this.startWebcam(videoEl, deviceId);
   }
 
   stopWebcam(): void {
@@ -237,6 +246,76 @@ class AIEngine {
     const embedding = this.mobilenet.infer(img as any, true);
     this.classifier.addExample(embedding, label);
     embedding.dispose();
+  }
+
+  /**
+   * One-shot classification of a static image (e.g. a photo the student
+   * uploads to test the trained model directly, without starting the
+   * webcam's continuous prediction loop).
+   */
+  async predictFromImage(
+    img: HTMLImageElement,
+    config: TrainingConfig = DEFAULT_TRAINING_CONFIG,
+  ): Promise<PredictionResult | null> {
+    if (!this.mobilenet || !this.classifier) {
+      throw new Error('AI Engine not initialised');
+    }
+    if (this.classifier.getNumClasses() < 2) return null;
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-argument
+    const embedding = this.mobilenet.infer(img as any, true);
+    try {
+      const counts = this.classifier.getClassExampleCount();
+      const minSamples = Math.min(...Object.values(counts));
+      const k = Math.min(config.k, Math.max(1, minSamples));
+      const result = await this.classifier.predictClass(embedding, k);
+      const allConfidences: Record<string, number> = {};
+      for (const [label, conf] of Object.entries(result.confidences)) {
+        allConfidences[label] = Math.round(conf * 100);
+      }
+      return {
+        label: result.label,
+        confidence: allConfidences[result.label] ?? 0,
+        allConfidences,
+      };
+    } finally {
+      embedding.dispose();
+    }
+  }
+
+  /**
+   * Removes a single training example from a class by its position in
+   * insertion order (0-indexed) — e.g. when a student deletes one bad photo
+   * from a class's sample gallery instead of clearing the whole class.
+   * knn-classifier has no native "remove one" API, so this rebuilds the
+   * class's stacked feature-vector tensor with that row sliced out.
+   */
+  removeExampleAt(label: string, index: number): void {
+    if (!this.classifier || !tfRef) return;
+    const dataset = this.classifier.getClassifierDataset();
+    const tensor = dataset[label];
+    if (!tensor) return;
+    const n = tensor.shape[0];
+    if (index < 0 || index >= n) return;
+
+    if (n === 1) {
+      tensor.dispose();
+      delete dataset[label];
+      this.classifier.setClassifierDataset(dataset);
+      return;
+    }
+
+    const before = index > 0 ? tensor.slice([0, 0], [index, -1]) : null;
+    const after = index < n - 1 ? tensor.slice([index + 1, 0], [n - index - 1, -1]) : null;
+    const parts = [before, after].filter((t): t is tf.Tensor2D => t !== null);
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
+    const merged = (parts.length === 1 ? parts[0] : tfRef.concat(parts, 0)) as tf.Tensor2D;
+    if (parts.length > 1) {
+      for (const p of parts) p.dispose();
+    }
+    tensor.dispose();
+    dataset[label] = merged;
+    this.classifier.setClassifierDataset(dataset);
   }
 
   /** Returns { className: sampleCount } for every trained class. */

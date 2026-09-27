@@ -56,7 +56,6 @@ import {
 import { useArduinoSimStore } from '../stores/arduino-sim.store';
 import { startHardwareBinding } from '../components/editor/simulator/hardware-binding';
 import { StagePanel } from '../components/editor/simulator/StagePanel';
-import { AITrainerModal } from '../components/editor/AITrainerModal';
 import { WebSerialFlasher } from '../lib/web-serial-flasher';
 import type { FlashBoard } from '../lib/web-serial-flasher';
 import confetti from 'canvas-confetti';
@@ -264,7 +263,6 @@ export default function Editor() {
   const [flashProgress, setFlashProgress] = useState(0);
   const [flashMessage, setFlashMessage] = useState('');
   const [showSerialMonitor, setShowSerialMonitor] = useState(false);
-  const [showAITrainer, setShowAITrainer] = useState(false);
   const [showCodePanel, setShowCodePanel] = useState(
     () => searchParams.get('engine') === 'software',
   );
@@ -1356,14 +1354,20 @@ export default function Editor() {
             </Tooltip>
           )}
 
-          {/* AI Studio Button */}
-          <Tooltip content="Train AI Model" position="bottom">
+          {/* AI Studio Button — opens the dedicated AI Trainer page, not a modal */}
+          <Tooltip content="Open AI Model Studio" position="bottom">
             <button
-              onClick={() => setShowAITrainer(true)}
+              onClick={() =>
+                navigate(
+                  projectId
+                    ? `/ai-trainer/${projectId}?engine=${engineMode}`
+                    : `/ai-trainer?engine=${engineMode}`,
+                )
+              }
               className="h-9 px-4 rounded-full font-sans font-bold text-sm flex items-center gap-1.5 transition-all focus-visible:ring-2 focus-visible:ring-white focus-visible:outline-none bg-purple-600 text-white hover:bg-purple-500 shadow-sm"
             >
               <Brain size={15} />
-              <span className="hidden md:inline">Train AI</span>
+              <span className="hidden md:inline">AI Studio</span>
             </button>
           </Tooltip>
 
@@ -1744,8 +1748,6 @@ export default function Editor() {
           </div>
         </div>
       )}
-      {/* AI Model Studio Modal */}
-      <AITrainerModal isOpen={showAITrainer} onClose={() => setShowAITrainer(false)} />
     </div>
   );
 }

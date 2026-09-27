@@ -46,6 +46,10 @@ const HAT_BLOCK_TYPES = new Set([
   'scratch_event_when_i_receive',
   'ai_when_predicted',
   'ai_when_hear_word',
+  'ai_when_emotion',
+  'ai_when_hand_gesture',
+  'ai_when_speech_contains',
+  'ai_when_text_classified',
 ]);
 
 const getBodyCode = (block: Block): string => {

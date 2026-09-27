@@ -19,7 +19,7 @@ javascriptGenerator.forBlock['ai_turn_vision'] = function (block) {
 javascriptGenerator.forBlock['ai_when_predicted'] = function (block, generator) {
   const label = block.getFieldValue('LABEL') as string;
   const body = generator.statementToCode(block, 'DO');
-  return `if (api.getAIPrediction() === ${JSON.stringify(label)}) {\n${body}}\n`;
+  return `api.onAIPredicted(${JSON.stringify(label)}, async () => {\n${body}});\n`;
 };
 
 // ── AI Reporters ────────────────────────────────────────────────────────────
@@ -59,10 +59,9 @@ javascriptGenerator.forBlock['ai_audio_listen'] = function (block) {
     : `await api.stopAudioListening();\n`;
 };
 
-javascriptGenerator.forBlock['ai_when_hear_word'] = function (block) {
+javascriptGenerator.forBlock['ai_when_hear_word'] = function (block, generator) {
   const word = block.getFieldValue('WORD') as string;
-  const nextBlock = block.getNextBlock();
-  const body = nextBlock ? (javascriptGenerator.blockToCode(nextBlock) as string) : '';
+  const body = generator.statementToCode(block, 'DO');
   return `api.onSpeechCommand(${JSON.stringify(word)}, async () => {\n${body}});\n`;
 };
 
@@ -80,7 +79,7 @@ javascriptGenerator.forBlock['ai_turn_emotion'] = function (block) {
 javascriptGenerator.forBlock['ai_when_emotion'] = function (block, generator) {
   const emotion = block.getFieldValue('EMOTION') as string;
   const body = generator.statementToCode(block, 'DO');
-  return `if (api.getAIEmotion() === ${JSON.stringify(emotion)}) {\n${body}}\n`;
+  return `api.onAIEmotion(${JSON.stringify(emotion)}, async () => {\n${body}});\n`;
 };
 
 javascriptGenerator.forBlock['ai_emotion_detected'] = function () {
@@ -149,10 +148,9 @@ javascriptGenerator.forBlock['ai_speech_heard'] = function () {
   return [`api.getSpeechTranscript()`, Order.FUNCTION_CALL];
 };
 
-javascriptGenerator.forBlock['ai_when_speech_contains'] = function (block) {
-  const phrase = javascriptGenerator.valueToCode(block, 'PHRASE', Order.NONE) || '""';
-  const nextBlock = block.getNextBlock();
-  const body = nextBlock ? (javascriptGenerator.blockToCode(nextBlock) as string) : '';
+javascriptGenerator.forBlock['ai_when_speech_contains'] = function (block, generator) {
+  const phrase = generator.valueToCode(block, 'PHRASE', Order.NONE) || '""';
+  const body = generator.statementToCode(block, 'DO');
   return `api.onSpeechContains(${phrase}, async () => {\n${body}});\n`;
 };
 
@@ -185,11 +183,10 @@ javascriptGenerator.forBlock['ai_classify_text'] = function (block) {
   return [`await api.classifyText(${text})`, Order.FUNCTION_CALL];
 };
 
-javascriptGenerator.forBlock['ai_when_text_classified'] = function (block) {
-  const text = javascriptGenerator.valueToCode(block, 'TEXT', Order.NONE) || '""';
+javascriptGenerator.forBlock['ai_when_text_classified'] = function (block, generator) {
+  const text = generator.valueToCode(block, 'TEXT', Order.NONE) || '""';
   const label = block.getFieldValue('LABEL') as string;
-  const nextBlock = block.getNextBlock();
-  const body = nextBlock ? (javascriptGenerator.blockToCode(nextBlock) as string) : '';
+  const body = generator.statementToCode(block, 'DO');
   return `api.onTextClassified(${text}, ${JSON.stringify(label)}, async () => {\n${body}});\n`;
 };
 

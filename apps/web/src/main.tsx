@@ -59,6 +59,7 @@ const ErrorPage = lazy(() => import('@/pages/ErrorPage'));
 const NotFound = lazy(() => import('@/pages/NotFound'));
 const LandingPage = lazy(() => import('@/pages/LandingPage'));
 const Editor = lazy(() => import('@/pages/Editor'));
+const AITrainer = lazy(() => import('@/pages/AITrainer'));
 const Projects = lazy(() => import('@/pages/Projects'));
 const Profile = lazy(() => import('@/pages/Profile'));
 const Settings = lazy(() => import('@/pages/Settings'));
@@ -149,6 +150,8 @@ const router = createBrowserRouter([
           },
           { path: 'editor', element: <Editor /> },
           { path: 'editor/:id', element: <Editor /> },
+          { path: 'ai-trainer', element: <AITrainer /> },
+          { path: 'ai-trainer/:id', element: <AITrainer /> },
           { path: 'courses/:slug/lessons/:lessonId', element: <LessonView /> },
         ],
       },
