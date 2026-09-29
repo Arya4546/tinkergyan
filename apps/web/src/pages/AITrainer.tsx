@@ -27,15 +27,12 @@ import {
   RotateCcw,
   Download,
   FolderOpen,
-  Code2,
   Copy,
   Check,
   PackageOpen,
   Mic,
   PersonStanding,
   Table2,
-  Play,
-  Square,
   Info,
   Sparkles,
   Save,
@@ -125,6 +122,8 @@ export default function AITrainer() {
   // "Test with a photo" — a one-shot classification in the Preview panel,
   // independent of the continuous live-webcam test loop.
   const [isTestingFile, setIsTestingFile] = useState(false);
+  const [showPreviewInput, setShowPreviewInput] = useState(true);
+  const [showPreviewOutput, setShowPreviewOutput] = useState(true);
 
   // Save-before-leaving guard. Recorded samples live only in the in-memory
   // KNN classifier until the project is explicitly saved (from here or from
@@ -851,15 +850,6 @@ export default function AITrainer() {
                 }
               }}
             />
-            <button
-              onClick={() => void handleExportModel()}
-              disabled={isExporting || totalSamples === 0}
-              title="Export model dataset as JSON + get usage code"
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#FF6F61]/10 text-[#FF6F61]/70 hover:text-[#FF6F61] hover:bg-[#FF6F61]/20 transition-colors text-xs font-bold disabled:opacity-30 disabled:cursor-not-allowed"
-            >
-              <Code2 size={13} />
-              <span className="hidden md:inline">Export Model</span>
-            </button>
           </div>
         )}
       </div>
@@ -1271,137 +1261,210 @@ export default function AITrainer() {
                     <Eye size={13} /> Preview
                   </span>
 
-                  <div className="rounded-xl bg-white/5 border border-white/10 overflow-hidden flex-1 flex flex-col">
-                    <div
-                      className={`relative aspect-square bg-black flex items-center justify-center transition-shadow shrink-0 ${
-                        isCapturing ? 'ring-2 ring-red-500 ring-inset' : ''
-                      }`}
+                  <button
+                    onClick={() => void handleExportModel()}
+                    disabled={isExporting || totalSamples === 0 || !isTrained}
+                    className="w-full py-2 rounded-lg bg-white/10 hover:bg-white/20 text-white text-xs font-bold transition-colors mb-1"
+                  >
+                    Export Model
+                  </button>
+
+                  {/* Input Section */}
+                  <div className="rounded-xl bg-white/5 border border-white/10 overflow-hidden mb-1 flex flex-col">
+                    <button
+                      onClick={() => setShowPreviewInput((v) => !v)}
+                      className="flex items-center justify-between p-3 bg-white/5 hover:bg-white/10 transition-colors border-b border-white/10"
                     >
-                      <video
-                        ref={previewVideoRef}
-                        autoPlay
-                        playsInline
-                        muted
-                        className="w-full h-full object-cover bg-black"
-                        style={{ transform: 'scaleX(-1)' }}
+                      <span className="text-white text-xs font-bold uppercase tracking-widest">
+                        Input
+                      </span>
+                      <ChevronDown
+                        size={14}
+                        className={`text-white/40 transition-transform ${showPreviewInput ? 'rotate-180' : ''}`}
                       />
-                      {!isWebcamActive && (
-                        <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-[#1a1a2e]">
-                          <Camera size={28} className="text-white/20" />
-                          <span className="text-white/25 text-[11px] text-center px-6">
-                            Start the camera on the left to see it here
-                          </span>
+                    </button>
+
+                    {showPreviewInput && (
+                      <div className="flex flex-col">
+                        {/* Start/Stop Preview Toggle (like TM Input Switch) */}
+                        <div className="p-3 border-b border-white/5 flex items-center justify-between bg-black/20">
+                          <label
+                            className="flex items-center gap-2 cursor-pointer"
+                            title="Toggle prediction"
+                          >
+                            <div className="relative">
+                              <input
+                                type="checkbox"
+                                className="sr-only"
+                                checked={isTesting}
+                                onChange={handleToggleTest}
+                                disabled={!isTrained || (!isWebcamActive && !isTestingFile)}
+                              />
+                              <div
+                                className={`block w-8 h-4 rounded-full transition-colors ${isTesting ? 'bg-emerald-500' : 'bg-white/20'}`}
+                              ></div>
+                              <div
+                                className={`absolute left-0.5 top-0.5 bg-white w-3 h-3 rounded-full transition-transform ${isTesting ? 'translate-x-4' : ''}`}
+                              ></div>
+                            </div>
+                            <span className="text-white/60 text-[11px] font-bold uppercase tracking-wider">
+                              {isTesting ? 'On' : 'Off'}
+                            </span>
+                          </label>
+
+                          {/* Webcam / File Switch */}
+                          <div className="flex bg-white/10 rounded-lg p-0.5">
+                            <button
+                              onClick={() => setIsTestingFile(false)}
+                              className={`px-2 py-1 text-[10px] font-bold rounded-md transition-colors ${!isTestingFile ? 'bg-white/20 text-white' : 'text-white/50 hover:text-white'}`}
+                            >
+                              Webcam
+                            </button>
+                            <button
+                              onClick={() => setIsTestingFile(true)}
+                              className={`px-2 py-1 text-[10px] font-bold rounded-md transition-colors ${isTestingFile ? 'bg-white/20 text-white' : 'text-white/50 hover:text-white'}`}
+                            >
+                              File
+                            </button>
+                          </div>
                         </div>
-                      )}
-                      {isCapturing && (
-                        <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-red-500 text-white text-[10px] font-bold">
-                          <Circle size={6} className="fill-white animate-pulse" />
-                          Recording: {isCapturing}
-                        </div>
-                      )}
-                      {isWebcamActive && (
-                        <button
-                          onClick={handleStopWebcam}
-                          className="absolute top-2 right-2 p-1.5 rounded-lg bg-black/50 text-white/70 hover:text-white hover:bg-black/70 transition-colors"
-                          title="Stop Camera"
+
+                        {/* Video / File area */}
+                        <div
+                          className={`relative aspect-square bg-black flex items-center justify-center transition-shadow shrink-0 ${
+                            isCapturing ? 'ring-2 ring-red-500 ring-inset' : ''
+                          }`}
                         >
-                          <VideoOff size={13} />
-                        </button>
-                      )}
-                    </div>
-
-                    <div className="p-4 space-y-3 flex-1 flex flex-col justify-center">
-                      {!isTrained ? (
-                        <p className="text-white/30 text-xs leading-relaxed text-center">
-                          You must train a model on the left before you can preview it here.
-                        </p>
-                      ) : (
-                        <>
-                          <button
-                            onClick={handleToggleTest}
-                            disabled={!isWebcamActive}
-                            className={`w-full py-2.5 rounded-lg font-bold text-xs uppercase tracking-wider transition-all flex items-center justify-center gap-2 ${
-                              isTesting
-                                ? 'bg-red-500/20 text-red-400 border border-red-500/30 hover:bg-red-500/30'
-                                : 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-500/30'
-                            }`}
-                          >
-                            {isTesting ? (
-                              <>
-                                <Square size={13} /> Stop Preview
-                              </>
-                            ) : (
-                              <>
-                                <Play size={13} /> Start Preview
-                              </>
-                            )}
-                          </button>
-
-                          <div
-                            className="relative border border-dashed border-white/20 rounded-lg py-2 px-3 flex items-center justify-center gap-2 hover:border-[#FF6F61]/50 hover:bg-white/5 transition-colors cursor-pointer group"
-                            onClick={() => testFileRef.current?.click()}
-                            onDragOver={(e) => e.preventDefault()}
-                            onDrop={(e) => {
-                              e.preventDefault();
-                              const file = e.dataTransfer.files[0];
-                              if (file) void handleTestWithFile(file);
-                            }}
-                          >
-                            {isTestingFile ? (
-                              <Loader2 size={12} className="animate-spin text-white/40 shrink-0" />
-                            ) : (
+                          {!isTestingFile ? (
+                            <>
+                              <video
+                                ref={previewVideoRef}
+                                autoPlay
+                                playsInline
+                                muted
+                                className="w-full h-full object-cover bg-black"
+                                style={{ transform: 'scaleX(-1)' }}
+                              />
+                              {!isWebcamActive && (
+                                <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-[#1a1a2e]">
+                                  <Camera size={28} className="text-white/20" />
+                                  <span className="text-white/25 text-[11px] text-center px-6">
+                                    Start the camera on the left to see it here
+                                  </span>
+                                </div>
+                              )}
+                              {isCapturing && (
+                                <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-red-500 text-white text-[10px] font-bold">
+                                  <Circle size={6} className="fill-white animate-pulse" />
+                                  Recording: {isCapturing}
+                                </div>
+                              )}
+                              {isWebcamActive && (
+                                <button
+                                  onClick={handleStopWebcam}
+                                  className="absolute top-2 right-2 p-1.5 rounded-lg bg-black/50 text-white/70 hover:text-white hover:bg-black/70 transition-colors"
+                                  title="Stop Camera"
+                                >
+                                  <VideoOff size={13} />
+                                </button>
+                              )}
+                            </>
+                          ) : (
+                            <div
+                              className="absolute inset-4 border-2 border-dashed border-white/20 rounded-xl flex flex-col items-center justify-center gap-2 hover:border-[#FF6F61]/50 hover:bg-white/5 transition-colors cursor-pointer group"
+                              onClick={() => testFileRef.current?.click()}
+                              onDragOver={(e) => e.preventDefault()}
+                              onDrop={(e) => {
+                                e.preventDefault();
+                                const file = e.dataTransfer.files[0];
+                                if (file) void handleTestWithFile(file);
+                              }}
+                            >
                               <ImagePlus
-                                size={12}
+                                size={24}
                                 className="text-white/30 group-hover:text-[#FF6F61]/70 transition-colors shrink-0"
                               />
-                            )}
-                            <span className="text-white/30 group-hover:text-white/50 text-[11px] transition-colors">
-                              {isTestingFile ? 'Testing…' : 'Test with a photo'}
-                            </span>
-                            <input
-                              ref={testFileRef}
-                              type="file"
-                              accept="image/*"
-                              className="hidden"
-                              onChange={(e) => {
-                                if (e.target.files?.[0]) void handleTestWithFile(e.target.files[0]);
-                                e.target.value = '';
-                              }}
-                            />
-                          </div>
-
-                          {Object.keys(confidences).length > 0 && (
-                            <div className="space-y-2">
-                              {Object.entries(confidences)
-                                .filter(([label]) => !label.startsWith('text:'))
-                                .sort(([, a], [, b]) => b - a)
-                                .map(([label, conf]) => (
-                                  <div key={label} className="flex items-center gap-2">
-                                    <span className="text-white/80 text-xs font-medium w-16 truncate">
-                                      {label}
-                                    </span>
-                                    <div className="flex-1 h-2.5 rounded-full bg-white/10 overflow-hidden">
-                                      <div
-                                        className="h-full rounded-full transition-all duration-200"
-                                        style={{
-                                          width: `${conf}%`,
-                                          backgroundColor:
-                                            label === currentPrediction
-                                              ? '#FF6F61'
-                                              : 'rgba(255,255,255,0.2)',
-                                        }}
-                                      />
-                                    </div>
-                                    <span className="text-white/60 text-[11px] font-mono w-9 text-right">
-                                      {conf}%
-                                    </span>
-                                  </div>
-                                ))}
+                              <span className="text-white/30 group-hover:text-white/50 text-xs transition-colors">
+                                Drop image or click to upload
+                              </span>
+                              <input
+                                ref={testFileRef}
+                                type="file"
+                                accept="image/*"
+                                className="hidden"
+                                onChange={(e) => {
+                                  if (e.target.files?.[0])
+                                    void handleTestWithFile(e.target.files[0]);
+                                  e.target.value = '';
+                                }}
+                              />
                             </div>
                           )}
-                        </>
-                      )}
-                    </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Output Section */}
+                  <div className="rounded-xl bg-white/5 border border-white/10 overflow-hidden flex flex-col">
+                    <button
+                      onClick={() => setShowPreviewOutput((v) => !v)}
+                      className="flex items-center justify-between p-3 bg-white/5 hover:bg-white/10 transition-colors border-b border-white/10"
+                    >
+                      <span className="text-white text-xs font-bold uppercase tracking-widest">
+                        Output
+                      </span>
+                      <ChevronDown
+                        size={14}
+                        className={`text-white/40 transition-transform ${showPreviewOutput ? 'rotate-180' : ''}`}
+                      />
+                    </button>
+
+                    {showPreviewOutput && (
+                      <div className="p-4 space-y-3 flex flex-col justify-center bg-black/20 min-h-[120px]">
+                        {!isTrained ? (
+                          <p className="text-white/30 text-xs leading-relaxed text-center py-4">
+                            You must train a model on the left before you can preview it here.
+                          </p>
+                        ) : (
+                          <>
+                            {Object.keys(confidences).length > 0 ? (
+                              <div className="space-y-2">
+                                {Object.entries(confidences)
+                                  .filter(([label]) => !label.startsWith('text:'))
+                                  .sort(([, a], [, b]) => b - a)
+                                  .map(([label, conf]) => (
+                                    <div key={label} className="flex items-center gap-2">
+                                      <span className="text-white/80 text-xs font-medium w-16 truncate">
+                                        {label}
+                                      </span>
+                                      <div className="flex-1 h-2.5 rounded-full bg-white/10 overflow-hidden">
+                                        <div
+                                          className="h-full rounded-full transition-all duration-200"
+                                          style={{
+                                            width: `${conf}%`,
+                                            backgroundColor:
+                                              label === currentPrediction
+                                                ? '#FF6F61'
+                                                : 'rgba(255,255,255,0.2)',
+                                          }}
+                                        />
+                                      </div>
+                                      <span className="text-white/60 text-[11px] font-mono w-9 text-right">
+                                        {conf}%
+                                      </span>
+                                    </div>
+                                  ))}
+                              </div>
+                            ) : (
+                              <p className="text-white/30 text-[11px] text-center italic">
+                                Waiting for input...
+                              </p>
+                            )}
+                          </>
+                        )}
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>

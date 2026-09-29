@@ -1463,6 +1463,9 @@ class Parser {
     if (match && match[1] !== undefined) return match[1];
     match = xml.match(/<field name="VAR">([^<]+)<\/field>/);
     if (match && match[1] !== undefined) {
+      if (this.variableValues && this.variableValues.has(match[1])) {
+        return this.variableValues.get(match[1]) || null;
+      }
       return match[1];
     }
     return null;
