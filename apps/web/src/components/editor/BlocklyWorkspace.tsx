@@ -318,6 +318,31 @@ export const BlocklyWorkspace = forwardRef<BlocklyWorkspaceHandle, BlocklyWorksp
         trashcan: true,
       });
 
+      // Override the default VARIABLE category to add a shadow block to variables_set
+      workspaceRef.current.registerToolboxCategoryCallback('VARIABLE', (ws) => {
+        const xmlList = Blockly.Variables.flyoutCategory(ws);
+        for (const el of xmlList) {
+          if (
+            el.tagName &&
+            el.tagName.toLowerCase() === 'block' &&
+            el.getAttribute('type') === 'variables_set'
+          ) {
+            const value = document.createElement('value');
+            value.setAttribute('name', 'VALUE');
+            const shadow = document.createElement('shadow');
+            // By default, variables can hold anything, but math_number is a good default for counters/timers
+            shadow.setAttribute('type', 'math_number');
+            const field = document.createElement('field');
+            field.setAttribute('name', 'NUM');
+            field.textContent = '0';
+            shadow.appendChild(field);
+            value.appendChild(shadow);
+            el.appendChild(value);
+          }
+        }
+        return xmlList;
+      });
+
       const onChange = (event: Blockly.Events.Abstract) => {
         // Skip pure UI events (clicks, selection, drag start/end, viewport,
         // toolbox open, etc.) — Blockly flags these via isUiEvent so they
