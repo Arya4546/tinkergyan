@@ -29,7 +29,7 @@ export function AIWebcamOverlay() {
     .slice(0, 3);
 
   return (
-    <div className="absolute top-2 right-2 z-30 w-[160px] rounded-lg bg-black/80 backdrop-blur-sm border border-white/10 overflow-hidden shadow-lg flex flex-col">
+    <div className="w-[160px] shrink-0 rounded-lg bg-black/80 border border-white/10 overflow-hidden shadow-lg flex flex-col self-start">
       {/* Header */}
       <div className="flex items-center gap-1.5 px-2 py-1.5 bg-[#FF6F61]/20 border-b border-white/10 shrink-0">
         <Camera size={10} className="text-[#FF6F61]" />

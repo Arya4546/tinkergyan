@@ -77,14 +77,17 @@ export function StagePanel({ onReset }: StagePanelProps) {
       {/* Top: Stage Area */}
       <div className="scratch-stage-area">
         <ScratchControlBar onReset={onReset} />
-        <div className="scratch-stage-canvas-container">
+        <div
+          className="scratch-stage-canvas-container"
+          style={{ gap: '12px', alignItems: 'flex-start' }}
+        >
           <div
             className="scratch-stage-canvas"
             style={{ maxWidth: stageViewMode === 'small' ? '240px' : '480px' }}
           >
             <StageCanvas />
-            <AIWebcamOverlay />
           </div>
+          <AIWebcamOverlay />
         </div>
       </div>
 
