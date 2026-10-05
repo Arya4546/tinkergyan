@@ -14,7 +14,7 @@ import {
   DEFAULT_TABULAR_CONFIG,
 } from '../../lib/tabular-ai-engine';
 
-const COLOR = '#FF6F61';
+const COLOR = '#1a73e8';
 
 export function TabularTrainerTab() {
   const [dataset, setDataset] = useState<TabularDataset | null>(null);
@@ -101,11 +101,11 @@ export function TabularTrainerTab() {
   return (
     <div className="flex-1 flex overflow-hidden">
       {/* Left: Upload + Train */}
-      <div className="flex-1 flex flex-col p-6 gap-4 border-r border-white/10 overflow-y-auto">
+      <div className="flex-1 flex flex-col p-6 gap-4 border-r border-slate-200 dark:border-white/10 overflow-y-auto">
         {/* CSV Upload */}
         {!dataset ? (
           <div
-            className="flex-1 flex flex-col items-center justify-center gap-4 border-2 border-dashed border-white/20 rounded-2xl hover:border-[#FF6F61]/50 transition-colors cursor-pointer p-10"
+            className="flex-1 flex flex-col items-center justify-center gap-4 border-2 border-dashed border-slate-300 dark:border-white/20 rounded-2xl hover:border-[#1a73e8]/50 transition-colors cursor-pointer p-10"
             onClick={() => fileInputRef.current?.click()}
             onDragOver={(e) => e.preventDefault()}
             onDrop={(e) => {
@@ -114,14 +114,16 @@ export function TabularTrainerTab() {
               if (f) void handleFileUpload(f);
             }}
           >
-            <Upload size={36} className="text-white/30" />
+            <Upload size={36} className="text-slate-400 dark:text-white/30" />
             <div className="text-center">
-              <p className="text-white/60 font-bold text-sm">Drop a CSV file here</p>
-              <p className="text-white/30 text-xs mt-1">
+              <p className="text-slate-600 dark:text-white/60 font-bold text-sm">
+                Drop a CSV file here
+              </p>
+              <p className="text-slate-400 dark:text-white/30 text-xs mt-1">
                 or click to browse — all processing stays in your browser
               </p>
             </div>
-            <button className="px-4 py-2 rounded-lg bg-[#FF6F61]/20 text-[#FF6F61] text-sm font-bold hover:bg-[#FF6F61]/30 transition-colors">
+            <button className="px-4 py-2 rounded-lg bg-[#1a73e8]/20 text-[#1a73e8] text-sm font-bold hover:bg-[#1a73e8]/30 transition-colors">
               Choose CSV File
             </button>
             <input
@@ -138,47 +140,53 @@ export function TabularTrainerTab() {
         ) : (
           <>
             {/* Dataset summary */}
-            <div className="rounded-xl bg-white/5 border border-white/10 p-4">
+            <div className="rounded-xl bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 p-4">
               <div className="flex items-center justify-between mb-2">
-                <span className="text-white font-bold text-sm">📊 Dataset Loaded</span>
+                <span className="text-slate-800 dark:text-white font-bold text-sm">
+                  📊 Dataset Loaded
+                </span>
                 <button
                   onClick={() => {
                     setDataset(null);
                     tabularAIEngine.reset();
                     setIsTrained(false);
                   }}
-                  className="text-white/30 hover:text-red-400 text-xs transition-colors"
+                  className="text-slate-400 dark:text-white/30 hover:text-red-400 text-xs transition-colors"
                 >
                   ✕ Clear
                 </button>
               </div>
               <div className="grid grid-cols-3 gap-3 text-center">
-                <div className="bg-black/20 rounded-lg p-2">
-                  <p className="text-[#FF6F61] font-bold text-lg">{dataset.rows.length}</p>
-                  <p className="text-white/40 text-[10px]">rows</p>
+                <div className="bg-slate-100 dark:bg-black/20 rounded-lg p-2">
+                  <p className="text-[#1a73e8] font-bold text-lg">{dataset.rows.length}</p>
+                  <p className="text-slate-500 dark:text-white/40 text-[10px]">rows</p>
                 </div>
-                <div className="bg-black/20 rounded-lg p-2">
-                  <p className="text-[#FF6F61] font-bold text-lg">{dataset.headers.length}</p>
-                  <p className="text-white/40 text-[10px]">columns</p>
+                <div className="bg-slate-100 dark:bg-black/20 rounded-lg p-2">
+                  <p className="text-[#1a73e8] font-bold text-lg">{dataset.headers.length}</p>
+                  <p className="text-slate-500 dark:text-white/40 text-[10px]">columns</p>
                 </div>
-                <div className="bg-black/20 rounded-lg p-2">
-                  <p className="text-[#FF6F61] font-bold text-lg">
+                <div className="bg-slate-100 dark:bg-black/20 rounded-lg p-2">
+                  <p className="text-[#1a73e8] font-bold text-lg">
                     {dataset.numericHeaders.length}
                   </p>
-                  <p className="text-white/40 text-[10px]">numeric</p>
+                  <p className="text-slate-500 dark:text-white/40 text-[10px]">numeric</p>
                 </div>
               </div>
+              <p className="text-slate-500 dark:text-white/50 text-[11px] leading-relaxed">
+                Practice rounds: more rounds means smarter but slower. Examples at a time: keep the
+                default if you are not sure. Learning speed: Normal is a good start.
+              </p>
             </div>
 
             {/* Target column picker */}
             <div>
-              <label className="text-white/60 text-xs font-bold uppercase tracking-widest block mb-2">
+              <label className="text-slate-600 dark:text-white/60 text-xs font-bold uppercase tracking-widest block mb-2">
                 Target Column (what to predict)
               </label>
               <select
                 value={targetColumn}
                 onChange={(e) => setTargetColumn(e.target.value)}
-                className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-white text-sm outline-none focus:border-[#FF6F61]/50"
+                className="w-full px-3 py-2 rounded-lg bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 text-slate-800 dark:text-white text-sm outline-none focus:border-[#1a73e8]/50"
               >
                 {dataset.headers.map((h) => (
                   <option key={h} value={h}>
@@ -186,34 +194,38 @@ export function TabularTrainerTab() {
                   </option>
                 ))}
               </select>
-              <p className="text-white/30 text-[10px] mt-1">
+              <p className="text-slate-400 dark:text-white/30 text-[10px] mt-1">
                 Features used: {featureColumns.join(', ') || 'none (pick a target above)'}
               </p>
             </div>
 
-            {/* Hyperparameters */}
+            {/* Learning settings */}
             <div className="space-y-3">
-              <span className="text-white/60 text-xs font-bold uppercase tracking-widest">
+              <span className="text-slate-600 dark:text-white/60 text-xs font-bold uppercase tracking-widest">
                 Hyperparameters
               </span>
               <div className="grid grid-cols-3 gap-3">
                 <div>
-                  <label className="text-white/40 text-[10px] block mb-1">Epochs</label>
+                  <label className="text-slate-600 dark:text-white/60 text-[11px] block mb-1 font-medium">
+                    Practice rounds
+                  </label>
                   <input
                     type="number"
                     min={5}
                     max={500}
                     value={epochs}
                     onChange={(e) => setEpochs(Number(e.target.value))}
-                    className="w-full px-2 py-1.5 rounded-lg bg-white/5 border border-white/10 text-white text-sm outline-none focus:border-[#FF6F61]/50 text-center"
+                    className="w-full px-2 py-1.5 rounded-lg bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 text-slate-800 dark:text-white text-sm outline-none focus:border-[#1a73e8]/50 text-center"
                   />
                 </div>
                 <div>
-                  <label className="text-white/40 text-[10px] block mb-1">Batch Size</label>
+                  <label className="text-slate-600 dark:text-white/60 text-[11px] block mb-1 font-medium">
+                    Examples at a time
+                  </label>
                   <select
                     value={batchSize}
                     onChange={(e) => setBatchSize(Number(e.target.value))}
-                    className="w-full px-2 py-1.5 rounded-lg bg-white/5 border border-white/10 text-white text-sm outline-none focus:border-[#FF6F61]/50"
+                    className="w-full px-2 py-1.5 rounded-lg bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 text-slate-800 dark:text-white text-sm outline-none focus:border-[#1a73e8]/50"
                   >
                     {[8, 16, 32, 64, 128].map((v) => (
                       <option key={v} value={v}>
@@ -223,15 +235,21 @@ export function TabularTrainerTab() {
                   </select>
                 </div>
                 <div>
-                  <label className="text-white/40 text-[10px] block mb-1">Learning Rate</label>
+                  <label className="text-slate-600 dark:text-white/60 text-[11px] block mb-1 font-medium">
+                    Learning speed
+                  </label>
                   <select
                     value={learningRate}
                     onChange={(e) => setLearningRate(Number(e.target.value))}
-                    className="w-full px-2 py-1.5 rounded-lg bg-white/5 border border-white/10 text-white text-sm outline-none focus:border-[#FF6F61]/50"
+                    className="w-full px-2 py-1.5 rounded-lg bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 text-slate-800 dark:text-white text-sm outline-none focus:border-[#1a73e8]/50"
                   >
                     {[0.01, 0.001, 0.0001].map((v) => (
                       <option key={v} value={v}>
-                        {v}
+                        {v === 0.01
+                          ? 'Fast'
+                          : v === 0.001
+                            ? 'Normal (recommended)'
+                            : 'Slow and careful'}
                       </option>
                     ))}
                   </select>
@@ -245,10 +263,10 @@ export function TabularTrainerTab() {
               disabled={isTraining || featureColumns.length === 0}
               className={`w-full py-3 rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-all ${
                 isTrained
-                  ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                  ? 'bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30'
                   : featureColumns.length > 0
-                    ? 'bg-[#FF6F61]/20 text-[#FF6F61] border border-[#FF6F61]/30 hover:bg-[#FF6F61]/30'
-                    : 'bg-white/5 text-white/30 border border-white/5 cursor-not-allowed'
+                    ? 'bg-[#1a73e8]/20 text-[#1a73e8] border border-[#1a73e8]/30 hover:bg-[#1a73e8]/30'
+                    : 'bg-white dark:bg-white/5 text-slate-400 dark:text-white/30 border border-slate-100 dark:border-white/5 cursor-not-allowed'
               }`}
             >
               {isTraining ? (
@@ -269,20 +287,20 @@ export function TabularTrainerTab() {
 
             {/* Live training chart (simple bar) */}
             {history.length > 0 && (
-              <div className="rounded-xl bg-white/5 border border-white/10 p-4">
+              <div className="rounded-xl bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 p-4">
                 <div className="flex items-center gap-2 mb-3">
-                  <BarChart3 size={14} className="text-white/50" />
-                  <span className="text-white/60 text-xs font-bold uppercase tracking-widest">
+                  <BarChart3 size={14} className="text-slate-500 dark:text-white/50" />
+                  <span className="text-slate-600 dark:text-white/60 text-xs font-bold uppercase tracking-widest">
                     Training Progress
                   </span>
                   {progress && (
-                    <span className="text-white/40 text-xs ml-auto">
+                    <span className="text-slate-500 dark:text-white/40 text-xs ml-auto">
                       Loss: {progress.loss} · Acc: {progress.accuracy}%
                     </span>
                   )}
                 </div>
                 {/* Simple SVG spark line for accuracy */}
-                <div className="h-16 bg-black/20 rounded-lg overflow-hidden relative">
+                <div className="h-16 bg-slate-100 dark:bg-black/20 rounded-lg overflow-hidden relative">
                   <svg
                     width="100%"
                     height="100%"
@@ -296,7 +314,7 @@ export function TabularTrainerTab() {
                       points={history.map((p, i) => `${i},${100 - p.accuracy}`).join(' ')}
                     />
                   </svg>
-                  <span className="absolute bottom-1 right-2 text-[10px] text-white/30">
+                  <span className="absolute bottom-1 right-2 text-[10px] text-slate-400 dark:text-white/30">
                     accuracy %
                   </span>
                 </div>
@@ -306,7 +324,7 @@ export function TabularTrainerTab() {
             {isTrained && (
               <button
                 onClick={() => void handleExportModel()}
-                className="flex items-center justify-center gap-2 w-full py-2 rounded-xl bg-white/5 text-white/50 text-xs font-bold hover:bg-white/10 hover:text-white transition-colors border border-white/10"
+                className="flex items-center justify-center gap-2 w-full py-2 rounded-xl bg-white dark:bg-white/5 text-slate-500 dark:text-white/50 text-xs font-bold hover:bg-white/10 hover:text-white transition-colors border border-slate-200 dark:border-white/10"
               >
                 <Download size={13} /> Export Model (.json + .bin)
               </button>
@@ -315,7 +333,7 @@ export function TabularTrainerTab() {
         )}
 
         {error && (
-          <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/30 text-red-400 text-xs">
+          <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/30 text-red-600 dark:text-red-400 text-xs">
             {error}
           </div>
         )}
@@ -323,56 +341,62 @@ export function TabularTrainerTab() {
 
       {/* Right: Test predictions */}
       <div className="w-[320px] flex flex-col p-6 gap-4 overflow-y-auto">
-        <span className="text-white/60 text-xs font-bold uppercase tracking-widest">
+        <span className="text-slate-600 dark:text-white/60 text-xs font-bold uppercase tracking-widest">
           Test Prediction
         </span>
 
         {!isTrained ? (
           <div className="flex-1 flex flex-col items-center justify-center gap-3 text-center">
-            <Brain size={32} className="text-white/20" />
-            <p className="text-white/30 text-sm">Train a model first to test predictions here</p>
+            <Brain size={32} className="text-slate-300 dark:text-white/20" />
+            <p className="text-slate-400 dark:text-white/30 text-sm">
+              Train a model first to test predictions here
+            </p>
           </div>
         ) : (
           <>
-            <p className="text-white/40 text-xs">
+            <p className="text-slate-500 dark:text-white/40 text-xs">
               Enter feature values to predict the{' '}
-              <span className="text-[#FF6F61]">{targetColumn}</span> column:
+              <span className="text-[#1a73e8]">{targetColumn}</span> column:
             </p>
             <div className="space-y-2">
               {featureColumns.map((col) => (
                 <div key={col}>
-                  <label className="text-white/50 text-[11px] block mb-0.5">{col}</label>
+                  <label className="text-slate-500 dark:text-white/50 text-[11px] block mb-0.5">
+                    {col}
+                  </label>
                   <input
                     type="number"
                     value={testRow[col] ?? ''}
                     onChange={(e) => setTestRow((r) => ({ ...r, [col]: e.target.value }))}
                     placeholder="0"
-                    className="w-full px-3 py-1.5 rounded-lg bg-white/5 border border-white/10 text-white text-sm outline-none focus:border-[#FF6F61]/50"
+                    className="w-full px-3 py-1.5 rounded-lg bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 text-slate-800 dark:text-white text-sm outline-none focus:border-[#1a73e8]/50"
                   />
                 </div>
               ))}
             </div>
             <button
               onClick={handleTest}
-              className="w-full py-2.5 rounded-xl bg-[#FF6F61]/20 text-[#FF6F61] font-bold text-sm hover:bg-[#FF6F61]/30 transition-colors flex items-center justify-center gap-2"
+              className="w-full py-2.5 rounded-xl bg-[#1a73e8]/20 text-[#1a73e8] font-bold text-sm hover:bg-[#1a73e8]/30 transition-colors flex items-center justify-center gap-2"
             >
               <Brain size={14} /> Predict
             </button>
 
             {testResult && (
-              <div className="rounded-xl bg-white/5 border border-white/10 p-4 space-y-2">
+              <div className="rounded-xl bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 p-4 space-y-2">
                 <div className="flex items-center gap-2 mb-2">
-                  <CheckCircle2 size={14} className="text-emerald-400" />
-                  <span className="text-white font-bold text-sm">
-                    Result: <span className="text-[#FF6F61]">{testResult.label}</span>
+                  <CheckCircle2 size={14} className="text-emerald-600 dark:text-emerald-400" />
+                  <span className="text-slate-800 dark:text-white font-bold text-sm">
+                    Result: <span className="text-[#1a73e8]">{testResult.label}</span>
                   </span>
                 </div>
                 {Object.entries(testResult.allConfidences)
                   .sort(([, a], [, b]) => b - a)
                   .map(([label, conf]) => (
                     <div key={label} className="flex items-center gap-2">
-                      <span className="text-white/60 text-xs w-24 truncate">{label}</span>
-                      <div className="flex-1 h-2 rounded-full bg-white/10 overflow-hidden">
+                      <span className="text-slate-600 dark:text-white/60 text-xs w-24 truncate">
+                        {label}
+                      </span>
+                      <div className="flex-1 h-2 rounded-full bg-slate-100 dark:bg-white/10 overflow-hidden">
                         <div
                           className="h-full rounded-full"
                           style={{
@@ -382,7 +406,7 @@ export function TabularTrainerTab() {
                           }}
                         />
                       </div>
-                      <span className="text-white/50 text-xs font-mono w-8 text-right">
+                      <span className="text-slate-500 dark:text-white/50 text-xs font-mono w-8 text-right">
                         {conf}%
                       </span>
                     </div>

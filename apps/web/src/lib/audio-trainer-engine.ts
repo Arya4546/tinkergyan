@@ -143,7 +143,8 @@ class AudioTrainerEngine {
   }
 
   clearClass(label: string): void {
-    this.classifier?.clearClass(label);
+    if (!this.classifier || this.getExampleCounts()[label] === undefined) return;
+    this.classifier.clearClass(label);
   }
   clearAll(): void {
     this.classifier?.clearAllClasses();

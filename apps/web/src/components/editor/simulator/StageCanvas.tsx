@@ -281,7 +281,6 @@ const renderSpriteVisual = (
 export function StageCanvas() {
   const {
     sprites,
-    activeSpriteId,
     setActiveSprite,
     updateSprite,
     backdrop,
@@ -482,7 +481,7 @@ export function StageCanvas() {
       if (dragState && e) {
         const movedPx = Math.hypot(e.clientX - dragState.startX, e.clientY - dragState.startY);
         if (movedPx < CLICK_DRAG_THRESHOLD_PX) {
-          scratchEngine.notifySpriteClicked();
+          scratchEngine.notifySpriteClicked(dragState.spriteId);
         }
       }
       setDragState(null);
@@ -516,7 +515,7 @@ export function StageCanvas() {
       onClick={handleStageClick}
     >
       {sprites
-        .filter((s) => s.visible && s.id === activeSpriteId)
+        .filter((s) => s.visible)
         .map((sprite, index) => {
           const { pctX, pctY } = scratchToPercent(sprite.x, sprite.y);
           const baseSize = sprite.type === 'character' ? CHARACTER_BASE_SIZE : HARDWARE_BASE_SIZE;
@@ -532,10 +531,7 @@ export function StageCanvas() {
                 top: `${pctY}%`,
                 transform: `translate(-50%, -50%) scale(${sprite.size / 100}) ${spriteRotationTransform(sprite)}`,
                 cursor: dragState?.spriteId === sprite.id ? 'grabbing' : 'grab',
-                zIndex:
-                  dragState?.spriteId === sprite.id || activeSpriteId === sprite.id
-                    ? 1000
-                    : index + 1,
+                zIndex: dragState?.spriteId === sprite.id ? 1000 : index + 1,
                 touchAction: 'none',
                 ...spriteEffectsStyle(sprite.effects),
               }}
@@ -683,7 +679,7 @@ export function StageCanvas() {
             right: 0,
             bottom: 0,
             padding: '8px 12px',
-            backgroundColor: 'rgba(255,255,255,0.95)',
+            backgroundColor: '#ffffff',
             borderTop: '1px solid var(--scratch-border)',
             display: 'flex',
             alignItems: 'center',
@@ -691,8 +687,21 @@ export function StageCanvas() {
             zIndex: 50,
           }}
           onPointerDown={(e) => e.stopPropagation()}
+          onClick={(e) => e.stopPropagation()}
         >
-          <span style={{ fontSize: '13px', color: 'var(--scratch-text-dark)', fontWeight: 600 }}>
+          <span
+            title={askPrompt}
+            style={{
+              fontSize: '13px',
+              color: '#1f2937',
+              fontWeight: 600,
+              maxWidth: '45%',
+              whiteSpace: 'nowrap',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              flexShrink: 0,
+            }}
+          >
             {askPrompt}
           </span>
           <input
@@ -705,7 +714,16 @@ export function StageCanvas() {
               if (e.key === 'Enter') submitAnswer(answerInputRef.current?.value ?? '');
             }}
             className="scratch-input"
-            style={{ flex: 1 }}
+            style={{
+              flex: 1,
+              minWidth: 0,
+              backgroundColor: '#ffffff',
+              color: '#1f2937',
+              border: '1px solid #cbd5e1',
+              borderRadius: '8px',
+              padding: '6px 10px',
+              outline: 'none',
+            }}
           />
           <button
             type="button"

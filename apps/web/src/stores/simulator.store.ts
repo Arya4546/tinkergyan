@@ -38,6 +38,8 @@ export interface SimulatorSprite {
   rotationStyle: RotationStyle;
   effects: SpriteEffects;
   state: SpriteState;
+  /** This sprite's own block program (Blockly XML). Empty or missing = no program. */
+  blockXml?: string;
 }
 
 export type StageViewMode = 'small' | 'large' | 'fullscreen';
@@ -85,6 +87,8 @@ interface SimulatorStore {
   // Actions
   addSprite: (sprite: Omit<SimulatorSprite, 'id'> & { id?: string }) => void;
   updateSprite: (id: string, updates: Partial<SimulatorSprite>) => void;
+  setSpriteProgram: (id: string, blockXml: string) => void;
+  setProjectSprites: (sprites: SimulatorSprite[] | undefined, activeSpriteId?: string) => void;
   setSpriteSpeech: (id: string, text: string | undefined) => void;
   removeSprite: (id: string) => void;
   setActiveSprite: (id: string | null) => void;
@@ -166,6 +170,22 @@ export const useSimulatorStore = create<SimulatorStore>()(
         }));
       },
 
+      setProjectSprites: (sprites, activeSpriteId) => {
+        if (sprites && sprites.length > 0) {
+          const active = sprites.some((s) => s.id === activeSpriteId)
+            ? activeSpriteId!
+            : sprites[0]!.id;
+          set({ sprites, activeSpriteId: active });
+          return;
+        }
+        const newCat = { ...defaultCatSprite, id: generateId() };
+        set({ sprites: [newCat], activeSpriteId: newCat.id });
+      },
+      setSpriteProgram: (id, blockXml) => {
+        set((state) => ({
+          sprites: state.sprites.map((s) => (s.id === id ? { ...s, blockXml } : s)),
+        }));
+      },
       updateSprite: (id, updates) => {
         set((state) => ({
           sprites: state.sprites.map((s) => (s.id === id ? { ...s, ...updates } : s)),

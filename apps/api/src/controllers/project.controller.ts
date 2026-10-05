@@ -10,6 +10,9 @@
 import type { Request, Response } from 'express';
 import { z } from 'zod';
 import { ProjectService } from '../services/project.service';
+
+// Blockly XML plus a trained AI dataset (~5.5 KB per training sample).
+const BLOCK_STATE_MAX_LENGTH = 5_000_000;
 import type { CreateProjectDto, UpdateProjectDto } from '../services/project.service';
 import { BadgeService } from '../services/badge.service';
 import { catchAsync } from '../utils/catchAsync';
@@ -28,7 +31,7 @@ export const createProjectSchema = z.object({
     }),
     boardTarget: z.string().default('arduino:avr:uno'),
     code: z.string().max(100_000).optional(),
-    blockState: z.string().max(100_000).optional(), // Blockly workspace XML string
+    blockState: z.string().max(BLOCK_STATE_MAX_LENGTH).optional(), // Blockly XML, plus optional AI dataset
   }),
 });
 
@@ -39,7 +42,7 @@ export const updateProjectSchema = z.object({
   body: z.object({
     title: z.string().min(1).max(100).trim().optional(),
     code: z.string().max(100_000).optional(),
-    blockState: z.string().max(100_000).optional(),
+    blockState: z.string().max(BLOCK_STATE_MAX_LENGTH).optional(),
     boardTarget: z.string().optional(),
     isPublic: z.boolean().optional(),
   }),

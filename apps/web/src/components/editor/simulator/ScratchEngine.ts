@@ -187,7 +187,7 @@ export class ScratchEngine {
   private abortController: AbortController | null = null;
   private greenFlagCallbacks: Array<() => Promise<void>> = [];
   private keyPressedCallbacks: Array<{ key: string; cb: () => Promise<void> }> = [];
-  private spriteClickedCallbacks: Array<() => Promise<void>> = [];
+  private spriteClickedCallbacks: Array<{ spriteId: string; cb: () => Promise<void> }> = [];
   private receiveCallbacks: Map<string, Array<() => Promise<void>>> = new Map();
   private aiPredictedCallbacks: Map<string, Array<() => Promise<void>>> = new Map();
   private speechCommandCallbacks: Map<string, Array<() => Promise<void>>> = new Map();
@@ -250,7 +250,12 @@ export class ScratchEngine {
   /**
    * Evaluates the JavaScript generated from Blockly and registers events.
    */
-  public loadCode(code: string) {
+  /**
+   * Registers every sprite's program. Each program runs with its own action API
+   * bound to its owning sprite, so "move" / "say" / "when this sprite clicked"
+   * act on the sprite that the script belongs to.
+   */
+  public loadPrograms(programs: Array<{ spriteId: string; code: string }>) {
     this.greenFlagCallbacks = [];
     this.keyPressedCallbacks = [];
     this.spriteClickedCallbacks = [];
@@ -261,845 +266,848 @@ export class ScratchEngine {
     this.handGestureCallbacks = new Map();
     this.speechContainsCallbacks = [];
 
-    const getTargetSprite = () => {
-      const store = useSimulatorStore.getState();
-      const targetId = store.activeSpriteId || store.sprites[0]?.id;
-      return store.sprites.find((s) => s.id === targetId);
-    };
+    const buildApi = (ownerId: string): ScratchAPI => {
+      const getTargetSprite = () =>
+        useSimulatorStore.getState().sprites.find((s) => s.id === ownerId);
 
-    const halfSizeOf = (size: number, type: string) =>
-      ((type === 'character' ? 100 : 64) * (size / 100)) / 2;
+      const halfSizeOf = (size: number, type: string) =>
+        ((type === 'character' ? 100 : 64) * (size / 100)) / 2;
 
-    const updatePositionWithCamera = (
-      spriteId: string,
-      proposedX: number,
-      proposedY: number,
-      size: number,
-      type: string,
-    ) => {
-      const store = useSimulatorStore.getState();
-      const halfSize = halfSizeOf(size, type);
-
-      let currentCameraX = store.cameraX;
-      let currentCameraY = store.cameraY;
-
-      // If the proposed position goes outside the visible viewport, pan the camera!
-      if (proposedX + halfSize > 240 + currentCameraX) {
-        currentCameraX = proposedX + halfSize - 240;
-      } else if (proposedX - halfSize < -240 + currentCameraX) {
-        currentCameraX = proposedX - halfSize + 240;
-      }
-
-      if (proposedY + halfSize > 180 + currentCameraY) {
-        currentCameraY = proposedY + halfSize - 180;
-      } else if (proposedY - halfSize < -180 + currentCameraY) {
-        currentCameraY = proposedY - halfSize + 180;
-      }
-
-      // Update camera in store if it has changed
-      if (currentCameraX !== store.cameraX || currentCameraY !== store.cameraY) {
-        store.setCamera(currentCameraX, currentCameraY);
-      }
-
-      // Clamp the sprite to the active camera boundaries
-      const finalX = Math.max(
-        -240 + currentCameraX + halfSize,
-        Math.min(240 + currentCameraX - halfSize, proposedX),
-      );
-      const finalY = Math.max(
-        -180 + currentCameraY + halfSize,
-        Math.min(180 + currentCameraY - halfSize, proposedY),
-      );
-
-      store.updateSprite(spriteId, { x: finalX, y: finalY });
-    };
-
-    const playTone = (name: string, volumePct: number, waitForEnd: boolean) => {
-      const preset = TONE_PRESETS[name] ?? TONE_PRESETS.pop!;
-      const ctx = this.getAudioContext();
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.type = preset.type;
-      osc.frequency.value = preset.freq;
-      gain.gain.value = Math.max(0, Math.min(1, volumePct / 100)) * 0.2;
-      osc.connect(gain);
-      gain.connect(ctx.destination);
-      osc.start();
-      this.activeAudioNodes.add(osc);
-      osc.stop(ctx.currentTime + preset.duration);
-      osc.onended = () => this.activeAudioNodes.delete(osc);
-      if (!waitForEnd) return Promise.resolve();
-
-      // "until done" has to lose the race to Stop. Without the abort branch this
-      // was the one await in the whole API with no signal attached, so a
-      // `forever [play sound until done]` loop survived Stop: the oscillator was
-      // silenced but its onended still resolved, and the loop went round again.
-      const signal = this.abortController?.signal;
-      return new Promise<void>((resolve, reject) => {
-        if (signal?.aborted) return reject(new Error('Aborted'));
-        osc.onended = () => {
-          this.activeAudioNodes.delete(osc);
-          resolve();
-        };
-        signal?.addEventListener('abort', () => reject(new Error('Aborted')), { once: true });
-      });
-    };
-
-    // The API object exposed to the blocks
-    const api: ScratchAPI = {
-      onGreenFlag: (callback) => {
-        this.greenFlagCallbacks.push(callback);
-      },
-      onKeyPressed: (key, callback) => {
-        this.keyPressedCallbacks.push({ key, cb: callback });
-      },
-      onSpriteClicked: (callback) => {
-        this.spriteClickedCallbacks.push(callback);
-      },
-      onReceive: (message, callback) => {
-        const list = this.receiveCallbacks.get(message) ?? [];
-        list.push(callback);
-        this.receiveCallbacks.set(message, list);
-      },
-      broadcast: (message) => {
-        const callbacks = this.receiveCallbacks.get(message) ?? [];
-        void Promise.all(callbacks.map((cb) => cb())).catch((e) => {
-          if (e instanceof Error && e.message !== 'Aborted') console.error('Script Error:', e);
-        });
-        return Promise.resolve();
-      },
-      broadcastAndWait: async (message) => {
-        const callbacks = this.receiveCallbacks.get(message) ?? [];
-        await Promise.all(callbacks.map((cb) => cb()));
-      },
-
-      // ── Motion ──────────────────────────────────────────────────────
-      move: async (steps) => {
-        const sprite = getTargetSprite();
-        if (!sprite) return;
-
-        // Scratch direction: 90 is right, 0 is up. Rotate into standard
-        // math convention (0 = right) by subtracting 90 degrees.
-        const radians = (sprite.direction - 90) * (Math.PI / 180);
-        const dx = Math.round(steps * Math.cos(radians));
-        const dy = Math.round(steps * Math.sin(radians));
-
-        const proposedX = sprite.x + dx;
-        const proposedY = sprite.y - dy;
-
-        updatePositionWithCamera(sprite.id, proposedX, proposedY, sprite.size, sprite.type);
-        await this.tick(10);
-      },
-
-      turn: async (degrees) => {
+      const updatePositionWithCamera = (
+        spriteId: string,
+        proposedX: number,
+        proposedY: number,
+        size: number,
+        type: string,
+      ) => {
         const store = useSimulatorStore.getState();
-        const sprite = getTargetSprite();
-        if (!sprite) return;
+        const halfSize = halfSizeOf(size, type);
 
-        const newDir = (((sprite.direction + degrees) % 360) + 360) % 360;
-        store.updateSprite(sprite.id, { direction: newDir });
-        await this.tick(10);
-      },
+        let currentCameraX = store.cameraX;
+        let currentCameraY = store.cameraY;
 
-      goTo: async (x, y) => {
-        const sprite = getTargetSprite();
-        if (!sprite) return;
-        updatePositionWithCamera(sprite.id, x, y, sprite.size, sprite.type);
-        await this.tick(10);
-      },
-
-      glideTo: async (secs, x, y) => {
-        const sprite = getTargetSprite();
-        if (!sprite) return;
-        const startX = sprite.x;
-        const startY = sprite.y;
-        const durationMs = Math.max(0, secs * 1000);
-        const stepMs = 30;
-        const steps = Math.max(1, Math.round(durationMs / stepMs));
-
-        for (let i = 1; i <= steps; i++) {
-          const t = i / steps;
-          const curX = startX + (x - startX) * t;
-          const curY = startY + (y - startY) * t;
-          updatePositionWithCamera(sprite.id, curX, curY, sprite.size, sprite.type);
-          await this.tick(stepMs);
-        }
-      },
-
-      pointInDirection: async (degrees) => {
-        const store = useSimulatorStore.getState();
-        const sprite = getTargetSprite();
-        if (!sprite) return;
-        store.updateSprite(sprite.id, { direction: ((degrees % 360) + 360) % 360 });
-        await this.tick(10);
-      },
-
-      pointTowardsMouse: async () => {
-        const store = useSimulatorStore.getState();
-        const sprite = getTargetSprite();
-        if (!sprite) return;
-        const dx = store.mouseX - sprite.x;
-        const dy = store.mouseY - sprite.y;
-        const direction = (Math.atan2(dx, dy) * 180) / Math.PI;
-        store.updateSprite(sprite.id, { direction: ((direction % 360) + 360) % 360 });
-        await this.tick(10);
-      },
-
-      changeXBy: async (dx) => {
-        const sprite = getTargetSprite();
-        if (!sprite) return;
-        updatePositionWithCamera(sprite.id, sprite.x + dx, sprite.y, sprite.size, sprite.type);
-        await this.tick(10);
-      },
-
-      setX: async (x) => {
-        const sprite = getTargetSprite();
-        if (!sprite) return;
-        updatePositionWithCamera(sprite.id, x, sprite.y, sprite.size, sprite.type);
-        await this.tick(10);
-      },
-
-      changeYBy: async (dy) => {
-        const sprite = getTargetSprite();
-        if (!sprite) return;
-        updatePositionWithCamera(sprite.id, sprite.x, sprite.y + dy, sprite.size, sprite.type);
-        await this.tick(10);
-      },
-
-      setY: async (y) => {
-        const sprite = getTargetSprite();
-        if (!sprite) return;
-        updatePositionWithCamera(sprite.id, sprite.x, y, sprite.size, sprite.type);
-        await this.tick(10);
-      },
-
-      ifOnEdgeBounce: async () => {
-        const store = useSimulatorStore.getState();
-        const sprite = getTargetSprite();
-        if (!sprite) return;
-        const halfSize = halfSizeOf(sprite.size, sprite.type);
-
-        let dir = sprite.direction;
-        let x = sprite.x;
-        let y = sprite.y;
-        let bounced = false;
-
-        if (x - halfSize < -STAGE_HALF_WIDTH) {
-          x = -STAGE_HALF_WIDTH + halfSize;
-          dir = ((-dir % 360) + 360) % 360;
-          bounced = true;
-        } else if (x + halfSize > STAGE_HALF_WIDTH) {
-          x = STAGE_HALF_WIDTH - halfSize;
-          dir = ((-dir % 360) + 360) % 360;
-          bounced = true;
+        // If the proposed position goes outside the visible viewport, pan the camera!
+        if (proposedX + halfSize > 240 + currentCameraX) {
+          currentCameraX = proposedX + halfSize - 240;
+        } else if (proposedX - halfSize < -240 + currentCameraX) {
+          currentCameraX = proposedX - halfSize + 240;
         }
 
-        if (y - halfSize < -STAGE_HALF_HEIGHT) {
-          y = -STAGE_HALF_HEIGHT + halfSize;
-          dir = (((180 - dir) % 360) + 360) % 360;
-          bounced = true;
-        } else if (y + halfSize > STAGE_HALF_HEIGHT) {
-          y = STAGE_HALF_HEIGHT - halfSize;
-          dir = (((180 - dir) % 360) + 360) % 360;
-          bounced = true;
+        if (proposedY + halfSize > 180 + currentCameraY) {
+          currentCameraY = proposedY + halfSize - 180;
+        } else if (proposedY - halfSize < -180 + currentCameraY) {
+          currentCameraY = proposedY - halfSize + 180;
         }
 
-        if (bounced) {
-          store.updateSprite(sprite.id, { x, y, direction: dir });
+        // Update camera in store if it has changed
+        if (currentCameraX !== store.cameraX || currentCameraY !== store.cameraY) {
+          store.setCamera(currentCameraX, currentCameraY);
         }
-        await this.tick(10);
-      },
 
-      setRotationStyle: (style) => {
-        const store = useSimulatorStore.getState();
-        const sprite = getTargetSprite();
-        if (sprite) store.updateSprite(sprite.id, { rotationStyle: style });
-        return Promise.resolve();
-      },
-
-      getX: () => getTargetSprite()?.x ?? 0,
-      getY: () => getTargetSprite()?.y ?? 0,
-      getDirection: () => getTargetSprite()?.direction ?? 90,
-
-      // ── Looks ───────────────────────────────────────────────────────
-      sayFor: async (text, secs) => {
-        const store = useSimulatorStore.getState();
-        const sprite = getTargetSprite();
-        if (!sprite) return;
-
-        store.updateSprite(sprite.id, { speech: String(text), speechIsThought: false });
-        // `finally`, not `catch`: the bubble must be cleared on abort, but the
-        // abort itself has to keep propagating. Swallowing it let the enclosing
-        // `forever` loop take one more lap after Stop was pressed.
-        try {
-          await this.tick(secs * 1000);
-        } finally {
-          store.setSpriteSpeech(sprite.id, undefined);
-        }
-      },
-
-      say: (text) => {
-        const store = useSimulatorStore.getState();
-        const sprite = getTargetSprite();
-        if (sprite) store.updateSprite(sprite.id, { speech: String(text), speechIsThought: false });
-        return Promise.resolve();
-      },
-
-      thinkFor: async (text, secs) => {
-        const store = useSimulatorStore.getState();
-        const sprite = getTargetSprite();
-        if (!sprite) return;
-        store.updateSprite(sprite.id, { speech: String(text), speechIsThought: true });
-        // See sayFor — `finally` so Stop is not swallowed.
-        try {
-          await this.tick(secs * 1000);
-        } finally {
-          store.setSpriteSpeech(sprite.id, undefined);
-        }
-      },
-
-      think: (text) => {
-        const store = useSimulatorStore.getState();
-        const sprite = getTargetSprite();
-        if (sprite) store.updateSprite(sprite.id, { speech: String(text), speechIsThought: true });
-        return Promise.resolve();
-      },
-
-      show: () => {
-        const store = useSimulatorStore.getState();
-        const sprite = getTargetSprite();
-        if (sprite) {
-          store.updateSprite(sprite.id, { visible: true });
-        }
-        return Promise.resolve();
-      },
-
-      hide: () => {
-        const store = useSimulatorStore.getState();
-        const sprite = getTargetSprite();
-        if (sprite) {
-          store.updateSprite(sprite.id, { visible: false });
-        }
-        return Promise.resolve();
-      },
-
-      switchCostume: async (costume) => {
-        const store = useSimulatorStore.getState();
-        const sprite = getTargetSprite();
-        if (sprite) {
-          const idx = sprite.costumes.indexOf(costume);
-          store.updateSprite(sprite.id, {
-            image: costume,
-            costumeIndex: idx === -1 ? sprite.costumeIndex : idx,
-            costume:
-              costume === '/sprites/scratch_games.svg' ? 'Stemmantra (Old)' : 'Stemmantra (New)',
-          });
-        }
-        await this.tick(10);
-      },
-
-      nextCostume: async () => {
-        const store = useSimulatorStore.getState();
-        const sprite = getTargetSprite();
-        if (sprite && sprite.costumes.length > 0) {
-          const nextIndex = (sprite.costumeIndex + 1) % sprite.costumes.length;
-          const nextImage = sprite.costumes[nextIndex];
-          if (nextImage !== undefined) {
-            store.updateSprite(sprite.id, { costumeIndex: nextIndex, image: nextImage });
-          }
-        }
-        await this.tick(10);
-      },
-
-      switchBackdropTo: async (name) => {
-        useSimulatorStore.getState().setBackdrop(name);
-        await this.tick(10);
-      },
-
-      nextBackdrop: async () => {
-        const store = useSimulatorStore.getState();
-        const idx = BACKDROP_OPTIONS.indexOf(store.backdrop as (typeof BACKDROP_OPTIONS)[number]);
-        const next =
-          BACKDROP_OPTIONS[(idx + 1 + BACKDROP_OPTIONS.length) % BACKDROP_OPTIONS.length];
-        store.setBackdrop(next ?? BACKDROP_OPTIONS[0]);
-        await this.tick(10);
-      },
-
-      changeSizeBy: async (delta) => {
-        const store = useSimulatorStore.getState();
-        const sprite = getTargetSprite();
-        if (!sprite) return;
-        store.updateSprite(sprite.id, { size: Math.max(0, sprite.size + delta) });
-        await this.tick(10);
-      },
-
-      setSizeTo: async (pct) => {
-        const store = useSimulatorStore.getState();
-        const sprite = getTargetSprite();
-        if (!sprite) return;
-        store.updateSprite(sprite.id, { size: Math.max(0, pct) });
-        await this.tick(10);
-      },
-
-      changeEffectBy: async (effect, delta) => {
-        const store = useSimulatorStore.getState();
-        const sprite = getTargetSprite();
-        if (!sprite) return;
-        store.updateSprite(sprite.id, {
-          effects: { ...sprite.effects, [effect]: sprite.effects[effect] + delta },
-        });
-        await this.tick(10);
-      },
-
-      setEffectTo: async (effect, value) => {
-        const store = useSimulatorStore.getState();
-        const sprite = getTargetSprite();
-        if (!sprite) return;
-        store.updateSprite(sprite.id, { effects: { ...sprite.effects, [effect]: value } });
-        await this.tick(10);
-      },
-
-      clearGraphicEffects: async () => {
-        const store = useSimulatorStore.getState();
-        const sprite = getTargetSprite();
-        if (!sprite) return;
-        store.updateSprite(sprite.id, { effects: { color: 0, ghost: 0, brightness: 0 } });
-        await this.tick(10);
-      },
-
-      goToLayer: (layer) => {
-        const store = useSimulatorStore.getState();
-        const sprite = getTargetSprite();
-        if (sprite) {
-          if (layer === 'front') store.sendToFront(sprite.id);
-          else store.sendToBack(sprite.id);
-        }
-        return Promise.resolve();
-      },
-
-      changeLayers: (delta) => {
-        const store = useSimulatorStore.getState();
-        const sprite = getTargetSprite();
-        if (sprite) store.moveLayers(sprite.id, delta);
-        return Promise.resolve();
-      },
-
-      getCostumeNumber: () => (getTargetSprite()?.costumeIndex ?? 0) + 1,
-      getSize: () => getTargetSprite()?.size ?? 100,
-
-      // ── Sound ───────────────────────────────────────────────────────
-      playSoundUntilDone: async (name) => {
-        const sprite = getTargetSprite();
-        const volume = (sprite?.state?.volume as number | undefined) ?? 100;
-        await playTone(name, volume, true);
-      },
-
-      startSound: async (name) => {
-        const sprite = getTargetSprite();
-        const volume = (sprite?.state?.volume as number | undefined) ?? 100;
-        await playTone(name, volume, false);
-      },
-
-      stopAllSounds: () => {
-        for (const osc of this.activeAudioNodes) {
-          try {
-            osc.stop();
-          } catch {
-            // Already stopped
-          }
-        }
-        this.activeAudioNodes.clear();
-        return Promise.resolve();
-      },
-
-      changeVolumeBy: (delta) => {
-        const store = useSimulatorStore.getState();
-        const sprite = getTargetSprite();
-        if (sprite) {
-          const current = (sprite.state?.volume as number | undefined) ?? 100;
-          const next = Math.max(0, Math.min(100, current + delta));
-          store.updateSprite(sprite.id, { state: { ...sprite.state, volume: next } });
-        }
-        return Promise.resolve();
-      },
-
-      setVolumeTo: (pct) => {
-        const store = useSimulatorStore.getState();
-        const sprite = getTargetSprite();
-        if (sprite) {
-          store.updateSprite(sprite.id, {
-            state: { ...sprite.state, volume: Math.max(0, Math.min(100, pct)) },
-          });
-        }
-        return Promise.resolve();
-      },
-
-      getVolume: () => (getTargetSprite()?.state?.volume as number | undefined) ?? 100,
-
-      // ── Control ─────────────────────────────────────────────────────
-      wait: async (secs) => {
-        await this.tick(Math.max(0, secs * 1000));
-      },
-
-      yield: async () => {
-        await this.tick(1);
-      },
-
-      stopAll: () => {
-        this.stop();
-        // A script stopping itself has to un-light the toolbar too, or the flag
-        // button stays in its "running" state with nothing left running behind
-        // it. (stop() deliberately does not do this — triggerGreenFlag calls
-        // stop() first, and clearing isRunning there would cancel the very run
-        // that is starting.)
-        useSimulatorStore.getState().stopSimulation();
-        // Reject so the calling script's promise chain unwinds too.
-        return Promise.reject(new Error('Aborted'));
-      },
-
-      // ── Sensing ─────────────────────────────────────────────────────
-      isKeyPressed: (key) => {
-        const store = useSimulatorStore.getState();
-        return Boolean(store.keysDown[key]);
-      },
-      isMouseDown: () => useSimulatorStore.getState().mouseDown,
-      getMouseX: () => useSimulatorStore.getState().mouseX,
-      getMouseY: () => useSimulatorStore.getState().mouseY,
-      getTimer: () => (Date.now() - useSimulatorStore.getState().timerStartedAt) / 1000,
-      resetTimer: () => {
-        useSimulatorStore.getState().resetTimer();
-      },
-      isTouchingEdge: () => {
-        const sprite = getTargetSprite();
-        if (!sprite) return false;
-        const halfSize = halfSizeOf(sprite.size, sprite.type);
-        return (
-          sprite.x - halfSize <= -STAGE_HALF_WIDTH ||
-          sprite.x + halfSize >= STAGE_HALF_WIDTH ||
-          sprite.y - halfSize <= -STAGE_HALF_HEIGHT ||
-          sprite.y + halfSize >= STAGE_HALF_HEIGHT
+        // Clamp the sprite to the active camera boundaries
+        const finalX = Math.max(
+          -240 + currentCameraX + halfSize,
+          Math.min(240 + currentCameraX - halfSize, proposedX),
         );
-      },
-      askAndWait: async (prompt) => {
-        const store = useSimulatorStore.getState();
-        const ctrl = this.abortController;
-        // Same rule as tick(): no controller means the script is not running,
-        // so don't open a question box nobody can dismiss.
-        if (!ctrl || ctrl.signal.aborted) throw new Error('Aborted');
-        const signal = ctrl.signal;
-        await new Promise<void>((resolve, reject) => {
+        const finalY = Math.max(
+          -180 + currentCameraY + halfSize,
+          Math.min(180 + currentCameraY - halfSize, proposedY),
+        );
+
+        store.updateSprite(spriteId, { x: finalX, y: finalY });
+      };
+
+      const playTone = (name: string, volumePct: number, waitForEnd: boolean) => {
+        const preset = TONE_PRESETS[name] ?? TONE_PRESETS.pop!;
+        const ctx = this.getAudioContext();
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = preset.type;
+        osc.frequency.value = preset.freq;
+        gain.gain.value = Math.max(0, Math.min(1, volumePct / 100)) * 0.2;
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start();
+        this.activeAudioNodes.add(osc);
+        osc.stop(ctx.currentTime + preset.duration);
+        osc.onended = () => this.activeAudioNodes.delete(osc);
+        if (!waitForEnd) return Promise.resolve();
+
+        // "until done" has to lose the race to Stop. Without the abort branch this
+        // was the one await in the whole API with no signal attached, so a
+        // `forever [play sound until done]` loop survived Stop: the oscillator was
+        // silenced but its onended still resolved, and the loop went round again.
+        const signal = this.abortController?.signal;
+        return new Promise<void>((resolve, reject) => {
           if (signal?.aborted) return reject(new Error('Aborted'));
-          store
-            .askQuestion(prompt)
-            .then(() => resolve())
-            .catch(() => reject(new Error('Aborted')));
-          signal?.addEventListener('abort', () => reject(new Error('Aborted')));
+          osc.onended = () => {
+            this.activeAudioNodes.delete(osc);
+            resolve();
+          };
+          signal?.addEventListener('abort', () => reject(new Error('Aborted')), { once: true });
         });
-      },
-      getAnswer: () => useSimulatorStore.getState().answer,
+      };
 
-      setVariable: (name, value) => {
-        useSimulatorStore.getState().setVariable(name, value);
-      },
-
-      // ── AI Vision ────────────────────────────────────────────────────
-      aiStartVision: async () => {
-        if (!aiEngine.isInitialised) await aiEngine.init();
-        useAIStore.getState().setModelLoaded(true);
-
-        // Create a hidden video element for the inference loop
-        if (!this.aiVideoEl) {
-          this.aiVideoEl = document.createElement('video');
-          this.aiVideoEl.setAttribute('autoplay', '');
-          this.aiVideoEl.setAttribute('playsinline', '');
-          this.aiVideoEl.setAttribute('muted', '');
-          this.aiVideoEl.style.display = 'none';
-          document.body.appendChild(this.aiVideoEl);
-        }
-
-        await aiEngine.startWebcam(this.aiVideoEl);
-        useAIStore.getState().setWebcamActive(true);
-
-        if (!aiEngine.isReadyToPredict) return;
-
-        if (!aiEngine.isReadyToPredict && !aiEngine.isInitialised) return;
-
-        aiEngine.startPredicting(
-          this.aiVideoEl,
-          (result) => {
-            useAIStore.getState().updatePrediction(result.label, result.allConfidences);
-
-            // Fire registered "when AI sees [Label]" hat callbacks
-            const callbacks = this.aiPredictedCallbacks.get(result.label);
-            if (callbacks && result.confidence >= 70) {
-              for (const cb of callbacks) {
-                void cb().catch((e) => {
-                  if (e instanceof Error && e.message !== 'Aborted')
-                    console.error('AI Script Error:', e);
-                });
-              }
-            }
-          },
-          true,
-          true,
-        ); // Enable Image KNN and Pose
-        useAIStore.getState().setPredicting(true);
-      },
-
-      aiStopVision: async () => {
-        aiEngine.stopPredicting();
-        aiEngine.stopWebcam();
-        if (this.aiVideoEl) {
-          this.aiVideoEl.remove();
-          this.aiVideoEl = null;
-        }
-        useAIStore.getState().setWebcamActive(false);
-        useAIStore.getState().setPredicting(false);
-        useAIStore.getState().clearPrediction();
-        await this.tick(10);
-      },
-
-      onAIPredicted: (label, callback) => {
-        const list = this.aiPredictedCallbacks.get(label) ?? [];
-        list.push(callback);
-        this.aiPredictedCallbacks.set(label, list);
-      },
-
-      getAIPrediction: () => useAIStore.getState().currentPrediction ?? '',
-
-      getAIConfidence: (label) => useAIStore.getState().confidences[label] ?? 0,
-
-      isAIPredicting: (label) => useAIStore.getState().currentPrediction === label,
-
-      // ── AI Pose & Audio ────────────────────────────────────────────────
-      getPoseKeypoint: (partName, axis) => aiEngine.getPoseKeypoint(partName, axis),
-
-      startAudioListening: async () => {
-        if (!aiEngine.isInitialised) await aiEngine.init();
-        await aiEngine.startAudioListening();
-
-        // Register the bridge between aiEngine and ScratchEngine
-        if (!this.speechBridgeRegistered) {
-          aiEngine.onSpeechCommand((word) => {
-            const callbacks = this.speechCommandCallbacks.get(word);
-            if (callbacks) {
-              for (const cb of callbacks) {
-                void cb().catch((e) => {
-                  if (e instanceof Error && e.message !== 'Aborted')
-                    console.error('Speech Script Error:', e);
-                });
-              }
-            }
+      // The API object exposed to the blocks
+      const api: ScratchAPI = {
+        onGreenFlag: (callback) => {
+          this.greenFlagCallbacks.push(callback);
+        },
+        onKeyPressed: (key, callback) => {
+          this.keyPressedCallbacks.push({ key, cb: callback });
+        },
+        onSpriteClicked: (callback) => {
+          this.spriteClickedCallbacks.push({ spriteId: ownerId, cb: callback });
+        },
+        onReceive: (message, callback) => {
+          const list = this.receiveCallbacks.get(message) ?? [];
+          list.push(callback);
+          this.receiveCallbacks.set(message, list);
+        },
+        broadcast: (message) => {
+          const callbacks = this.receiveCallbacks.get(message) ?? [];
+          void Promise.all(callbacks.map((cb) => cb())).catch((e) => {
+            if (e instanceof Error && e.message !== 'Aborted') console.error('Script Error:', e);
           });
-          this.speechBridgeRegistered = true;
-        }
-      },
+          return Promise.resolve();
+        },
+        broadcastAndWait: async (message) => {
+          const callbacks = this.receiveCallbacks.get(message) ?? [];
+          await Promise.all(callbacks.map((cb) => cb()));
+        },
 
-      stopAudioListening: async () => {
-        aiEngine.stopAudioListening();
-        return Promise.resolve();
-      },
+        // ── Motion ──────────────────────────────────────────────────────
+        move: async (steps) => {
+          const sprite = getTargetSprite();
+          if (!sprite) return;
 
-      onSpeechCommand: (word, callback) => {
-        const list = this.speechCommandCallbacks.get(word) ?? [];
-        list.push(callback);
-        this.speechCommandCallbacks.set(word, list);
-      },
+          // Scratch direction: 90 is right, 0 is up. Rotate into standard
+          // math convention (0 = right) by subtracting 90 degrees.
+          const radians = (sprite.direction - 90) * (Math.PI / 180);
+          const dx = Math.round(steps * Math.cos(radians));
+          const dy = Math.round(steps * Math.sin(radians));
 
-      getLatestSpeechCommand: () => aiEngine.getLatestSpeechCommand(),
+          const proposedX = sprite.x + dx;
+          const proposedY = sprite.y - dy;
 
-      // ── AI Emotion ───────────────────────────────────────────────────
-      aiStartEmotion: async () => {
-        if (!emotionEngine.isInitialised) await emotionEngine.init();
-        if (!this.aiVideoEl) {
-          this.aiVideoEl = document.createElement('video');
-          this.aiVideoEl.setAttribute('autoplay', '');
-          this.aiVideoEl.setAttribute('playsinline', '');
-          this.aiVideoEl.setAttribute('muted', '');
-          this.aiVideoEl.style.display = 'none';
-          document.body.appendChild(this.aiVideoEl);
-        }
-        await aiEngine.startWebcam(this.aiVideoEl);
-        emotionEngine.startDetecting(this.aiVideoEl, (result) => {
-          useAIStore
-            .getState()
-            .updateEmotion(result.emotion, result.allEmotions, result.faceDetected);
-          if (result.faceDetected && !this.emotionBridgeRegistered) return;
-          // Fire hat callbacks
-          const cbs = this.emotionCallbacks.get(result.emotion);
-          if (cbs && result.faceDetected && result.confidence >= 50) {
-            for (const cb of cbs) {
-              void cb().catch((e) => {
-                if (e instanceof Error && e.message !== 'Aborted')
-                  console.error('Emotion Script Error:', e);
-              });
-            }
+          updatePositionWithCamera(sprite.id, proposedX, proposedY, sprite.size, sprite.type);
+          await this.tick(10);
+        },
+
+        turn: async (degrees) => {
+          const store = useSimulatorStore.getState();
+          const sprite = getTargetSprite();
+          if (!sprite) return;
+
+          const newDir = (((sprite.direction + degrees) % 360) + 360) % 360;
+          store.updateSprite(sprite.id, { direction: newDir });
+          await this.tick(10);
+        },
+
+        goTo: async (x, y) => {
+          const sprite = getTargetSprite();
+          if (!sprite) return;
+          updatePositionWithCamera(sprite.id, x, y, sprite.size, sprite.type);
+          await this.tick(10);
+        },
+
+        glideTo: async (secs, x, y) => {
+          const sprite = getTargetSprite();
+          if (!sprite) return;
+          const startX = sprite.x;
+          const startY = sprite.y;
+          const durationMs = Math.max(0, secs * 1000);
+          const stepMs = 30;
+          const steps = Math.max(1, Math.round(durationMs / stepMs));
+
+          for (let i = 1; i <= steps; i++) {
+            const t = i / steps;
+            const curX = startX + (x - startX) * t;
+            const curY = startY + (y - startY) * t;
+            updatePositionWithCamera(sprite.id, curX, curY, sprite.size, sprite.type);
+            await this.tick(stepMs);
           }
-        });
-        if (!this.emotionBridgeRegistered) this.emotionBridgeRegistered = true;
-        useAIStore.getState().setEmotionActive(true);
-      },
+        },
 
-      aiStopEmotion: () => {
-        emotionEngine.stopDetecting();
-        useAIStore.getState().setEmotionActive(false);
-        return Promise.resolve();
-      },
+        pointInDirection: async (degrees) => {
+          const store = useSimulatorStore.getState();
+          const sprite = getTargetSprite();
+          if (!sprite) return;
+          store.updateSprite(sprite.id, { direction: ((degrees % 360) + 360) % 360 });
+          await this.tick(10);
+        },
 
-      onAIEmotion: (emotion, callback) => {
-        const list = this.emotionCallbacks.get(emotion) ?? [];
-        list.push(callback);
-        this.emotionCallbacks.set(emotion, list);
-      },
+        pointTowardsMouse: async () => {
+          const store = useSimulatorStore.getState();
+          const sprite = getTargetSprite();
+          if (!sprite) return;
+          const dx = store.mouseX - sprite.x;
+          const dy = store.mouseY - sprite.y;
+          const direction = (Math.atan2(dx, dy) * 180) / Math.PI;
+          store.updateSprite(sprite.id, { direction: ((direction % 360) + 360) % 360 });
+          await this.tick(10);
+        },
 
-      getAIEmotion: () => useAIStore.getState().currentEmotion ?? '',
+        changeXBy: async (dx) => {
+          const sprite = getTargetSprite();
+          if (!sprite) return;
+          updatePositionWithCamera(sprite.id, sprite.x + dx, sprite.y, sprite.size, sprite.type);
+          await this.tick(10);
+        },
 
-      getAIEmotionConfidence: (emotion) =>
-        useAIStore.getState().emotionConfidences[
-          emotion as 'happy' | 'sad' | 'angry' | 'disgusted' | 'fearful' | 'surprised' | 'neutral'
-        ] ?? 0,
+        setX: async (x) => {
+          const sprite = getTargetSprite();
+          if (!sprite) return;
+          updatePositionWithCamera(sprite.id, x, sprite.y, sprite.size, sprite.type);
+          await this.tick(10);
+        },
 
-      isFaceDetected: () => useAIStore.getState().faceDetected,
+        changeYBy: async (dy) => {
+          const sprite = getTargetSprite();
+          if (!sprite) return;
+          updatePositionWithCamera(sprite.id, sprite.x, sprite.y + dy, sprite.size, sprite.type);
+          await this.tick(10);
+        },
 
-      getFacePosition: (axis) => emotionEngine.getFacePosition(axis as 'x' | 'y'),
+        setY: async (y) => {
+          const sprite = getTargetSprite();
+          if (!sprite) return;
+          updatePositionWithCamera(sprite.id, sprite.x, y, sprite.size, sprite.type);
+          await this.tick(10);
+        },
 
-      // ── AI Hand Tracking ─────────────────────────────────────────────
-      aiStartHandTracking: async () => {
-        if (!handEngine.isInitialised) await handEngine.init();
-        if (!this.aiVideoEl) {
-          this.aiVideoEl = document.createElement('video');
-          this.aiVideoEl.setAttribute('autoplay', '');
-          this.aiVideoEl.setAttribute('playsinline', '');
-          this.aiVideoEl.setAttribute('muted', '');
-          this.aiVideoEl.style.display = 'none';
-          document.body.appendChild(this.aiVideoEl);
-        }
-        await aiEngine.startWebcam(this.aiVideoEl);
-        handEngine.startTracking(this.aiVideoEl, (result) => {
-          useAIStore
-            .getState()
-            .updateHandKeypoints(
-              result.detected,
-              Object.fromEntries(
-                Object.entries(result.keypoints).map(([k, v]) => [k, { x: v.x, y: v.y }]),
-              ),
-            );
-          // Fire hat callbacks
-          const cbs = this.handGestureCallbacks.get(result.gesture);
-          if (cbs && result.detected) {
-            for (const cb of cbs) {
-              void cb().catch((e) => {
-                if (e instanceof Error && e.message !== 'Aborted')
-                  console.error('Hand Script Error:', e);
-              });
-            }
+        ifOnEdgeBounce: async () => {
+          const store = useSimulatorStore.getState();
+          const sprite = getTargetSprite();
+          if (!sprite) return;
+          const halfSize = halfSizeOf(sprite.size, sprite.type);
+
+          let dir = sprite.direction;
+          let x = sprite.x;
+          let y = sprite.y;
+          let bounced = false;
+
+          if (x - halfSize < -STAGE_HALF_WIDTH) {
+            x = -STAGE_HALF_WIDTH + halfSize;
+            dir = ((-dir % 360) + 360) % 360;
+            bounced = true;
+          } else if (x + halfSize > STAGE_HALF_WIDTH) {
+            x = STAGE_HALF_WIDTH - halfSize;
+            dir = ((-dir % 360) + 360) % 360;
+            bounced = true;
           }
-        });
-        if (!this.handBridgeRegistered) this.handBridgeRegistered = true;
-        useAIStore.getState().setHandTrackingActive(true);
-      },
 
-      aiStopHandTracking: () => {
-        handEngine.stopTracking();
-        useAIStore.getState().setHandTrackingActive(false);
-        return Promise.resolve();
-      },
+          if (y - halfSize < -STAGE_HALF_HEIGHT) {
+            y = -STAGE_HALF_HEIGHT + halfSize;
+            dir = (((180 - dir) % 360) + 360) % 360;
+            bounced = true;
+          } else if (y + halfSize > STAGE_HALF_HEIGHT) {
+            y = STAGE_HALF_HEIGHT - halfSize;
+            dir = (((180 - dir) % 360) + 360) % 360;
+            bounced = true;
+          }
 
-      onHandGesture: (gesture, callback) => {
-        const list = this.handGestureCallbacks.get(gesture) ?? [];
-        list.push(callback);
-        this.handGestureCallbacks.set(gesture, list);
-      },
+          if (bounced) {
+            store.updateSprite(sprite.id, { x, y, direction: dir });
+          }
+          await this.tick(10);
+        },
 
-      getHandGesture: () => handEngine.getGesture(),
+        setRotationStyle: (style) => {
+          const store = useSimulatorStore.getState();
+          const sprite = getTargetSprite();
+          if (sprite) store.updateSprite(sprite.id, { rotationStyle: style });
+          return Promise.resolve();
+        },
 
-      getHandLandmark: (landmark, axis) => handEngine.getKeypoint(landmark, axis as 'x' | 'y'),
+        getX: () => getTargetSprite()?.x ?? 0,
+        getY: () => getTargetSprite()?.y ?? 0,
+        getDirection: () => getTargetSprite()?.direction ?? 90,
 
-      isHandDetected: () => handEngine.isHandDetected(),
+        // ── Looks ───────────────────────────────────────────────────────
+        sayFor: async (text, secs) => {
+          const store = useSimulatorStore.getState();
+          const sprite = getTargetSprite();
+          if (!sprite) return;
 
-      // ── Speech-to-Text (Free form) ───────────────────────────────────
-      startSpeechListening: () => {
-        speechEngine.startListening();
-        useAIStore.getState().setSpeechListening(true);
+          store.updateSprite(sprite.id, { speech: String(text), speechIsThought: false });
+          // `finally`, not `catch`: the bubble must be cleared on abort, but the
+          // abort itself has to keep propagating. Swallowing it let the enclosing
+          // `forever` loop take one more lap after Stop was pressed.
+          try {
+            await this.tick(secs * 1000);
+          } finally {
+            store.setSpriteSpeech(sprite.id, undefined);
+          }
+        },
 
-        if (!this.sttBridgeRegistered) {
-          speechEngine.onTranscript((text) => {
-            useAIStore.getState().setLatestTranscript(text);
-            // Fire onSpeechContains callbacks
-            for (const { phrase, cb } of this.speechContainsCallbacks) {
-              if (text.includes(phrase.toLowerCase())) {
-                void cb().catch((e) => {
-                  if (e instanceof Error && e.message !== 'Aborted')
-                    console.error('STT Script Error:', e);
-                });
-              }
-            }
-          });
-          this.sttBridgeRegistered = true;
-        }
-      },
+        say: (text) => {
+          const store = useSimulatorStore.getState();
+          const sprite = getTargetSprite();
+          if (sprite)
+            store.updateSprite(sprite.id, { speech: String(text), speechIsThought: false });
+          return Promise.resolve();
+        },
 
-      stopSpeechListening: () => {
-        speechEngine.stopListening();
-        useAIStore.getState().setSpeechListening(false);
-      },
+        thinkFor: async (text, secs) => {
+          const store = useSimulatorStore.getState();
+          const sprite = getTargetSprite();
+          if (!sprite) return;
+          store.updateSprite(sprite.id, { speech: String(text), speechIsThought: true });
+          // See sayFor — `finally` so Stop is not swallowed.
+          try {
+            await this.tick(secs * 1000);
+          } finally {
+            store.setSpriteSpeech(sprite.id, undefined);
+          }
+        },
 
-      getSpeechTranscript: () => speechEngine.getLatestTranscript(),
+        think: (text) => {
+          const store = useSimulatorStore.getState();
+          const sprite = getTargetSprite();
+          if (sprite)
+            store.updateSprite(sprite.id, { speech: String(text), speechIsThought: true });
+          return Promise.resolve();
+        },
 
-      onSpeechContains: (phrase, callback) => {
-        this.speechContainsCallbacks.push({ phrase, cb: callback });
-      },
+        show: () => {
+          const store = useSimulatorStore.getState();
+          const sprite = getTargetSprite();
+          if (sprite) {
+            store.updateSprite(sprite.id, { visible: true });
+          }
+          return Promise.resolve();
+        },
 
-      // ── Text-to-Speech ───────────────────────────────────────────────
-      speak: (text, lang) => speechEngine.speak(text, lang),
+        hide: () => {
+          const store = useSimulatorStore.getState();
+          const sprite = getTargetSprite();
+          if (sprite) {
+            store.updateSprite(sprite.id, { visible: false });
+          }
+          return Promise.resolve();
+        },
 
-      setSpeechSpeed: (speed) => speechEngine.setSpeechRate(speed),
-
-      stopSpeaking: () => speechEngine.stopSpeaking(),
-
-      // ── Text Classification (NLP) ────────────────────────────────────
-      classifyText: async (text) => {
-        if (!textAIEngine.isInitialised) await textAIEngine.init();
-        if (!textAIEngine.isReadyToClassify) return '';
-        const result = await textAIEngine.classifyText(text);
-        return result.label;
-      },
-
-      onTextClassified: (text, label, callback) => {
-        // Evaluate immediately and fire if matches
-        void (async () => {
-          if (!textAIEngine.isInitialised) await textAIEngine.init();
-          if (!textAIEngine.isReadyToClassify) return;
-          const result = await textAIEngine.classifyText(text);
-          if (result.label === label) {
-            void callback().catch((e) => {
-              if (e instanceof Error && e.message !== 'Aborted')
-                console.error('Text AI Script Error:', e);
+        switchCostume: async (costume) => {
+          const store = useSimulatorStore.getState();
+          const sprite = getTargetSprite();
+          if (sprite) {
+            const idx = sprite.costumes.indexOf(costume);
+            store.updateSprite(sprite.id, {
+              image: costume,
+              costumeIndex: idx === -1 ? sprite.costumeIndex : idx,
+              costume:
+                costume === '/sprites/scratch_games.svg' ? 'Stemmantra (Old)' : 'Stemmantra (New)',
             });
           }
-        })();
-      },
+          await this.tick(10);
+        },
 
-      // ── AI Music (Magenta) ───────────────────────────────────────────
-      aiPlayMusic: async (notes, steps, temperature) => {
-        if (!musicEngine.isInitialised) await musicEngine.init();
-        await musicEngine.playAIMelody(notes, steps, temperature);
-      },
+        nextCostume: async () => {
+          const store = useSimulatorStore.getState();
+          const sprite = getTargetSprite();
+          if (sprite && sprite.costumes.length > 0) {
+            const nextIndex = (sprite.costumeIndex + 1) % sprite.costumes.length;
+            const nextImage = sprite.costumes[nextIndex];
+            if (nextImage !== undefined) {
+              store.updateSprite(sprite.id, { costumeIndex: nextIndex, image: nextImage });
+            }
+          }
+          await this.tick(10);
+        },
 
-      aiStopMusic: () => {
-        musicEngine.stop();
-      },
+        switchBackdropTo: async (name) => {
+          useSimulatorStore.getState().setBackdrop(name);
+          await this.tick(10);
+        },
+
+        nextBackdrop: async () => {
+          const store = useSimulatorStore.getState();
+          const idx = BACKDROP_OPTIONS.indexOf(store.backdrop as (typeof BACKDROP_OPTIONS)[number]);
+          const next =
+            BACKDROP_OPTIONS[(idx + 1 + BACKDROP_OPTIONS.length) % BACKDROP_OPTIONS.length];
+          store.setBackdrop(next ?? BACKDROP_OPTIONS[0]);
+          await this.tick(10);
+        },
+
+        changeSizeBy: async (delta) => {
+          const store = useSimulatorStore.getState();
+          const sprite = getTargetSprite();
+          if (!sprite) return;
+          store.updateSprite(sprite.id, { size: Math.max(0, sprite.size + delta) });
+          await this.tick(10);
+        },
+
+        setSizeTo: async (pct) => {
+          const store = useSimulatorStore.getState();
+          const sprite = getTargetSprite();
+          if (!sprite) return;
+          store.updateSprite(sprite.id, { size: Math.max(0, pct) });
+          await this.tick(10);
+        },
+
+        changeEffectBy: async (effect, delta) => {
+          const store = useSimulatorStore.getState();
+          const sprite = getTargetSprite();
+          if (!sprite) return;
+          store.updateSprite(sprite.id, {
+            effects: { ...sprite.effects, [effect]: sprite.effects[effect] + delta },
+          });
+          await this.tick(10);
+        },
+
+        setEffectTo: async (effect, value) => {
+          const store = useSimulatorStore.getState();
+          const sprite = getTargetSprite();
+          if (!sprite) return;
+          store.updateSprite(sprite.id, { effects: { ...sprite.effects, [effect]: value } });
+          await this.tick(10);
+        },
+
+        clearGraphicEffects: async () => {
+          const store = useSimulatorStore.getState();
+          const sprite = getTargetSprite();
+          if (!sprite) return;
+          store.updateSprite(sprite.id, { effects: { color: 0, ghost: 0, brightness: 0 } });
+          await this.tick(10);
+        },
+
+        goToLayer: (layer) => {
+          const store = useSimulatorStore.getState();
+          const sprite = getTargetSprite();
+          if (sprite) {
+            if (layer === 'front') store.sendToFront(sprite.id);
+            else store.sendToBack(sprite.id);
+          }
+          return Promise.resolve();
+        },
+
+        changeLayers: (delta) => {
+          const store = useSimulatorStore.getState();
+          const sprite = getTargetSprite();
+          if (sprite) store.moveLayers(sprite.id, delta);
+          return Promise.resolve();
+        },
+
+        getCostumeNumber: () => (getTargetSprite()?.costumeIndex ?? 0) + 1,
+        getSize: () => getTargetSprite()?.size ?? 100,
+
+        // ── Sound ───────────────────────────────────────────────────────
+        playSoundUntilDone: async (name) => {
+          const sprite = getTargetSprite();
+          const volume = (sprite?.state?.volume as number | undefined) ?? 100;
+          await playTone(name, volume, true);
+        },
+
+        startSound: async (name) => {
+          const sprite = getTargetSprite();
+          const volume = (sprite?.state?.volume as number | undefined) ?? 100;
+          await playTone(name, volume, false);
+        },
+
+        stopAllSounds: () => {
+          for (const osc of this.activeAudioNodes) {
+            try {
+              osc.stop();
+            } catch {
+              // Already stopped
+            }
+          }
+          this.activeAudioNodes.clear();
+          return Promise.resolve();
+        },
+
+        changeVolumeBy: (delta) => {
+          const store = useSimulatorStore.getState();
+          const sprite = getTargetSprite();
+          if (sprite) {
+            const current = (sprite.state?.volume as number | undefined) ?? 100;
+            const next = Math.max(0, Math.min(100, current + delta));
+            store.updateSprite(sprite.id, { state: { ...sprite.state, volume: next } });
+          }
+          return Promise.resolve();
+        },
+
+        setVolumeTo: (pct) => {
+          const store = useSimulatorStore.getState();
+          const sprite = getTargetSprite();
+          if (sprite) {
+            store.updateSprite(sprite.id, {
+              state: { ...sprite.state, volume: Math.max(0, Math.min(100, pct)) },
+            });
+          }
+          return Promise.resolve();
+        },
+
+        getVolume: () => (getTargetSprite()?.state?.volume as number | undefined) ?? 100,
+
+        // ── Control ─────────────────────────────────────────────────────
+        wait: async (secs) => {
+          await this.tick(Math.max(0, secs * 1000));
+        },
+
+        yield: async () => {
+          await this.tick(1);
+        },
+
+        stopAll: () => {
+          this.stop();
+          // A script stopping itself has to un-light the toolbar too, or the flag
+          // button stays in its "running" state with nothing left running behind
+          // it. (stop() deliberately does not do this — triggerGreenFlag calls
+          // stop() first, and clearing isRunning there would cancel the very run
+          // that is starting.)
+          useSimulatorStore.getState().stopSimulation();
+          // Reject so the calling script's promise chain unwinds too.
+          return Promise.reject(new Error('Aborted'));
+        },
+
+        // ── Sensing ─────────────────────────────────────────────────────
+        isKeyPressed: (key) => {
+          const store = useSimulatorStore.getState();
+          return Boolean(store.keysDown[key]);
+        },
+        isMouseDown: () => useSimulatorStore.getState().mouseDown,
+        getMouseX: () => useSimulatorStore.getState().mouseX,
+        getMouseY: () => useSimulatorStore.getState().mouseY,
+        getTimer: () => (Date.now() - useSimulatorStore.getState().timerStartedAt) / 1000,
+        resetTimer: () => {
+          useSimulatorStore.getState().resetTimer();
+        },
+        isTouchingEdge: () => {
+          const sprite = getTargetSprite();
+          if (!sprite) return false;
+          const halfSize = halfSizeOf(sprite.size, sprite.type);
+          return (
+            sprite.x - halfSize <= -STAGE_HALF_WIDTH ||
+            sprite.x + halfSize >= STAGE_HALF_WIDTH ||
+            sprite.y - halfSize <= -STAGE_HALF_HEIGHT ||
+            sprite.y + halfSize >= STAGE_HALF_HEIGHT
+          );
+        },
+        askAndWait: async (prompt) => {
+          const store = useSimulatorStore.getState();
+          const ctrl = this.abortController;
+          // Same rule as tick(): no controller means the script is not running,
+          // so don't open a question box nobody can dismiss.
+          if (!ctrl || ctrl.signal.aborted) throw new Error('Aborted');
+          const signal = ctrl.signal;
+          await new Promise<void>((resolve, reject) => {
+            if (signal?.aborted) return reject(new Error('Aborted'));
+            store
+              .askQuestion(prompt)
+              .then(() => resolve())
+              .catch(() => reject(new Error('Aborted')));
+            signal?.addEventListener('abort', () => reject(new Error('Aborted')));
+          });
+        },
+        getAnswer: () => useSimulatorStore.getState().answer,
+
+        setVariable: (name, value) => {
+          useSimulatorStore.getState().setVariable(name, value);
+        },
+
+        // ── AI Vision ────────────────────────────────────────────────────
+        aiStartVision: async () => {
+          if (!aiEngine.isInitialised) await aiEngine.init();
+          useAIStore.getState().setModelLoaded(true);
+
+          // Create a hidden video element for the inference loop
+          if (!this.aiVideoEl) {
+            this.aiVideoEl = document.createElement('video');
+            this.aiVideoEl.setAttribute('autoplay', '');
+            this.aiVideoEl.setAttribute('playsinline', '');
+            this.aiVideoEl.setAttribute('muted', '');
+            this.aiVideoEl.style.display = 'none';
+            document.body.appendChild(this.aiVideoEl);
+          }
+
+          await aiEngine.startWebcam(this.aiVideoEl);
+          useAIStore.getState().setWebcamActive(true);
+
+          if (!aiEngine.isReadyToPredict) return;
+
+          if (!aiEngine.isReadyToPredict && !aiEngine.isInitialised) return;
+
+          aiEngine.startPredicting(
+            this.aiVideoEl,
+            (result) => {
+              useAIStore.getState().updatePrediction(result.label, result.allConfidences);
+
+              // Fire registered "when AI sees [Label]" hat callbacks
+              const callbacks = this.aiPredictedCallbacks.get(result.label);
+              if (callbacks && result.confidence >= 70) {
+                for (const cb of callbacks) {
+                  void cb().catch((e) => {
+                    if (e instanceof Error && e.message !== 'Aborted')
+                      console.error('AI Script Error:', e);
+                  });
+                }
+              }
+            },
+            true,
+            true,
+          ); // Enable Image KNN and Pose
+          useAIStore.getState().setPredicting(true);
+        },
+
+        aiStopVision: async () => {
+          aiEngine.stopPredicting();
+          aiEngine.stopWebcam();
+          if (this.aiVideoEl) {
+            this.aiVideoEl.remove();
+            this.aiVideoEl = null;
+          }
+          useAIStore.getState().setWebcamActive(false);
+          useAIStore.getState().setPredicting(false);
+          useAIStore.getState().clearPrediction();
+          await this.tick(10);
+        },
+
+        onAIPredicted: (label, callback) => {
+          const list = this.aiPredictedCallbacks.get(label) ?? [];
+          list.push(callback);
+          this.aiPredictedCallbacks.set(label, list);
+        },
+
+        getAIPrediction: () => useAIStore.getState().currentPrediction ?? '',
+
+        getAIConfidence: (label) => useAIStore.getState().confidences[label] ?? 0,
+
+        isAIPredicting: (label) => useAIStore.getState().currentPrediction === label,
+
+        // ── AI Pose & Audio ────────────────────────────────────────────────
+        getPoseKeypoint: (partName, axis) => aiEngine.getPoseKeypoint(partName, axis),
+
+        startAudioListening: async () => {
+          if (!aiEngine.isInitialised) await aiEngine.init();
+          await aiEngine.startAudioListening();
+
+          // Register the bridge between aiEngine and ScratchEngine
+          if (!this.speechBridgeRegistered) {
+            aiEngine.onSpeechCommand((word) => {
+              const callbacks = this.speechCommandCallbacks.get(word);
+              if (callbacks) {
+                for (const cb of callbacks) {
+                  void cb().catch((e) => {
+                    if (e instanceof Error && e.message !== 'Aborted')
+                      console.error('Speech Script Error:', e);
+                  });
+                }
+              }
+            });
+            this.speechBridgeRegistered = true;
+          }
+        },
+
+        stopAudioListening: async () => {
+          aiEngine.stopAudioListening();
+          return Promise.resolve();
+        },
+
+        onSpeechCommand: (word, callback) => {
+          const list = this.speechCommandCallbacks.get(word) ?? [];
+          list.push(callback);
+          this.speechCommandCallbacks.set(word, list);
+        },
+
+        getLatestSpeechCommand: () => aiEngine.getLatestSpeechCommand(),
+
+        // ── AI Emotion ───────────────────────────────────────────────────
+        aiStartEmotion: async () => {
+          if (!emotionEngine.isInitialised) await emotionEngine.init();
+          if (!this.aiVideoEl) {
+            this.aiVideoEl = document.createElement('video');
+            this.aiVideoEl.setAttribute('autoplay', '');
+            this.aiVideoEl.setAttribute('playsinline', '');
+            this.aiVideoEl.setAttribute('muted', '');
+            this.aiVideoEl.style.display = 'none';
+            document.body.appendChild(this.aiVideoEl);
+          }
+          await aiEngine.startWebcam(this.aiVideoEl);
+          emotionEngine.startDetecting(this.aiVideoEl, (result) => {
+            useAIStore
+              .getState()
+              .updateEmotion(result.emotion, result.allEmotions, result.faceDetected);
+            if (result.faceDetected && !this.emotionBridgeRegistered) return;
+            // Fire hat callbacks
+            const cbs = this.emotionCallbacks.get(result.emotion);
+            if (cbs && result.faceDetected && result.confidence >= 50) {
+              for (const cb of cbs) {
+                void cb().catch((e) => {
+                  if (e instanceof Error && e.message !== 'Aborted')
+                    console.error('Emotion Script Error:', e);
+                });
+              }
+            }
+          });
+          if (!this.emotionBridgeRegistered) this.emotionBridgeRegistered = true;
+          useAIStore.getState().setEmotionActive(true);
+        },
+
+        aiStopEmotion: () => {
+          emotionEngine.stopDetecting();
+          useAIStore.getState().setEmotionActive(false);
+          return Promise.resolve();
+        },
+
+        onAIEmotion: (emotion, callback) => {
+          const list = this.emotionCallbacks.get(emotion) ?? [];
+          list.push(callback);
+          this.emotionCallbacks.set(emotion, list);
+        },
+
+        getAIEmotion: () => useAIStore.getState().currentEmotion ?? '',
+
+        getAIEmotionConfidence: (emotion) =>
+          useAIStore.getState().emotionConfidences[
+            emotion as 'happy' | 'sad' | 'angry' | 'disgusted' | 'fearful' | 'surprised' | 'neutral'
+          ] ?? 0,
+
+        isFaceDetected: () => useAIStore.getState().faceDetected,
+
+        getFacePosition: (axis) => emotionEngine.getFacePosition(axis as 'x' | 'y'),
+
+        // ── AI Hand Tracking ─────────────────────────────────────────────
+        aiStartHandTracking: async () => {
+          if (!handEngine.isInitialised) await handEngine.init();
+          if (!this.aiVideoEl) {
+            this.aiVideoEl = document.createElement('video');
+            this.aiVideoEl.setAttribute('autoplay', '');
+            this.aiVideoEl.setAttribute('playsinline', '');
+            this.aiVideoEl.setAttribute('muted', '');
+            this.aiVideoEl.style.display = 'none';
+            document.body.appendChild(this.aiVideoEl);
+          }
+          await aiEngine.startWebcam(this.aiVideoEl);
+          handEngine.startTracking(this.aiVideoEl, (result) => {
+            useAIStore
+              .getState()
+              .updateHandKeypoints(
+                result.detected,
+                Object.fromEntries(
+                  Object.entries(result.keypoints).map(([k, v]) => [k, { x: v.x, y: v.y }]),
+                ),
+              );
+            // Fire hat callbacks
+            const cbs = this.handGestureCallbacks.get(result.gesture);
+            if (cbs && result.detected) {
+              for (const cb of cbs) {
+                void cb().catch((e) => {
+                  if (e instanceof Error && e.message !== 'Aborted')
+                    console.error('Hand Script Error:', e);
+                });
+              }
+            }
+          });
+          if (!this.handBridgeRegistered) this.handBridgeRegistered = true;
+          useAIStore.getState().setHandTrackingActive(true);
+        },
+
+        aiStopHandTracking: () => {
+          handEngine.stopTracking();
+          useAIStore.getState().setHandTrackingActive(false);
+          return Promise.resolve();
+        },
+
+        onHandGesture: (gesture, callback) => {
+          const list = this.handGestureCallbacks.get(gesture) ?? [];
+          list.push(callback);
+          this.handGestureCallbacks.set(gesture, list);
+        },
+
+        getHandGesture: () => handEngine.getGesture(),
+
+        getHandLandmark: (landmark, axis) => handEngine.getKeypoint(landmark, axis as 'x' | 'y'),
+
+        isHandDetected: () => handEngine.isHandDetected(),
+
+        // ── Speech-to-Text (Free form) ───────────────────────────────────
+        startSpeechListening: () => {
+          speechEngine.startListening();
+          useAIStore.getState().setSpeechListening(true);
+
+          if (!this.sttBridgeRegistered) {
+            speechEngine.onTranscript((text) => {
+              useAIStore.getState().setLatestTranscript(text);
+              // Fire onSpeechContains callbacks
+              for (const { phrase, cb } of this.speechContainsCallbacks) {
+                if (text.includes(phrase.toLowerCase())) {
+                  void cb().catch((e) => {
+                    if (e instanceof Error && e.message !== 'Aborted')
+                      console.error('STT Script Error:', e);
+                  });
+                }
+              }
+            });
+            this.sttBridgeRegistered = true;
+          }
+        },
+
+        stopSpeechListening: () => {
+          speechEngine.stopListening();
+          useAIStore.getState().setSpeechListening(false);
+        },
+
+        getSpeechTranscript: () => speechEngine.getLatestTranscript(),
+
+        onSpeechContains: (phrase, callback) => {
+          this.speechContainsCallbacks.push({ phrase, cb: callback });
+        },
+
+        // ── Text-to-Speech ───────────────────────────────────────────────
+        speak: (text, lang) => speechEngine.speak(text, lang),
+
+        setSpeechSpeed: (speed) => speechEngine.setSpeechRate(speed),
+
+        stopSpeaking: () => speechEngine.stopSpeaking(),
+
+        // ── Text Classification (NLP) ────────────────────────────────────
+        classifyText: async (text) => {
+          if (!textAIEngine.isInitialised) await textAIEngine.init();
+          if (!textAIEngine.isReadyToClassify) return '';
+          const result = await textAIEngine.classifyText(text);
+          return result.label;
+        },
+
+        onTextClassified: (text, label, callback) => {
+          // Evaluate immediately and fire if matches
+          void (async () => {
+            if (!textAIEngine.isInitialised) await textAIEngine.init();
+            if (!textAIEngine.isReadyToClassify) return;
+            const result = await textAIEngine.classifyText(text);
+            if (result.label === label) {
+              void callback().catch((e) => {
+                if (e instanceof Error && e.message !== 'Aborted')
+                  console.error('Text AI Script Error:', e);
+              });
+            }
+          })();
+        },
+
+        // ── AI Music (Magenta) ───────────────────────────────────────────
+        aiPlayMusic: async (notes, steps, temperature) => {
+          if (!musicEngine.isInitialised) await musicEngine.init();
+          await musicEngine.playAIMelody(notes, steps, temperature);
+        },
+
+        aiStopMusic: () => {
+          musicEngine.stop();
+        },
+      };
+      return api;
     };
 
-    try {
-      // Evaluate the code using a Function constructor
-      // The code should just register callbacks via api.onGreenFlag / api.onKeyPressed / etc.
-      // eslint-disable-next-line @typescript-eslint/no-implied-eval
-      const evaluate = new Function('api', code);
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-call
-      evaluate(api);
-    } catch (e) {
-      console.error('Failed to parse Scratch code:', e);
+    for (const { spriteId, code } of programs) {
+      try {
+        // The code only registers callbacks via api.onGreenFlag / api.onKeyPressed / etc.
+        // eslint-disable-next-line @typescript-eslint/no-implied-eval
+        const evaluate = new Function('api', code);
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-call
+        evaluate(buildApi(spriteId));
+      } catch (e) {
+        console.error('Failed to parse Scratch code:', e);
+      }
     }
   }
 
@@ -1145,10 +1153,11 @@ export class ScratchEngine {
   }
 
   /** Called by the stage when a sprite is clicked (not dragged) to fire "when this sprite clicked" hats. */
-  public notifySpriteClicked() {
-    if (this.spriteClickedCallbacks.length === 0) return;
+  public notifySpriteClicked(spriteId: string) {
+    const matches = this.spriteClickedCallbacks.filter((c) => c.spriteId === spriteId);
+    if (matches.length === 0) return;
     this.ensureRunContext();
-    for (const cb of this.spriteClickedCallbacks) {
+    for (const { cb } of matches) {
       void cb().catch((e) => {
         if (e instanceof Error && e.message !== 'Aborted') console.error('Script Error:', e);
       });

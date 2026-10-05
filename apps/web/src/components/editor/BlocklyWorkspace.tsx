@@ -150,12 +150,14 @@ interface BlocklyWorkspaceProps {
    * the Scratch canvas had changed.
    */
   onWorkspaceChange?: () => void;
+  /** Fires once the Blockly workspace exists and can load XML. */
+  onReady?: () => void;
   className?: string;
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
 export const BlocklyWorkspace = forwardRef<BlocklyWorkspaceHandle, BlocklyWorkspaceProps>(
-  ({ engineMode = 'hardware', onCodeChange, onWorkspaceChange, className = '' }, ref) => {
+  ({ engineMode = 'hardware', onCodeChange, onWorkspaceChange, onReady, className = '' }, ref) => {
     const blocklyDiv = useRef<HTMLDivElement>(null);
     const workspaceRef = useRef<Blockly.WorkspaceSvg | null>(null);
     // The workspace is created once (deps: []), so the change listener closes
@@ -163,6 +165,8 @@ export const BlocklyWorkspace = forwardRef<BlocklyWorkspaceHandle, BlocklyWorksp
     // callback instead of a stale one.
     const onWorkspaceChangeRef = useRef(onWorkspaceChange);
     onWorkspaceChangeRef.current = onWorkspaceChange;
+    const onReadyRef = useRef(onReady);
+    onReadyRef.current = onReady;
     const theme = useUIStore((s) => s.theme);
     const board = useEditorStore((s) => s.board);
 
@@ -374,6 +378,7 @@ export const BlocklyWorkspace = forwardRef<BlocklyWorkspaceHandle, BlocklyWorksp
       };
 
       workspaceRef.current.addChangeListener(onChange);
+      onReadyRef.current?.();
 
       /* eslint-disable @typescript-eslint/no-unsafe-enum-comparison, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-member-access */
 

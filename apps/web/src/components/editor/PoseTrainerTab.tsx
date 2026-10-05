@@ -8,19 +8,19 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import {
   Plus,
-  X,
-  Brain,
-  Loader2,
-  Trash2,
-  CheckCircle2,
+  MoreVertical,
+  Pencil,
+  ChevronDown,
+  Info,
   PersonStanding,
-  Video,
-  VideoOff,
+  Play,
+  Square,
+  Camera,
 } from 'lucide-react';
 import { poseTrainerEngine } from '../../lib/pose-trainer-engine';
 import { aiEngine } from '../../lib/ai-engine';
 
-const COLOR = '#FF6F61';
+const COLOR = '#1a73e8';
 
 // Skeleton connections for the 17-keypoint MoveNet model
 const SKELETON_PAIRS = [
@@ -47,7 +47,7 @@ export function PoseTrainerTab() {
     const existing = poseTrainerEngine.isInitialised
       ? Object.keys(poseTrainerEngine.getExampleCounts())
       : [];
-    return existing.length > 0 ? existing : ['Pose 1', 'Pose 2'];
+    return existing.length > 0 ? existing : ['Class 1', 'Class 2'];
   });
   const [newClassName, setNewClassName] = useState('');
   const [isIniting, setIsIniting] = useState(false);
@@ -59,6 +59,10 @@ export function PoseTrainerTab() {
     confs: Record<string, number>;
   } | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [isTrained, setIsTrained] = useState(false);
+  const [menuClass, setMenuClass] = useState<string | null>(null);
+  const [openClass, setOpenClass] = useState<string | null>(null);
+  const [showHood, setShowHood] = useState(false);
   const [exampleCounts, setExampleCounts] = useState<Record<string, number>>({});
   const [latestKeypoints, setLatestKeypoints] = useState<
     Array<{ x: number; y: number; score: number }>
@@ -206,220 +210,324 @@ export function PoseTrainerTab() {
   }, [isWebcamOn, isTesting]);
 
   const canTest = classes.filter((c) => (exampleCounts[c] ?? 0) > 0).length >= 2;
-  const totalSamples = classes.reduce((s, c) => s + (exampleCounts[c] ?? 0), 0);
+
+  const card = 'bg-white dark:bg-[#1b1b33] rounded-lg shadow-sm';
+  const muted = 'text-slate-500 dark:text-white/50';
+  const tile =
+    'flex flex-col items-center justify-center gap-1 w-[72px] h-[62px] shrink-0 rounded-md bg-[#e8f0fe] dark:bg-[#1a73e8]/15 text-[#1a73e8] dark:text-[#8ab4f8] hover:bg-[#d2e3fc] dark:hover:bg-[#1a73e8]/25 disabled:opacity-40 disabled:cursor-not-allowed transition-colors';
+  const primaryBtn =
+    'bg-[#1a73e8] text-white hover:bg-[#1765cc] disabled:bg-slate-200 disabled:text-slate-400 dark:disabled:bg-white/10 dark:disabled:text-white/30';
+  const grayBtn =
+    'bg-slate-100 text-slate-700 hover:bg-slate-200 dark:bg-white/10 dark:text-white/80';
+
+  const handleTrain = () => {
+    // The pose model learns as you record, so training only confirms there is enough data.
+    if (canTest) setIsTrained(true);
+  };
 
   return (
-    <div className="flex-1 flex overflow-hidden">
-      {/* Left: Webcam + skeleton overlay */}
-      <div className="flex-1 flex flex-col p-6 gap-4 border-r border-white/10">
-        <div className="relative rounded-xl overflow-hidden bg-black aspect-video flex items-center justify-center">
-          <video
-            ref={videoRef}
-            autoPlay
-            playsInline
-            muted
-            className="w-full h-full object-contain"
-            style={{ transform: 'scaleX(-1)' }}
-          />
-          <canvas
-            ref={canvasRef}
-            width={640}
-            height={360}
-            className="absolute inset-0 w-full h-full object-contain"
-            style={{ transform: 'scaleX(-1)' }}
-          />
-
-          {!isWebcamOn && (
-            <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-[#1a1a2e]">
-              <PersonStanding size={40} className="text-white/30" />
-              <button
-                onClick={() => void handleStartWebcam()}
-                disabled={isIniting}
-                className="px-4 py-2 rounded-lg bg-[#FF6F61] text-white font-bold text-sm hover:bg-[#FF6F61]/90 flex items-center gap-2 disabled:opacity-60"
-              >
-                {isIniting ? <Loader2 size={16} className="animate-spin" /> : <Video size={16} />}
-                {isIniting ? 'Loading MoveNet...' : 'Start Camera'}
-              </button>
-            </div>
-          )}
-          {isWebcamOn && (
-            <button
-              onClick={handleStopWebcam}
-              className="absolute top-3 right-3 p-1.5 rounded-lg bg-black/50 text-white/70 hover:text-white transition-colors"
-            >
-              <VideoOff size={14} />
-            </button>
-          )}
-          {isCapturing && (
-            <div className="absolute bottom-3 left-1/2 -translate-x-1/2 px-3 py-1 rounded-full bg-red-500 text-white text-xs font-bold animate-pulse">
-              ● Capturing: {isCapturing}
-            </div>
-          )}
-        </div>
-
-        {error && (
-          <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/30 text-red-400 text-xs">
-            {error}
-          </div>
-        )}
-
-        {isTesting && prediction && (
-          <div className="rounded-xl bg-white/5 border border-white/10 p-4 space-y-2">
-            <div className="flex items-center gap-2 mb-2">
-              <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-              <span className="text-white/60 text-xs font-bold uppercase tracking-widest">
-                Live Pose Prediction
-              </span>
-            </div>
-            {Object.entries(prediction.confs)
-              .sort(([, a], [, b]) => b - a)
-              .map(([label, conf]) => (
-                <div key={label} className="flex items-center gap-3">
-                  <span className="text-white/80 text-sm font-medium w-24 truncate">{label}</span>
-                  <div className="flex-1 h-3 rounded-full bg-white/10 overflow-hidden">
-                    <div
-                      className="h-full rounded-full transition-all duration-200"
-                      style={{
-                        width: `${conf}%`,
-                        backgroundColor:
-                          label === prediction.label ? COLOR : 'rgba(255,255,255,0.2)',
-                      }}
-                    />
+    <div className="flex-1 flex justify-center items-stretch py-8 px-6 min-h-[calc(100vh-96px)]">
+      <div className="w-full max-w-[1400px] grid grid-cols-[minmax(0,1fr)_280px_340px] gap-8 items-stretch">
+        {/* ── Classes ── */}
+        <section className="min-w-0 flex flex-col gap-4">
+          {classes.map((className) => {
+            const count = exampleCounts[className] ?? 0;
+            const isOpen = openClass === className;
+            return (
+              <div key={className} className={`${card} overflow-hidden`}>
+                <div className="flex items-center justify-between px-5 py-3 border-b border-slate-100 dark:border-white/10">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span className="font-semibold text-lg truncate">{className}</span>
+                    <Pencil size={14} className="text-slate-400 shrink-0" />
                   </div>
-                  <span className="text-white/60 text-xs font-mono w-10 text-right">{conf}%</span>
-                </div>
-              ))}
-          </div>
-        )}
-
-        {isWebcamOn && (
-          <button
-            onClick={handleToggleTest}
-            disabled={!canTest}
-            className={`w-full py-3 rounded-xl font-bold text-sm transition-all flex items-center justify-center gap-2 ${
-              isTesting
-                ? 'bg-red-500/20 text-red-400 border border-red-500/30 hover:bg-red-500/30'
-                : canTest
-                  ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-500/30'
-                  : 'bg-white/5 text-white/30 border border-white/10 cursor-not-allowed'
-            }`}
-          >
-            <Brain size={16} />
-            {isTesting
-              ? 'Stop Testing'
-              : canTest
-                ? 'Start Live Test'
-                : 'Capture at least 2 poses first'}
-          </button>
-        )}
-      </div>
-
-      {/* Right: Pose classes */}
-      <div className="w-[320px] flex flex-col p-6 gap-3 overflow-y-auto">
-        <div className="flex items-center justify-between mb-2">
-          <span className="text-white/60 text-xs font-bold uppercase tracking-widest">
-            Pose Classes
-          </span>
-          <span className="text-white/40 text-xs">{totalSamples} total frames</span>
-        </div>
-
-        {classes.map((className) => {
-          const count = exampleCounts[className] ?? 0;
-          return (
-            <div
-              key={className}
-              className="rounded-xl bg-white/5 border border-white/10 p-4 space-y-3"
-            >
-              <div className="flex items-center justify-between">
-                <span className="text-white font-bold text-sm">{className}</span>
-                <div className="flex items-center gap-1">
-                  <span className="text-white/40 text-xs font-mono">{count} frames</span>
-                  <button
-                    onClick={() => {
-                      poseTrainerEngine.clearClass(className);
-                      syncCounts();
-                    }}
-                    className="p-1 rounded text-white/30 hover:text-amber-400 transition-colors"
-                  >
-                    <Trash2 size={12} />
-                  </button>
-                  {classes.length > 2 && (
+                  <div className="relative">
                     <button
-                      onClick={() => {
-                        poseTrainerEngine.clearClass(className);
-                        setClasses((p) => p.filter((c) => c !== className));
-                        syncCounts();
-                      }}
-                      className="p-1 rounded text-white/30 hover:text-red-400 transition-colors"
+                      onClick={() => setMenuClass(menuClass === className ? null : className)}
+                      title="Class options"
+                      className="p-1 rounded text-slate-500 hover:bg-slate-100 dark:hover:bg-white/10"
                     >
-                      <X size={12} />
+                      <MoreVertical size={16} />
                     </button>
-                  )}
+                    {menuClass === className && (
+                      <>
+                        <div className="fixed inset-0 z-10" onClick={() => setMenuClass(null)} />
+                        <div className="absolute right-0 top-full mt-1 z-20 w-56 rounded-lg bg-white dark:bg-[#24244a] shadow-lg border border-slate-200 dark:border-white/10 py-1">
+                          <button
+                            disabled={count === 0}
+                            onClick={() => {
+                              setMenuClass(null);
+                              poseTrainerEngine.clearClass(className);
+                              syncCounts();
+                            }}
+                            className="w-full px-3 py-2 text-sm text-left hover:bg-slate-50 dark:hover:bg-white/5 disabled:opacity-40"
+                          >
+                            Delete all poses
+                            <span className={`block text-xs ${muted}`}>{count} poses</span>
+                          </button>
+                          <button
+                            disabled={classes.length <= 2}
+                            onClick={() => {
+                              setMenuClass(null);
+                              poseTrainerEngine.clearClass(className);
+                              setClasses((p) => p.filter((c) => c !== className));
+                              syncCounts();
+                            }}
+                            className="w-full px-3 py-2 text-sm text-left text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 disabled:opacity-40"
+                          >
+                            Delete this class
+                            <span className={`block text-xs ${muted}`}>
+                              {classes.length <= 2
+                                ? 'You need at least 2 classes'
+                                : 'Removes the class and its poses'}
+                            </span>
+                          </button>
+                        </div>
+                      </>
+                    )}
+                  </div>
                 </div>
-              </div>
-              {count > 0 && (
-                <div className="flex items-center gap-1.5 text-emerald-400 text-xs">
-                  <CheckCircle2 size={12} /> {count} frames captured
-                </div>
-              )}
-              <button
-                onMouseDown={() => handleCaptureStart(className)}
-                onMouseUp={handleCaptureStop}
-                onMouseLeave={handleCaptureStop}
-                onTouchStart={() => handleCaptureStart(className)}
-                onTouchEnd={handleCaptureStop}
-                disabled={!isWebcamOn}
-                className={`w-full py-2.5 rounded-lg font-bold text-xs uppercase tracking-wider transition-all flex items-center justify-center gap-2 ${
-                  isCapturing === className
-                    ? 'bg-red-500 text-white scale-95'
-                    : isWebcamOn
-                      ? 'bg-[#FF6F61]/20 text-[#FF6F61] border border-[#FF6F61]/30 hover:bg-[#FF6F61]/30 active:scale-95'
-                      : 'bg-white/5 text-white/20 border border-white/5 cursor-not-allowed'
-                }`}
-              >
-                <PersonStanding size={14} />
-                {isCapturing === className ? 'Capturing...' : 'Hold to Capture'}
-              </button>
-            </div>
-          );
-        })}
 
-        <div className="flex gap-2">
-          <input
-            type="text"
-            value={newClassName}
-            onChange={(e) => setNewClassName(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && newClassName.trim()) {
-                setClasses((p) => [...p, newClassName.trim()]);
-                setNewClassName('');
-              }
-            }}
-            placeholder={`Pose ${classes.length + 1}`}
-            className="flex-1 px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-white text-sm placeholder:text-white/30 outline-none focus:border-[#FF6F61]/50"
-          />
+                {isOpen && isWebcamOn ? (
+                  <div className="px-5 py-4 space-y-3 bg-[#e8f0fe]/60 dark:bg-[#1a73e8]/10">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-medium text-[#1a73e8] dark:text-[#8ab4f8]">
+                        Webcam
+                      </span>
+                      <button
+                        onClick={() => setOpenClass(null)}
+                        className="text-xs font-medium text-[#1a73e8] hover:underline"
+                      >
+                        Done
+                      </button>
+                    </div>
+                    <p className={`text-sm ${muted}`}>{count} Pose Samples</p>
+                    <button
+                      onMouseDown={() => handleCaptureStart(className)}
+                      onMouseUp={handleCaptureStop}
+                      onMouseLeave={handleCaptureStop}
+                      onTouchStart={() => handleCaptureStart(className)}
+                      onTouchEnd={handleCaptureStop}
+                      className={`w-full py-2.5 rounded-md text-sm font-semibold select-none ${
+                        isCapturing === className ? 'bg-red-500 text-white' : primaryBtn
+                      }`}
+                    >
+                      {isCapturing === className ? 'Recording…' : 'Hold to Record'}
+                    </button>
+                    <p className={`text-xs ${muted}`}>
+                      Strike the pose in the Preview panel, then hold the button.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="px-5 py-4 space-y-3">
+                    <p className={`text-sm ${muted}`}>
+                      {count === 0 ? 'Add Pose Samples:' : `${count} Pose Samples`}
+                    </p>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={async () => {
+                          if (!isWebcamOn) await handleStartWebcam();
+                          setOpenClass(className);
+                        }}
+                        disabled={isIniting}
+                        className={tile}
+                      >
+                        <Camera size={20} />
+                        <span className="text-[11px] font-medium">Webcam</span>
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+
           <button
             onClick={() => {
-              if (newClassName.trim()) {
-                setClasses((p) => [...p, newClassName.trim()]);
-                setNewClassName('');
-              }
+              const name = newClassName.trim() || `Class ${classes.length + 1}`;
+              if (classes.includes(name)) return;
+              setClasses((p) => [...p, name]);
+              setNewClassName('');
             }}
-            className="px-3 py-2 rounded-lg bg-[#FF6F61]/20 text-[#FF6F61] hover:bg-[#FF6F61]/30 transition-colors"
+            className="w-full py-5 rounded-lg border-2 border-dashed border-slate-300 dark:border-white/15 text-slate-500 dark:text-white/50 text-base flex items-center justify-center gap-2 hover:border-[#1a73e8] hover:text-[#1a73e8]"
           >
-            <Plus size={16} />
+            <Plus size={18} /> Add a class
           </button>
-        </div>
-        <div className="flex-1" />
-        <button
-          onClick={() => {
-            poseTrainerEngine.clearAll();
-            syncCounts();
-          }}
-          className="w-full py-2 rounded-lg bg-white/5 text-white/40 text-xs font-bold uppercase tracking-widest hover:bg-red-500/10 hover:text-red-400 transition-colors border border-white/5"
-        >
-          Reset All Pose Data
-        </button>
+          <div className="flex gap-2">
+            <input
+              type="text"
+              value={newClassName}
+              onChange={(e) => setNewClassName(e.target.value)}
+              placeholder={`Class ${classes.length + 1} name`}
+              className="flex-1 min-w-0 px-3 py-2 rounded-md bg-white dark:bg-[#1b1b33] border border-slate-200 dark:border-white/10 text-sm outline-none focus:border-[#1a73e8]"
+            />
+            <button
+              onClick={() => {
+                poseTrainerEngine.clearAll();
+                setIsTrained(false);
+                syncCounts();
+              }}
+              className={`text-xs font-medium px-3 rounded-md hover:text-red-500 ${muted}`}
+            >
+              Start over
+            </button>
+          </div>
+        </section>
+
+        {/* ── Training ── */}
+        <section className="flex flex-col pt-1 h-full">
+          <div className={`${card} p-5 flex-1 flex flex-col gap-4`}>
+            <h2 className="text-lg font-semibold">Training</h2>
+            <button
+              onClick={handleTrain}
+              disabled={!canTest || isTrained}
+              className={`w-full py-2 rounded-md text-sm font-semibold ${isTrained ? grayBtn : primaryBtn}`}
+            >
+              {isTrained ? 'Model Trained' : 'Train Model'}
+            </button>
+            <p className={`text-xs leading-relaxed ${muted}`}>
+              {isTrained
+                ? 'Your poses were learned as you recorded them. Try them in the Preview.'
+                : canTest
+                  ? 'Press Train Model when every class has poses recorded.'
+                  : 'Record poses for at least 2 classes first.'}
+            </p>
+            <div className="border-t border-slate-100 dark:border-white/10 pt-3">
+              <button
+                onClick={() => setShowHood((v) => !v)}
+                className="w-full flex items-center justify-between text-sm font-medium text-slate-700 dark:text-white/80"
+              >
+                <span className="flex items-center gap-1.5">
+                  <Info size={14} /> How does this work?
+                </span>
+                <ChevronDown
+                  size={15}
+                  className={`transition-transform ${showHood ? 'rotate-180' : ''}`}
+                />
+              </button>
+              {showHood && (
+                <p className={`text-xs leading-relaxed mt-2 ${muted}`}>
+                  Your computer finds 17 points on your body (nose, elbows, knees and so on) and
+                  remembers where they are for each pose. When you strike a pose, it picks the class
+                  with the most similar positions. Nothing is uploaded.
+                </p>
+              )}
+            </div>
+          </div>
+        </section>
+
+        {/* ── Preview ── */}
+        <section className="flex flex-col pt-1 h-full">
+          <div className={`${card} overflow-hidden h-full flex flex-col`}>
+            <div className="px-5 py-4">
+              <h2 className="text-lg font-semibold">Preview</h2>
+            </div>
+            <div className="px-5 pb-4 space-y-3 border-t border-slate-100 dark:border-white/10 pt-3">
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-medium text-slate-700 dark:text-white/80">Input</span>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => (isWebcamOn ? handleStopWebcam() : void handleStartWebcam())}
+                    disabled={isIniting}
+                    title={isWebcamOn ? 'Turn camera off' : 'Turn camera on'}
+                    className={`relative w-9 h-5 rounded-full transition-colors ${isWebcamOn ? 'bg-[#1a73e8]' : 'bg-slate-300 dark:bg-white/20'}`}
+                  >
+                    <span
+                      className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-all ${isWebcamOn ? 'left-[18px]' : 'left-0.5'}`}
+                    />
+                  </button>
+                  <span className={`text-xs font-medium ${muted}`}>
+                    {isIniting ? 'Starting…' : isWebcamOn ? 'ON' : 'OFF'}
+                  </span>
+                </div>
+              </div>
+              <div className="relative aspect-square rounded-md bg-slate-900 overflow-hidden">
+                <video
+                  ref={videoRef}
+                  autoPlay
+                  playsInline
+                  muted
+                  className="w-full h-full object-cover"
+                  style={{ transform: 'scaleX(-1)' }}
+                />
+                <canvas
+                  ref={canvasRef}
+                  width={640}
+                  height={640}
+                  className="absolute inset-0 w-full h-full object-cover pointer-events-none"
+                  style={{ transform: 'scaleX(-1)' }}
+                />
+                {!isWebcamOn && (
+                  <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 text-white/50">
+                    <PersonStanding size={24} />
+                    <span className="text-xs">Turn on your camera</span>
+                  </div>
+                )}
+                {isCapturing && (
+                  <div className="absolute bottom-2 left-1/2 -translate-x-1/2 px-2.5 py-0.5 rounded-full bg-red-500 text-white text-[11px] font-semibold">
+                    Recording: {isCapturing}
+                  </div>
+                )}
+              </div>
+              {error && <p className="text-xs text-red-600 dark:text-red-400">{error}</p>}
+              {isWebcamOn && isTrained && (
+                <button
+                  onClick={handleToggleTest}
+                  className={`w-full py-2 rounded-md text-sm font-semibold flex items-center justify-center gap-2 ${
+                    isTesting
+                      ? 'bg-red-500 text-white'
+                      : 'bg-emerald-600 text-white hover:bg-emerald-700'
+                  }`}
+                >
+                  {isTesting ? <Square size={12} /> : <Play size={12} />}
+                  {isTesting ? 'Stop guessing' : 'Start guessing'}
+                </button>
+              )}
+            </div>
+            <div className="px-5 py-4 border-t border-slate-100 dark:border-white/10 space-y-3">
+              <span className="text-sm font-medium text-slate-700 dark:text-white/80">Output</span>
+              {!isTesting || !prediction ? (
+                <p className={`text-xs ${muted}`}>
+                  {isTrained
+                    ? 'Strike a pose to see what it thinks.'
+                    : 'You must train a model before you can preview it here.'}
+                </p>
+              ) : (
+                <div className="space-y-2">
+                  {classes.map((label, idx) => {
+                    const conf = prediction.confs[label] ?? 0;
+                    const color = [
+                      '#f59e0b',
+                      '#e11d48',
+                      '#10b981',
+                      '#6366f1',
+                      '#0ea5e9',
+                      '#a855f7',
+                    ][idx % 6]!;
+                    return (
+                      <div
+                        key={label}
+                        className={`relative h-9 rounded-md bg-slate-50 dark:bg-white/5 overflow-hidden flex items-center px-3 ${
+                          label === prediction.label ? 'ring-2 ring-[#1a73e8]' : ''
+                        }`}
+                      >
+                        <div
+                          className="absolute inset-y-0 left-0"
+                          style={{ width: `${conf}%`, backgroundColor: color, opacity: 0.25 }}
+                        />
+                        <span className="relative text-sm font-semibold" style={{ color }}>
+                          {label}
+                        </span>
+                        <span className="relative ml-auto text-xs font-semibold" style={{ color }}>
+                          {conf}%
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+        </section>
       </div>
     </div>
   );

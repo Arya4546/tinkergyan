@@ -331,7 +331,8 @@ class AIEngine {
 
   /** Remove all training data for a single class. */
   clearClass(label: string): void {
-    this.classifier?.clearClass(label);
+    if (!this.classifier || this.classifier.getClassExampleCount()[label] === undefined) return;
+    this.classifier.clearClass(label);
   }
 
   /** Rename a trained class by updating the underlying dataset */
@@ -459,11 +460,11 @@ class AIEngine {
   // ── Persistence ───────────────────────────────────────────────────────────
 
   /**
-   * Serialize the entire KNN dataset to a JSON string suitable for storing
-   * inside the project's blockState payload.
+   * Serialize the KNN dataset for storing in the project's blockState.
    *
-   * Format: { labels: string[], datasets: { [label]: number[][] } }
-   * Each inner array is a 1024-float feature vector.
+   * Version 2: each class is { n, d, data } where `data` is the raw Float32
+   * bytes of its n×d feature matrix, base64-encoded. That is ~4× smaller than
+   * JSON number arrays (about 5.5 KB per sample instead of ~20 KB).
    */
   async serializeDataset(): Promise<string | null> {
     if (!this.classifier || !tfRef || this.classifier.getNumClasses() === 0) {
@@ -471,31 +472,49 @@ class AIEngine {
     }
 
     const dataset = this.classifier.getClassifierDataset();
-    const serialised: Record<string, number[][]> = {};
+    const classes: Record<string, { n: number; d: number; data: string }> = {};
 
     for (const [label, tensor] of Object.entries(dataset)) {
-      const data = await tensor.array();
-      serialised[label] = data;
+      const [n, d] = tensor.shape;
+      const floats = await tensor.data();
+      const bytes = new Uint8Array(floats.buffer, floats.byteOffset, floats.byteLength);
+      let binary = '';
+      for (let i = 0; i < bytes.length; i += 0x8000) {
+        binary += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+      }
+      classes[label] = { n, d, data: btoa(binary) };
     }
 
-    return JSON.stringify({ v: 1, classes: serialised });
+    return JSON.stringify({ v: 2, classes });
   }
 
   /**
-   * Rehydrates the KNN dataset from a JSON string.
+   * Rehydrates the KNN dataset. Accepts version 2 (base64 Float32) and the
+   * older version 1 format (nested number arrays) so existing saves still load.
    */
   deserializeDataset(jsonStr: string): void {
     if (!this.classifier || !tfRef) {
       throw new Error('AI Engine not initialised');
     }
 
-    const parsed = JSON.parse(jsonStr) as { v: number; classes: Record<string, number[][]> };
+    const parsed = JSON.parse(jsonStr) as {
+      v: number;
+      classes: Record<string, number[][] | { n: number; d: number; data: string }>;
+    };
 
     this.classifier.clearAllClasses();
 
     const tensorDataset: Record<string, tf.Tensor2D> = {};
-    for (const [label, vectors] of Object.entries(parsed.classes)) {
-      tensorDataset[label] = tfRef.tensor2d(vectors);
+    for (const [label, entry] of Object.entries(parsed.classes)) {
+      if (Array.isArray(entry)) {
+        tensorDataset[label] = tfRef.tensor2d(entry);
+        continue;
+      }
+      const binary = atob(entry.data);
+      const bytes = new Uint8Array(binary.length);
+      for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+      const floats = new Float32Array(bytes.buffer);
+      tensorDataset[label] = tfRef.tensor2d(floats, [entry.n, entry.d]);
     }
 
     this.classifier.setClassifierDataset(tensorDataset);

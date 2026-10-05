@@ -72,6 +72,42 @@ import { useUser } from '../stores/auth.store';
 import { useSimulatorStore } from '../stores/simulator.store';
 import { scratchEngine } from '../components/editor/simulator/ScratchEngine';
 import { workspaceToScratchCode } from '../components/editor/scratch-generator';
+import * as Blockly from 'blockly/core';
+
+const EMPTY_BLOCK_XML = '<xml xmlns="https://developers.google.com/blockly/xml"></xml>';
+
+/** An empty canvas is "no program", so switching to an empty sprite doesn't count as an edit. */
+const normalizeProgram = (xml: string) => (xml.includes('<block') ? xml : '');
+
+/** Stores a sprite's program and marks the project unsaved only when the program really changed. */
+function storeSpriteProgram(spriteId: string, xml: string) {
+  const sim = useSimulatorStore.getState();
+  const next = normalizeProgram(xml);
+  const current = normalizeProgram(sim.sprites.find((s) => s.id === spriteId)?.blockXml ?? '');
+  if (next === current) return;
+  sim.setSpriteProgram(spriteId, next);
+  useEditorStore.getState().markDirty();
+}
+
+/** Compiles one sprite's saved Blockly program to Scratch JS without touching the live canvas. */
+function compileSpriteProgram(xml: string): string {
+  if (!xml.trim()) return '';
+  const workspace = new Blockly.Workspace();
+  try {
+    const cleanXml = xml
+      .replace(/movable="false"/g, '')
+      .replace(/deletable="false"/g, '')
+      .replace(/inline="true"/g, '');
+    const dom = new DOMParser().parseFromString(cleanXml, 'text/xml').documentElement;
+    Blockly.Xml.domToWorkspace(dom, workspace);
+    return workspaceToScratchCode(workspace);
+  } catch (err) {
+    console.error('Failed to compile sprite program:', err);
+    return '';
+  } finally {
+    workspace.dispose();
+  }
+}
 import { Tooltip } from '../components/ui/Tooltip';
 import { BOARDS, getBoardLabel } from '../lib/boards';
 import { Loader } from '../components/ui/Loader';
@@ -526,15 +562,68 @@ export default function Editor() {
    * those the moment the script exists, so we keep the engine in sync with the
    * canvas instead and let each hat decide when it runs.
    */
+  const loadedSpriteRef = useRef<string | null>(null);
   const syncScratchProgram = useCallback(() => {
     if (engineMode !== 'software') return;
     try {
-      const workspace = (window as any).Blockly?.getMainWorkspace?.();
-      if (workspace) scratchEngine.loadCode(workspaceToScratchCode(workspace));
+      const sim = useSimulatorStore.getState();
+      // Only copy the canvas back when it really shows the active sprite's program —
+      // otherwise an empty canvas would overwrite the saved program.
+      if (
+        blocklyRef.current &&
+        sim.activeSpriteId &&
+        loadedSpriteRef.current === sim.activeSpriteId
+      ) {
+        storeSpriteProgram(sim.activeSpriteId, blocklyRef.current.getXml());
+      }
+      const programs = useSimulatorStore
+        .getState()
+        .sprites.map((sprite) => ({
+          spriteId: sprite.id,
+          code: compileSpriteProgram(sprite.blockXml ?? ''),
+        }))
+        .filter((p) => p.code.trim() !== '');
+      scratchEngine.loadPrograms(programs);
     } catch (err) {
       console.error('Failed to compile Scratch script:', err);
     }
   }, [engineMode]);
+
+  // Each sprite owns its own program. The canvas always shows the selected sprite's program:
+  // switching saves the one on the canvas and loads the next (also on first load and after a project opens).
+  const activeSpriteId = useSimulatorStore((s) => s.activeSpriteId);
+  const [blocklyReady, setBlocklyReady] = useState(false);
+  useEffect(() => {
+    // A project load replaces the sprites, so whatever is on the canvas is stale afterwards.
+    if (isLoading) {
+      loadedSpriteRef.current = null;
+      return;
+    }
+    if (engineMode !== 'software') return;
+    const workspace = blocklyRef.current;
+    if (!workspace || !activeSpriteId) return;
+    if (loadedSpriteRef.current === activeSpriteId) return;
+    const previous = loadedSpriteRef.current;
+    loadedSpriteRef.current = activeSpriteId;
+    if (previous) storeSpriteProgram(previous, workspace.getXml());
+    const next = useSimulatorStore
+      .getState()
+      .sprites.find((sprite) => sprite.id === activeSpriteId);
+    workspace.loadXml(next?.blockXml?.trim() ? next.blockXml : EMPTY_BLOCK_XML);
+    syncScratchProgram();
+  }, [activeSpriteId, engineMode, isLoading, blocklyReady, syncScratchProgram]);
+
+  // A sprite being added or deleted changes which programs are registered.
+  const spriteCount = useSimulatorStore((s) => s.sprites.length);
+  const lastSpriteCountRef = useRef<number | null>(null);
+  useEffect(() => {
+    if (engineMode === 'software' && blocklyRef.current) syncScratchProgram();
+    const previousCount = lastSpriteCountRef.current;
+    lastSpriteCountRef.current = spriteCount;
+    if (previousCount !== null && previousCount !== spriteCount) {
+      useEditorStore.getState().markDirty();
+    }
+  }, [spriteCount, engineMode, syncScratchProgram]);
 
   useEffect(() => {
     if (mode === 'block') syncScratchProgram();
@@ -1453,6 +1542,7 @@ export default function Editor() {
                 engineMode={engineMode}
                 onCodeChange={handleBlocklyCodeChange}
                 onWorkspaceChange={handleWorkspaceChange}
+                onReady={() => setBlocklyReady(true)}
                 className="w-full h-full"
               />
             </div>

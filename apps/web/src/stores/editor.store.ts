@@ -17,6 +17,7 @@ import { create } from 'zustand';
 import { api } from '../services/api';
 import { aiEngine } from '../lib/ai-engine';
 import { useAIStore } from './ai.store';
+import { useSimulatorStore, type SimulatorSprite } from './simulator.store';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -424,15 +425,37 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
       // Extract blockXml and AI dataset from blockState
       let blockXml = '';
       let aiDataset: string | null = null;
+      let savedSprites: SimulatorSprite[] | undefined;
+      let savedActiveSpriteId: string | undefined;
 
-      if (typeof project.blockState === 'string') {
+      const rawState: unknown = project.blockState;
+      const parsedState =
+        typeof rawState === 'string' && rawState.trimStart().startsWith('{')
+          ? (JSON.parse(rawState) as unknown)
+          : rawState;
+
+      if (typeof parsedState === 'string') {
         // Legacy format: plain XML string
-        blockXml = project.blockState;
-      } else if (project.blockState && typeof project.blockState === 'object') {
-        // New format: { blockXml: string, aiDataset?: string }
-        const state = project.blockState as { blockXml?: string; aiDataset?: string };
+        blockXml = parsedState;
+      } else if (parsedState && typeof parsedState === 'object') {
+        // New format: { blockXml: string, aiDataset?: string }, stored as a JSON string
+        const state = parsedState as {
+          blockXml?: string;
+          aiDataset?: string;
+          sprites?: SimulatorSprite[];
+          activeSpriteId?: string;
+        };
         blockXml = state.blockXml ?? '';
         aiDataset = state.aiDataset ?? null;
+        savedSprites = state.sprites;
+        savedActiveSpriteId = state.activeSpriteId;
+      }
+
+      const simulator = useSimulatorStore.getState();
+      simulator.setProjectSprites(savedSprites, savedActiveSpriteId);
+      if (!savedSprites) {
+        const activeSpriteId = useSimulatorStore.getState().activeSpriteId;
+        if (activeSpriteId) simulator.setSpriteProgram(activeSpriteId, blockXml);
       }
 
       set({
@@ -509,7 +532,16 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
 
       // If there's an AI dataset, wrap blockXml + aiDataset in a JSON object.
       // Otherwise, keep the plain XML string for backward compatibility.
-      const blockState = aiDataset ? { blockXml, aiDataset } : blockXml;
+      const simulator = useSimulatorStore.getState();
+      const sprites = simulator.sprites.map((s) =>
+        s.id === simulator.activeSpriteId ? { ...s, blockXml } : s,
+      );
+      const blockState = JSON.stringify({
+        blockXml,
+        ...(aiDataset ? { aiDataset } : {}),
+        sprites,
+        activeSpriteId: simulator.activeSpriteId,
+      });
 
       if (projectId) {
         await api.patch(`/projects/${projectId}`, {
@@ -569,7 +601,7 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
       } catch {
         // Silent fail — user can manually save
       }
-    }, 30_000);
+    }, 5_000);
 
     set({ _autoSaveTimer: newTimer });
   },
