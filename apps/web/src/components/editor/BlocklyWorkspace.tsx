@@ -124,7 +124,8 @@ export interface BlocklyWorkspaceHandle {
   /** Serialize the current workspace to an XML string. */
   getXml: () => string;
   /** Deserialize an XML string into the workspace (replaces current state). */
-  loadXml: (xml: string) => void;
+  /** Returns false when the XML could not be loaded (the workspace is left unchanged). */
+  loadXml: (xml: string) => boolean;
   /** Return the current generated C++ code without triggering onCodeChange. */
   getCode: () => string;
   /** Undo the last action */
@@ -197,7 +198,7 @@ export const BlocklyWorkspace = forwardRef<BlocklyWorkspaceHandle, BlocklyWorksp
         return Blockly.Xml.domToText(xml);
       },
       loadXml(xml: string) {
-        if (!workspaceRef.current || !xml) return;
+        if (!workspaceRef.current || !xml) return false;
         try {
           appliedFlyoutOffsetRef.current = 0;
           // Remove movable="false", deletable="false", and inline="true" from legacy block saves
@@ -229,8 +230,10 @@ export const BlocklyWorkspace = forwardRef<BlocklyWorkspaceHandle, BlocklyWorksp
             Blockly.Events.enable();
           }
           setIsEmpty(workspaceRef.current.getAllBlocks(false).length === 0);
+          return true;
         } catch (err) {
           console.error('[loadXml error]', err);
+          return false;
         }
       },
       getCode() {

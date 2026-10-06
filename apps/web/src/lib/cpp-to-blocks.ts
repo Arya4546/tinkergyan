@@ -1076,14 +1076,14 @@ class Parser {
       }
     }
 
-    const exprXml = this.parseExpression();
+    const exprXml = this.parseExpression(false);
     return {
       type: 'raw_expr',
       rawXml: exprXml,
     };
   }
 
-  private parseExpression(inExpression = false): string {
+  private parseExpression(inExpression = true): string {
     this.expressionDepth++;
     if (this.expressionDepth > 200) {
       throw new ParserError(
@@ -1383,6 +1383,15 @@ class Parser {
       return `<block type="arduino_millis"></block>`;
     }
 
+    if (name === 'pulseIn') {
+      const pinXml = args[0] || `<block type="math_number"><field name="NUM">0</field></block>`;
+      const stateName = args[1]?.match(/<field name="VAR">(HIGH|LOW)<\/field>/)?.[1] ?? 'HIGH';
+      return `<block type="arduino_pulse_in">
+        <field name="STATE">${stateName}</field>
+        <value name="PIN">${pinXml}</value>
+      </block>`;
+    }
+
     const standardFunctions = new Set([
       'pinMode',
       'digitalWrite',
@@ -1392,7 +1401,6 @@ class Parser {
       'delay',
       'delayMicroseconds',
       'millis',
-      'pulseIn',
       'pulseInLong',
       'shiftIn',
       'shiftOut',

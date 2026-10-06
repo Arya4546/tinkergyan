@@ -124,6 +124,26 @@ Blockly.Blocks['arduino_digital_read'] = {
   },
 };
 
+/** pulseIn(pin, HIGH|LOW) — value block, returns the pulse length in µs */
+Blockly.Blocks['arduino_pulse_in'] = {
+  init(this: Blockly.Block): void {
+    this.setInputsInline(true);
+    this.appendValueInput('PIN').appendField('pulseIn(');
+    this.appendDummyInput()
+      .appendField(
+        new Blockly.FieldDropdown([
+          ['HIGH', 'HIGH'],
+          ['LOW', 'LOW'],
+        ]),
+        'STATE',
+      )
+      .appendField(')');
+    this.setOutput(true, ['Number', 'String']);
+    this.setColour(COLOR_DIGITAL);
+    this.setTooltip('Measure how long a pin stays HIGH or LOW, in microseconds.');
+  },
+};
+
 // ─────────────────────────────────────────────────────────────────────────────
 // ANALOG I/O BLOCKS
 // ─────────────────────────────────────────────────────────────────────────────

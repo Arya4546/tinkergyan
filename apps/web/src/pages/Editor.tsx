@@ -704,8 +704,12 @@ export default function Editor() {
 
       const res = event.data;
       if (res.success) {
-        if (blocklyRef.current) {
-          blocklyRef.current.loadXml(res.xml);
+        const loaded = blocklyRef.current?.loadXml(res.xml) ?? false;
+        if (!loaded) {
+          setConversionError({
+            message: 'Could not load the converted blocks. Your C++ code was not changed.',
+          });
+          return;
         }
         setGeneratedCode(code);
         setManualCode(code);

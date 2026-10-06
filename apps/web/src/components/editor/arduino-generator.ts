@@ -157,6 +157,12 @@ arduinoGenerator.forBlock['arduino_digital_read'] = function (block) {
   return [`digitalRead(${pin})`, Order.ATOMIC] as [string, Order];
 };
 
+arduinoGenerator.forBlock['arduino_pulse_in'] = function (block, generator) {
+  const pin = generator.valueToCode(block, 'PIN', Order.NONE) || '0';
+  const state = block.getFieldValue('STATE') as string;
+  return [`pulseIn(${pin}, ${state})`, Order.ATOMIC] as [string, Order];
+};
+
 // ─────────────────────────────────────────────────────────────────────────────
 // ANALOG I/O
 // ─────────────────────────────────────────────────────────────────────────────
@@ -442,11 +448,11 @@ arduinoGenerator.forBlock['math_single'] = function (block, generator) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 arduinoGenerator.forBlock['variables_get'] = function (block, generator) {
-  const name = generator.getVariableName(block.getFieldValue('VAR'));
-
-  if (ARDUINO_CONSTANTS.has(name)) {
-    return [name, Order.ATOMIC] as [string, Order];
+  const rawName = block.getFieldValue('VAR');
+  if (ARDUINO_CONSTANTS.has(rawName)) {
+    return [rawName, Order.ATOMIC] as [string, Order];
   }
+  const name = generator.getVariableName(rawName);
 
   // Ensure variable is declared globally even if only 'get' is used
   const currentDef = (generator as any).definitions_[`var_${name}`];
@@ -458,11 +464,11 @@ arduinoGenerator.forBlock['variables_get'] = function (block, generator) {
 };
 
 arduinoGenerator.forBlock['variables_set'] = function (block, generator) {
-  const name = generator.getVariableName(block.getFieldValue('VAR'));
-
-  if (ARDUINO_CONSTANTS.has(name)) {
+  const rawName = block.getFieldValue('VAR');
+  if (ARDUINO_CONSTANTS.has(rawName)) {
     return '';
   }
+  const name = generator.getVariableName(rawName);
 
   const valueBlock = block.getInputTargetBlock('VALUE');
   const value = generator.valueToCode(block, 'VALUE', Order.ASSIGNMENT) || '0';

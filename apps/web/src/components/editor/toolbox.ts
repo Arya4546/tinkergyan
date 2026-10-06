@@ -257,6 +257,7 @@ export function getToolbox(engineMode: 'hardware' | 'software') {
         { kind: 'block', type: 'arduino_pin_mode' },
         { kind: 'block', type: 'arduino_digital_write' },
         { kind: 'block', type: 'arduino_digital_read' },
+        { kind: 'block', type: 'arduino_pulse_in' },
       ],
     },
     {
