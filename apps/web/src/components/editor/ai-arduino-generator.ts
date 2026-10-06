@@ -37,7 +37,7 @@ arduinoGenerator.forBlock['ai_when_predicted'] = function (block, generator) {
 
     (arduinoGenerator as any).definitions_['ai_serial_reader'] = `
 void updateAISerial() {
-  if (Serial.available() > 0) {
+  while (Serial.available() > 0) {
     String msg = Serial.readStringUntil('\n');
     msg.trim();
     if (msg.startsWith("AI_PRED:")) {
@@ -60,7 +60,7 @@ arduinoGenerator.forBlock['ai_latest_word'] = function () {
     (arduinoGenerator as any).definitions_['ai_serial_var_audio'] = `String __ai_latest_word = "";`;
     (arduinoGenerator as any).definitions_['ai_serial_reader'] = `
 void updateAISerial() {
-  if (Serial.available() > 0) {
+  while (Serial.available() > 0) {
     String msg = Serial.readStringUntil('\\n');
     msg.trim();
     if (msg.startsWith("AI_PRED:")) {
@@ -94,7 +94,7 @@ const ensureEmotionSerial = () => {
     (arduinoGenerator as any).definitions_['ai_serial_var_audio'] = `String __ai_latest_word = "";`;
     (arduinoGenerator as any).definitions_['ai_serial_reader'] = `
 void updateAISerial() {
-  if (Serial.available() > 0) {
+  while (Serial.available() > 0) {
     String msg = Serial.readStringUntil('\\n');
     msg.trim();
     if (msg.startsWith("AI_PRED:")) { __ai_current_prediction = msg.substring(8); }

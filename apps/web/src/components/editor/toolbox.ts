@@ -316,38 +316,42 @@ export function getToolbox(engineMode: 'hardware' | 'software') {
       contents: [
         // ── Examples (UX Helpers) ─────────────────────────────────────────
         { kind: 'label', text: '💡 How to use AI blocks (Examples)' },
-        {
-          kind: 'block',
-          type: 'controls_if',
-          inputs: {
-            IF0: {
-              block: {
-                type: 'logic_compare',
-                fields: { OP: 'EQ' },
+        ...(engineMode === 'software'
+          ? [
+              {
+                kind: 'block',
+                type: 'controls_if',
                 inputs: {
-                  A: { block: { type: 'ai_current_prediction' } },
-                  B: { shadow: { type: 'text', fields: { TEXT: 'Object 1' } } },
+                  IF0: {
+                    block: {
+                      type: 'logic_compare',
+                      fields: { OP: 'EQ' },
+                      inputs: {
+                        A: { block: { type: 'ai_current_prediction' } },
+                        B: { shadow: { type: 'text', fields: { TEXT: 'Object 1' } } },
+                      },
+                    },
+                  },
                 },
               },
-            },
-          },
-        },
-        {
-          kind: 'block',
-          type: 'controls_if',
-          inputs: {
-            IF0: {
-              block: {
-                type: 'logic_compare',
-                fields: { OP: 'GT' },
+              {
+                kind: 'block',
+                type: 'controls_if',
                 inputs: {
-                  A: { block: { type: 'ai_confidence_of' } },
-                  B: { shadow: { type: 'math_number', fields: { NUM: 80 } } },
+                  IF0: {
+                    block: {
+                      type: 'logic_compare',
+                      fields: { OP: 'GT' },
+                      inputs: {
+                        A: { block: { type: 'ai_confidence_of' } },
+                        B: { shadow: { type: 'math_number', fields: { NUM: 80 } } },
+                      },
+                    },
+                  },
                 },
               },
-            },
-          },
-        },
+            ]
+          : []),
 
         {
           kind: 'block',
@@ -361,9 +365,13 @@ export function getToolbox(engineMode: 'hardware' | 'software') {
         { kind: 'label', text: '🎥 Image Classifier' },
         { kind: 'block', type: 'ai_turn_vision' },
         { kind: 'block', type: 'ai_when_predicted' },
-        { kind: 'block', type: 'ai_current_prediction' },
-        { kind: 'block', type: 'ai_confidence_of' },
-        { kind: 'block', type: 'ai_is_predicting' },
+        ...(engineMode === 'software'
+          ? [
+              { kind: 'block', type: 'ai_current_prediction' },
+              { kind: 'block', type: 'ai_confidence_of' },
+              { kind: 'block', type: 'ai_is_predicting' },
+            ]
+          : []),
 
         // ── Emotion / Face Detection ──────────────────────────────────────
         { kind: 'label', text: '😊 Emotion Detection' },
