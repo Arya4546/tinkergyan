@@ -38,7 +38,7 @@ arduinoGenerator.forBlock['ai_when_predicted'] = function (block, generator) {
     (arduinoGenerator as any).definitions_['ai_serial_reader'] = `
 void updateAISerial() {
   while (Serial.available() > 0) {
-    String msg = Serial.readStringUntil('\n');
+    String msg = Serial.readStringUntil('\\n');
     msg.trim();
     if (msg.startsWith("AI_PRED:")) {
       __ai_current_prediction = msg.substring(8);
