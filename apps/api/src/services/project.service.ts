@@ -61,7 +61,7 @@ export class ProjectService {
       // Specific board selected — use it directly (it already implies the category)
       where.boardTarget = filter.boardTarget;
     } else if (filter?.category === 'HARDWARE') {
-      where.boardTarget = { not: 'software' };
+      where.boardTarget = { notIn: ['software', 'ai'] };
     } else if (filter?.category === 'SOFTWARE') {
       where.boardTarget = 'software';
     }

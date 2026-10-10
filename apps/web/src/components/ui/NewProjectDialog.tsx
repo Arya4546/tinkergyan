@@ -1,20 +1,28 @@
-import { Play, Cpu, X, Check } from 'lucide-react';
+import { Play, Cpu, Brain, X, Check } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { projectService } from '../../services/project.service';
 import { useProjectStore } from '../../stores/project.store';
 import { BOARDS } from '../../lib/boards';
 
+type ProjectCategory = 'software' | 'hardware' | 'ai';
+
+const CATEGORY_LABELS: Record<ProjectCategory, string> = {
+  software: 'Software',
+  hardware: 'Hardware',
+  ai: 'AI',
+};
+
 interface NewProjectDialogProps {
   open: boolean;
   onClose: () => void;
-  preSelectedCategory?: 'software' | 'hardware' | null;
+  preSelectedCategory?: ProjectCategory | null;
 }
 
 export function NewProjectDialog({ open, onClose, preSelectedCategory }: NewProjectDialogProps) {
   const navigate = useNavigate();
   const [title, setTitle] = useState('');
-  const [category, setCategory] = useState<'software' | 'hardware' | null>(null);
+  const [category, setCategory] = useState<ProjectCategory | null>(null);
   const [board, setBoard] = useState<string>(BOARDS[0]!.fqbn);
   const [isCreating, setIsCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -57,7 +65,7 @@ export function NewProjectDialog({ open, onClose, preSelectedCategory }: NewProj
     setError(null);
 
     try {
-      const boardTarget = category === 'software' ? 'software' : board;
+      const boardTarget = category === 'hardware' ? board : category;
       const project = await projectService.create({
         title: title.trim(),
         type: 'BLOCK',
@@ -67,7 +75,11 @@ export function NewProjectDialog({ open, onClose, preSelectedCategory }: NewProj
       // Optimistically add to store projects list
       useProjectStore.getState().addProject(project);
 
-      navigate(`/editor/${project.id}?engine=${category}`);
+      navigate(
+        category === 'ai'
+          ? `/ai-trainer/${project.id}`
+          : `/editor/${project.id}?engine=${category}`,
+      );
       onClose();
     } catch (err: any) {
       const message =
@@ -102,12 +114,12 @@ export function NewProjectDialog({ open, onClose, preSelectedCategory }: NewProj
         <div className="text-center pt-2">
           <h3 className="text-xl font-bold text-slate-900 dark:text-white">
             {preSelectedCategory
-              ? `Create New ${preSelectedCategory.charAt(0).toUpperCase() + preSelectedCategory.slice(1)} Project`
+              ? `Create New ${CATEGORY_LABELS[preSelectedCategory]} Project`
               : 'Create New Project'}
           </h3>
           <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
             {preSelectedCategory
-              ? `Give your new ${preSelectedCategory} workspace a name.`
+              ? `Give your new ${CATEGORY_LABELS[preSelectedCategory]} workspace a name.`
               : 'Configure your new workspace environment.'}
           </p>
         </div>
@@ -134,7 +146,7 @@ export function NewProjectDialog({ open, onClose, preSelectedCategory }: NewProj
             <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-3">
               Choose Coding Mode <span className="text-red-500">*</span>
             </label>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               {/* Software Coding Card */}
               <button
                 type="button"
@@ -180,6 +192,29 @@ export function NewProjectDialog({ open, onClose, preSelectedCategory }: NewProj
                   boards.
                 </p>
               </button>
+
+              {/* AI Model Card */}
+              <button
+                type="button"
+                onClick={() => setCategory('ai')}
+                disabled={isCreating}
+                className={`flex flex-col items-center text-center p-5 rounded-2xl border bg-slate-50 dark:bg-[#16181D] hover:shadow-md hover:scale-[1.02] active:scale-95 transition-all duration-200 group ${
+                  category === 'ai'
+                    ? 'border-[#FF6F61] ring-2 ring-[#FF6F61]/20 bg-[#FFEDEA]/40 dark:bg-[#FF6F61]/10'
+                    : 'border-slate-200 dark:border-slate-800'
+                }`}
+              >
+                <div className="w-12 h-12 rounded-2xl bg-[#FFEDEA] dark:bg-[#FF6F61]/20 text-[#FF6F61] flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
+                  <Brain size={22} />
+                </div>
+                <h4 className="font-bold text-base text-slate-900 dark:text-white mb-2">
+                  AI Model Training
+                </h4>
+                <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
+                  Train an image, sound, or pose classifier with your own examples, then export or
+                  use it in a project.
+                </p>
+              </button>
             </div>
           </div>
         )}
@@ -223,7 +258,9 @@ export function NewProjectDialog({ open, onClose, preSelectedCategory }: NewProj
               ? 'bg-emerald-500 hover:bg-emerald-600 shadow-emerald-500/10'
               : category === 'hardware'
                 ? 'bg-purple-500 hover:bg-purple-600 shadow-purple-500/10'
-                : 'bg-slate-500'
+                : category === 'ai'
+                  ? 'bg-[#FF6F61] hover:bg-[#E8584A] shadow-[#FF6F61]/20'
+                  : 'bg-slate-500'
           }`}
         >
           {isCreating ? 'Creating Project...' : 'Create Project'}

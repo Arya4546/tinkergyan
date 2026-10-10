@@ -176,5 +176,6 @@ export function getBoardDefinition(fqbn: string): BoardDefinition {
 /** Display label for an FQBN, with a generic fallback. */
 export function getBoardLabel(fqbn: string): string {
   if (fqbn === 'software') return 'Scratch';
+  if (fqbn === 'ai') return 'AI Model';
   return DEFINITION_BY_FQBN.get(fqbn)?.label ?? 'Board';
 }

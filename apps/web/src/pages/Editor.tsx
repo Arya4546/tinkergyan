@@ -473,6 +473,14 @@ export default function Editor() {
   // ── Sync URL query param to loaded project's board target ────────────────
   useEffect(() => {
     if (routeProjectId && projectId === routeProjectId) {
+      // AI-only projects (created from the Dashboard's AI card, or the AI
+      // option in "New Project") have no hardware/software engine at all —
+      // this is a block/C++ editor, which has nothing to show for one. Send
+      // the student to AI Studio instead of guessing an engine for it.
+      if (board === 'ai') {
+        navigate(`/ai-trainer/${projectId}`, { replace: true });
+        return;
+      }
       const currentEngine = searchParams.get('engine');
       const targetEngine = board === 'software' ? 'software' : 'hardware';
       if (currentEngine !== targetEngine) {

@@ -43,8 +43,15 @@ import { CartoonRocket } from '../components/illustrations/CartoonRocket';
 import { RobotMascot } from '../components/illustrations/RobotMascot';
 import confetti from 'canvas-confetti';
 
-/** Draws the current frame of a video/image into a small square JPEG thumbnail. */
-function captureThumbnail(source: HTMLVideoElement | HTMLImageElement, size = 72): string {
+/**
+ * Draws the current frame of a video/image into a square JPEG thumbnail.
+ *
+ * 72px was the old size — fine for a tiny chip, but the sample grid renders
+ * each tile much wider than that (it's `w-full` in a 4-column grid), so the
+ * browser was upscaling a 72px source ~3-4x and every thumbnail came out
+ * blurry. 240px covers that grid at any reasonable viewport width.
+ */
+function captureThumbnail(source: HTMLVideoElement | HTMLImageElement, size = 240): string {
   const canvas = document.createElement('canvas');
   canvas.width = size;
   canvas.height = size;
@@ -57,7 +64,7 @@ function captureThumbnail(source: HTMLVideoElement | HTMLImageElement, size = 72
   const sx = (sw - side) / 2;
   const sy = (sh - side) / 2;
   ctx.drawImage(source, sx, sy, side, side, 0, 0, size, size);
-  return canvas.toDataURL('image/jpeg', 0.7);
+  return canvas.toDataURL('image/jpeg', 0.85);
 }
 
 type TrainerTab = 'image' | 'text' | 'audio' | 'pose' | 'numbers';
@@ -66,13 +73,33 @@ export default function AITrainer() {
   const navigate = useNavigate();
   const { id: projectId } = useParams<{ id?: string }>();
   const [searchParams] = useSearchParams();
-  const backEngine = searchParams.get('engine') || 'software';
+  // No `engine` param means this project has no hardware/software editor to go
+  // back to — it was started directly from the Dashboard's AI card. "Leave"
+  // then means the Dashboard, not an Editor route that was never visited.
+  const backEngine = searchParams.get('engine');
 
   const goToEditorNow = useCallback(() => {
+    if (!backEngine) {
+      navigate('/dashboard');
+      return;
+    }
     navigate(
       projectId ? `/editor/${projectId}?engine=${backEngine}` : `/editor?engine=${backEngine}`,
     );
   }, [navigate, projectId, backEngine]);
+
+  // AITrainer never fetches a project itself — it reads/writes through the
+  // shared editor store (`saveProject`, `blockXml`). When reached from the
+  // Editor's "Train AI" button that store is already loaded with the right
+  // project. When reached directly (e.g. the Dashboard's AI card, or a
+  // bookmarked /ai-trainer/:id URL), it isn't, so Save would silently create a
+  // second, duplicate project instead of updating this one. Loading here too
+  // — guarded so it's a no-op once the store already matches — fixes both.
+  useEffect(() => {
+    if (projectId && useEditorStore.getState().projectId !== projectId) {
+      void useEditorStore.getState().loadProject(projectId);
+    }
+  }, [projectId]);
 
   const [activeTab, setActiveTab] = useState<TrainerTab>('image');
   const [classes, setClasses] = useState<string[]>(() => {
@@ -806,7 +833,7 @@ export default function AITrainer() {
         <div className="flex items-center gap-3 bg-white dark:bg-[#15152b] rounded-xl shadow-[0_2px_12px_rgba(20,20,40,0.08)] dark:shadow-[0_2px_12px_rgba(0,0,0,0.4)] px-4 py-2.5">
           <button
             onClick={goBackToEditor}
-            title="Back to Editor"
+            title={backEngine ? 'Back to Editor' : 'Back to Dashboard'}
             className="p-1 rounded-md text-slate-600 dark:text-white/70 hover:bg-slate-100 dark:hover:bg-white/10"
           >
             <ArrowLeft size={18} />

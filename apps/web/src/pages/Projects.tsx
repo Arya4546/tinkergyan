@@ -10,6 +10,7 @@ import {
   TerminalSquare,
   Zap,
   Cpu,
+  Brain,
   SlidersHorizontal,
 } from 'lucide-react';
 import { useProjectStore } from '../stores/project.store';
@@ -56,10 +57,7 @@ export default function Projects() {
     return () => clearTimeout(timer);
   }, [search, filter, categoryFilter, boardFilter, fetchProjects]);
 
-  const filtered = projects.filter((_p) => {
-    if (categoryFilter === 'HARDWARE' && boardFilter === 'ALL') return false;
-    return true;
-  });
+  const filtered = projects;
 
   const handleDelete = () => {
     if (!deleteTarget) return;
@@ -197,103 +195,27 @@ export default function Projects() {
         )}
 
         {!isLoading && !error && filtered.length === 0 && (
-          <div className="flex flex-col items-center justify-center py-10 w-full">
-            {categoryFilter === ('SHOW_WIZARD' as any) ? (
-              <div className="flex flex-col items-center w-full max-w-2xl mx-auto">
-                <h3 className="text-2xl font-bold text-slate-900 dark:text-white mb-2">
-                  What are you working on?
-                </h3>
-                <p className="text-sm text-slate-500 mb-8">
-                  Choose an environment to view or create projects.
-                </p>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 w-full">
-                  <button
-                    onClick={() => {
-                      setCategoryFilter('HARDWARE');
-                      setBoardFilter('ALL');
-                    }}
-                    className="flex flex-col items-center gap-4 p-8 rounded-[2rem] border border-slate-200 dark:border-slate-800 hover:border-purple-300 dark:hover:border-purple-500/50 bg-white dark:bg-[#1a1a1a] hover:bg-purple-50/50 dark:hover:bg-purple-500/5 hover:shadow-lg transition-all duration-300 group cursor-pointer"
-                  >
-                    <div className="w-20 h-20 bg-purple-50 dark:bg-purple-900/20 text-purple-600 dark:text-purple-400 rounded-2xl flex items-center justify-center transition-colors">
-                      <Cpu size={36} strokeWidth={1.5} />
-                    </div>
-                    <div className="text-center">
-                      <h3 className="font-semibold text-xl text-slate-900 dark:text-white mb-1.5">
-                        Hardware
-                      </h3>
-                      <p className="text-sm text-slate-500 font-medium leading-relaxed">
-                        Arduino, ESP32, and custom boards
-                      </p>
-                    </div>
-                  </button>
-                  <button
-                    onClick={() => {
-                      setCategoryFilter('SOFTWARE');
-                      setBoardFilter('software');
-                    }}
-                    className="flex flex-col items-center gap-4 p-8 rounded-[2rem] border border-slate-200 dark:border-slate-800 hover:border-emerald-300 dark:hover:border-emerald-500/50 bg-white dark:bg-[#1a1a1a] hover:bg-emerald-50/50 dark:hover:bg-emerald-500/5 hover:shadow-lg transition-all duration-300 group cursor-pointer"
-                  >
-                    <div className="w-20 h-20 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400 rounded-2xl flex items-center justify-center transition-colors">
-                      <Play size={36} className="fill-current" />
-                    </div>
-                    <div className="text-center">
-                      <h3 className="font-semibold text-xl text-slate-900 dark:text-white mb-1.5">
-                        Software
-                      </h3>
-                      <p className="text-sm text-slate-500 font-medium leading-relaxed">
-                        Scratch, Animations, and Games
-                      </p>
-                    </div>
-                  </button>
-                </div>
-              </div>
-            ) : categoryFilter === 'HARDWARE' && boardFilter === 'ALL' ? (
-              <div className="flex flex-col items-center w-full mx-auto">
-                <h3 className="text-2xl font-bold text-slate-900 dark:text-white mb-2">
-                  Select a Hardware Board
-                </h3>
-                <p className="text-sm text-slate-500 mb-8">
-                  Choose the microcontroller you are working with.
-                </p>
-                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 w-full max-w-4xl">
-                  {BOARDS.map((b) => (
-                    <button
-                      key={b.fqbn}
-                      onClick={() => setBoardFilter(b.fqbn)}
-                      className="flex flex-col items-center gap-4 p-6 rounded-3xl border border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 bg-white dark:bg-[#1a1a1a] hover:bg-slate-50 dark:hover:bg-slate-800/50 hover:shadow-md transition-all duration-300 group cursor-pointer"
-                    >
-                      <div className="w-14 h-14 bg-slate-50 dark:bg-slate-800/80 text-slate-400 dark:text-slate-500 rounded-2xl flex items-center justify-center group-hover:text-slate-700 dark:group-hover:text-slate-300 group-hover:bg-slate-100 dark:group-hover:bg-slate-700 transition-colors duration-300">
-                        <Cpu size={28} strokeWidth={1.5} />
-                      </div>
-                      <span className="font-medium text-sm text-slate-700 dark:text-slate-300 text-center leading-tight">
-                        {b.label}
-                      </span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-            ) : (
-              <div className="flex flex-col items-center justify-center py-10 text-center">
-                <div className="w-14 h-14 bg-slate-100 dark:bg-slate-800 rounded-2xl flex items-center justify-center mb-4">
-                  <FolderCode size={24} className="text-slate-400" />
-                </div>
-                <p className="font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                  {search || filter !== 'ALL' ? 'No results found' : 'No projects yet'}
-                </p>
-                <p className="text-sm text-slate-400 mb-6">
-                  {search || filter !== 'ALL'
-                    ? 'Try adjusting your search or filter.'
-                    : 'Create your first project to get started.'}
-                </p>
-                {!search && filter === 'ALL' && (
-                  <button
-                    onClick={() => setIsNewProjectOpen(true)}
-                    className="inline-flex items-center gap-2 bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-semibold px-5 py-2.5 rounded-xl transition-colors"
-                  >
-                    <Plus size={16} /> Create Project
-                  </button>
-                )}
-              </div>
+          <div className="flex flex-col items-center justify-center py-10 text-center">
+            <div className="w-14 h-14 bg-slate-100 dark:bg-slate-800 rounded-2xl flex items-center justify-center mb-4">
+              <FolderCode size={24} className="text-slate-400" />
+            </div>
+            <p className="font-semibold text-slate-700 dark:text-slate-300 mb-1">
+              {search || filter !== 'ALL' || categoryFilter !== 'ALL'
+                ? 'No results found'
+                : 'No projects yet'}
+            </p>
+            <p className="text-sm text-slate-400 mb-6">
+              {search || filter !== 'ALL' || categoryFilter !== 'ALL'
+                ? 'Try adjusting your search or filter.'
+                : 'Create your first project to get started.'}
+            </p>
+            {!search && filter === 'ALL' && categoryFilter === 'ALL' && (
+              <button
+                onClick={() => setIsNewProjectOpen(true)}
+                className="inline-flex items-center gap-2 bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-semibold px-5 py-2.5 rounded-xl transition-colors"
+              >
+                <Plus size={16} /> Create Project
+              </button>
             )}
           </div>
         )}
@@ -302,7 +224,12 @@ export default function Projects() {
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
             {filtered.map((project) => {
               const isBlock = project.type === 'BLOCK';
+              const isAi = project.boardTarget === 'ai';
+              const isSoftware = project.boardTarget === 'software';
               const boardLabel = getBoardLabel(project.boardTarget);
+              const openHref = isAi
+                ? `/ai-trainer/${project.id}`
+                : `/editor/${project.id}${isSoftware ? '?engine=software' : '?engine=hardware'}`;
               return (
                 <div
                   key={project.id}
@@ -311,24 +238,36 @@ export default function Projects() {
                   <div className="flex items-start justify-between mb-4">
                     <div
                       className={`w-11 h-11 rounded-2xl flex items-center justify-center shrink-0 ${
-                        isBlock
-                          ? 'bg-purple-100 dark:bg-purple-950/50 text-playful-primary dark:text-playful-highlight'
-                          : 'bg-amber-100 dark:bg-amber-950/50 text-amber-600 dark:text-amber-400'
+                        isAi
+                          ? 'bg-[#FFEDEA] dark:bg-[#FF6F61]/20 text-[#FF6F61]'
+                          : isBlock
+                            ? 'bg-purple-100 dark:bg-purple-950/50 text-playful-primary dark:text-playful-highlight'
+                            : 'bg-amber-100 dark:bg-amber-950/50 text-amber-600 dark:text-amber-400'
                       }`}
                     >
-                      {isBlock ? <Blocks size={20} /> : <TerminalSquare size={20} />}
+                      {isAi ? (
+                        <Brain size={20} />
+                      ) : isBlock ? (
+                        <Blocks size={20} />
+                      ) : (
+                        <TerminalSquare size={20} />
+                      )}
                     </div>
                     <div className="flex items-center gap-2">
                       <span
                         className={`text-[11px] font-extrabold px-3 py-1 rounded-full ${
-                          project.boardTarget === 'software'
-                            ? 'bg-rose-50 dark:bg-rose-950/40 text-playful-secondary border border-rose-200/60 dark:border-rose-800/40'
-                            : 'bg-purple-50 dark:bg-purple-950/40 text-purple-700 dark:text-playful-highlight border border-purple-200/60 dark:border-purple-800/40'
+                          isAi
+                            ? 'bg-[#FFEDEA] dark:bg-[#FF6F61]/15 text-[#FF6F61] border border-[#FF6F61]/30'
+                            : isSoftware
+                              ? 'bg-rose-50 dark:bg-rose-950/40 text-playful-secondary border border-rose-200/60 dark:border-rose-800/40'
+                              : 'bg-purple-50 dark:bg-purple-950/40 text-purple-700 dark:text-playful-highlight border border-purple-200/60 dark:border-purple-800/40'
                         }`}
                       >
-                        {project.boardTarget === 'software'
-                          ? 'Software • Scratch'
-                          : `Hardware • ${boardLabel}`}
+                        {isAi
+                          ? 'AI Model'
+                          : isSoftware
+                            ? 'Software • Scratch'
+                            : `Hardware • ${boardLabel}`}
                       </span>
                       {project.isPublic && (
                         <span className="text-[11px] font-extrabold px-2.5 py-0.5 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 border border-emerald-200/60 rounded-full flex items-center gap-1">
@@ -350,17 +289,22 @@ export default function Projects() {
                     {project.title}
                   </h3>
                   <p className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-4">
-                    {project.boardTarget === 'software'
-                      ? 'Software Coding (Scratch)'
-                      : `Hardware (${boardLabel})`}{' '}
-                    &bull; {isBlock ? 'Block Logic' : 'C++ Code'} &bull;{' '}
+                    {isAi
+                      ? 'AI Model Training'
+                      : isSoftware
+                        ? 'Software Coding (Scratch)'
+                        : `Hardware (${boardLabel})`}{' '}
+                    &bull; {isAi ? 'AI Model' : isBlock ? 'Block Logic' : 'C++ Code'} &bull;{' '}
                     {new Date(project.updatedAt).toLocaleDateString()}
                   </p>
 
                   <div className="mt-auto pt-4 border-t border-slate-100 dark:border-slate-800/60 flex justify-end">
-                    <Tooltip content="Open in Workspace Editor" position="top">
+                    <Tooltip
+                      content={isAi ? 'Open in AI Studio' : 'Open in Workspace Editor'}
+                      position="top"
+                    >
                       <Link
-                        to={`/editor/${project.id}${project.boardTarget === 'software' ? '?engine=software' : '?engine=hardware'}`}
+                        to={openHref}
                         className="inline-flex items-center gap-1.5 text-xs font-extrabold text-playful-primary dark:text-playful-highlight hover:underline transition-all"
                       >
                         Open <Play size={12} className="fill-current" />
