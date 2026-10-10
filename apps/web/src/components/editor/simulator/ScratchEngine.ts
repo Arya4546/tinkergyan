@@ -201,7 +201,7 @@ export class ScratchEngine {
   private aiVideoEl: HTMLVideoElement | null = null;
   private aiPollInterval: ReturnType<typeof setInterval> | null = null;
   private audioCtx: AudioContext | null = null;
-  private activeAudioNodes: Set<OscillatorNode> = new Set();
+  private activeAudioNodes: Set<AudioScheduledSourceNode> = new Set();
 
   /**
    * One yield point inside a running script.
@@ -245,6 +245,39 @@ export class ScratchEngine {
       void this.audioCtx.resume();
     }
     return this.audioCtx;
+  }
+
+  /**
+   * Fire-and-forget playback for the Sounds panel's preview buttons.
+   *
+   * Deliberately independent of the run/abort machinery `playTone` and
+   * `playCustomSound` use inside `buildApi` — those are for sounds played by
+   * a running script, which can be cut off by Stop. A preview button isn't
+   * part of any script, so it always plays to completion once clicked.
+   */
+  async previewSound(toneName?: string, customDataUrl?: string): Promise<void> {
+    const ctx = this.getAudioContext();
+    if (customDataUrl) {
+      const arrayBuffer = await fetch(customDataUrl).then((r) => r.arrayBuffer());
+      const audioBuffer = await ctx.decodeAudioData(arrayBuffer);
+      const source = ctx.createBufferSource();
+      source.buffer = audioBuffer;
+      source.connect(ctx.destination);
+      source.start();
+      return;
+    }
+    if (toneName) {
+      const preset = TONE_PRESETS[toneName] ?? TONE_PRESETS.pop!;
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = preset.type;
+      osc.frequency.value = preset.freq;
+      gain.gain.value = 0.2;
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start();
+      osc.stop(ctx.currentTime + preset.duration);
+    }
   }
 
   /**
@@ -342,6 +375,33 @@ export class ScratchEngine {
           if (signal?.aborted) return reject(new Error('Aborted'));
           osc.onended = () => {
             this.activeAudioNodes.delete(osc);
+            resolve();
+          };
+          signal?.addEventListener('abort', () => reject(new Error('Aborted')), { once: true });
+        });
+      };
+
+      const playCustomSound = async (dataUrl: string, volumePct: number, waitForEnd: boolean) => {
+        const ctx = this.getAudioContext();
+        const arrayBuffer = await fetch(dataUrl).then((r) => r.arrayBuffer());
+        const audioBuffer = await ctx.decodeAudioData(arrayBuffer);
+        const source = ctx.createBufferSource();
+        source.buffer = audioBuffer;
+        const gain = ctx.createGain();
+        gain.gain.value = Math.max(0, Math.min(1, volumePct / 100));
+        source.connect(gain);
+        gain.connect(ctx.destination);
+        source.start();
+        this.activeAudioNodes.add(source);
+        source.onended = () => this.activeAudioNodes.delete(source);
+        if (!waitForEnd) return;
+
+        // Same Stop-can-win-the-race treatment as playTone's "until done" branch.
+        const signal = this.abortController?.signal;
+        await new Promise<void>((resolve, reject) => {
+          if (signal?.aborted) return reject(new Error('Aborted'));
+          source.onended = () => {
+            this.activeAudioNodes.delete(source);
             resolve();
           };
           signal?.addEventListener('abort', () => reject(new Error('Aborted')), { once: true });
@@ -592,13 +652,17 @@ export class ScratchEngine {
           const store = useSimulatorStore.getState();
           const sprite = getTargetSprite();
           if (sprite) {
-            const idx = sprite.costumes.indexOf(costume);
-            store.updateSprite(sprite.id, {
-              image: costume,
-              costumeIndex: idx === -1 ? sprite.costumeIndex : idx,
-              costume:
-                costume === '/sprites/scratch_games.svg' ? 'Stemmantra (Old)' : 'Stemmantra (New)',
-            });
+            // Dropdown value is the costume's display name; fall back to matching
+            // by image path for blocks saved before costumes had names.
+            let idx = (sprite.costumeNames ?? []).indexOf(costume);
+            if (idx === -1) idx = sprite.costumes.indexOf(costume);
+            if (idx !== -1) {
+              store.updateSprite(sprite.id, {
+                image: sprite.costumes[idx]!,
+                costumeIndex: idx,
+                costume: sprite.costumeNames?.[idx] ?? costume,
+              });
+            }
           }
           await this.tick(10);
         },
@@ -610,7 +674,11 @@ export class ScratchEngine {
             const nextIndex = (sprite.costumeIndex + 1) % sprite.costumes.length;
             const nextImage = sprite.costumes[nextIndex];
             if (nextImage !== undefined) {
-              store.updateSprite(sprite.id, { costumeIndex: nextIndex, image: nextImage });
+              store.updateSprite(sprite.id, {
+                costumeIndex: nextIndex,
+                image: nextImage,
+                costume: sprite.costumeNames?.[nextIndex] ?? nextImage,
+              });
             }
           }
           await this.tick(10);
@@ -696,13 +764,23 @@ export class ScratchEngine {
         playSoundUntilDone: async (name) => {
           const sprite = getTargetSprite();
           const volume = (sprite?.state?.volume as number | undefined) ?? 100;
-          await playTone(name, volume, true);
+          const custom = sprite?.customSounds?.find((s) => s.name === name);
+          if (custom) {
+            await playCustomSound(custom.dataUrl, volume, true);
+          } else {
+            await playTone(name, volume, true);
+          }
         },
 
         startSound: async (name) => {
           const sprite = getTargetSprite();
           const volume = (sprite?.state?.volume as number | undefined) ?? 100;
-          await playTone(name, volume, false);
+          const custom = sprite?.customSounds?.find((s) => s.name === name);
+          if (custom) {
+            await playCustomSound(custom.dataUrl, volume, false);
+          } else {
+            await playTone(name, volume, false);
+          }
         },
 
         stopAllSounds: () => {

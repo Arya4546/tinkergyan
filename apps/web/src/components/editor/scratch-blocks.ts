@@ -1,5 +1,5 @@
 import * as Blockly from 'blockly/core';
-import { BACKDROP_OPTIONS } from '../../stores/simulator.store';
+import { BACKDROP_OPTIONS, useSimulatorStore } from '../../stores/simulator.store';
 import { SOUND_NAMES } from './simulator/ScratchEngine';
 
 // Colors (Scratch palette)
@@ -23,8 +23,40 @@ const KEY_OPTIONS: [string, string][] = [
   ...'0123456789'.split('').map((c): [string, string] => [c, c]),
 ];
 
-const SOUND_OPTIONS: [string, string][] = SOUND_NAMES.map((n) => [n, n]);
 const BACKDROP_DROPDOWN_OPTIONS: [string, string][] = BACKDROP_OPTIONS.map((b) => [b, b]);
+
+/** Returns the active sprite, used to populate the Costume/Sound dropdowns per-sprite. */
+const getActiveSprite = () => {
+  const state = useSimulatorStore.getState();
+  return state.sprites.find((s) => s.id === state.activeSpriteId);
+};
+
+/**
+ * Built as a generator function (not a static array) so Blockly re-reads it
+ * every time the dropdown opens — the active sprite's costume list can change
+ * at any time from the Costumes tab, and a static array would go stale the
+ * moment a costume was renamed, added, or removed.
+ */
+const getCostumeOptions = (): [string, string][] => {
+  const sprite = getActiveSprite();
+  const names = sprite?.costumeNames ?? [];
+  const options: [string, string][] = names.map((n, i) => {
+    const label = n || `costume${i + 1}`;
+    return [label, label];
+  });
+  return options.length > 0 ? options : [['costume1', 'costume1']];
+};
+
+/** Same reasoning as getCostumeOptions — re-read on every open, not cached at block-definition time. */
+const getSoundOptions = (): [string, string][] => {
+  const sprite = getActiveSprite();
+  const custom = sprite?.customSounds ?? [];
+  const options: [string, string][] = [
+    ...SOUND_NAMES.map((n): [string, string] => [n, n]),
+    ...custom.map((s): [string, string] => [s.name, s.name]),
+  ];
+  return options.length > 0 ? options : [['pop', 'pop']];
+};
 
 // ─── EVENTS ─────────────────────────────────────────────────────────────────
 
@@ -347,13 +379,7 @@ Blockly.Blocks['scratch_looks_switch_costume_to'] = {
   init(this: Blockly.Block): void {
     this.appendDummyInput()
       .appendField('switch costume to')
-      .appendField(
-        new Blockly.FieldDropdown([
-          ['Stemmantra (Old)', '/sprites/scratch_games.svg'],
-          ['Stemmantra (New)', '/sprites/svg.svg'],
-        ]),
-        'COSTUME',
-      );
+      .appendField(new Blockly.FieldDropdown(getCostumeOptions), 'COSTUME');
     this.setPreviousStatement(true, null);
     this.setNextStatement(true, null);
     this.setColour(COLOR_LOOKS);
@@ -563,7 +589,7 @@ Blockly.Blocks['scratch_sound_play_until_done'] = {
   init(this: Blockly.Block): void {
     this.appendDummyInput()
       .appendField('play sound')
-      .appendField(new Blockly.FieldDropdown(SOUND_OPTIONS), 'SOUND')
+      .appendField(new Blockly.FieldDropdown(getSoundOptions), 'SOUND')
       .appendField('until done');
     this.setPreviousStatement(true, null);
     this.setNextStatement(true, null);
@@ -576,7 +602,7 @@ Blockly.Blocks['scratch_sound_start'] = {
   init(this: Blockly.Block): void {
     this.appendDummyInput()
       .appendField('start sound')
-      .appendField(new Blockly.FieldDropdown(SOUND_OPTIONS), 'SOUND');
+      .appendField(new Blockly.FieldDropdown(getSoundOptions), 'SOUND');
     this.setPreviousStatement(true, null);
     this.setNextStatement(true, null);
     this.setColour(COLOR_SOUND);

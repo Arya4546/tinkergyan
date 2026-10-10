@@ -56,6 +56,8 @@ import {
 import { useArduinoSimStore } from '../stores/arduino-sim.store';
 import { startHardwareBinding } from '../components/editor/simulator/hardware-binding';
 import { StagePanel } from '../components/editor/simulator/StagePanel';
+import { CostumesPanel } from '../components/editor/simulator/CostumesPanel';
+import { SoundsPanel } from '../components/editor/simulator/SoundsPanel';
 import { WebSerialFlasher } from '../lib/web-serial-flasher';
 import type { FlashBoard } from '../lib/web-serial-flasher';
 import confetti from 'canvas-confetti';
@@ -307,6 +309,8 @@ export default function Editor() {
     () => searchParams.get('engine') === 'software',
   );
   const [terminalWidth, setTerminalWidth] = useState(() => (window.innerWidth < 1024 ? 340 : 420));
+  // Code / Costumes / Sounds tabs — software (Scratch) engine only.
+  const [scratchTab, setScratchTab] = useState<'code' | 'costumes' | 'sounds'>('code');
   const [conversionError, setConversionError] = useState<{
     message: string;
     line?: number;
@@ -1558,9 +1562,39 @@ export default function Editor() {
           {/* ── Editor Pane ─────────────────────────────────────────────── */}
 
           <div className="flex-1 relative overflow-hidden">
+            {/* Code / Costumes / Sounds tabs — Scratch-style, software engine only */}
+            {engineMode === 'software' && (
+              <div className="absolute top-0 left-0 right-0 z-10 flex gap-1 px-3 pt-2 bg-white dark:bg-[#11141E] border-b border-ed-line shrink-0">
+                {(
+                  [
+                    { key: 'code', label: 'Code' },
+                    { key: 'costumes', label: 'Costumes' },
+                    { key: 'sounds', label: 'Sounds' },
+                  ] as const
+                ).map((tab) => (
+                  <button
+                    key={tab.key}
+                    type="button"
+                    onClick={() => setScratchTab(tab.key)}
+                    className={`px-4 py-2 rounded-t-xl text-xs font-bold transition-colors ${
+                      scratchTab === tab.key
+                        ? 'bg-ed-panel text-ed-hi border border-ed-line border-b-0 -mb-px'
+                        : 'text-ed-mid hover:text-ed-hi'
+                    }`}
+                  >
+                    {tab.label}
+                  </button>
+                ))}
+              </div>
+            )}
+
             {/* Blockly canvas */}
             <div
-              className={`absolute inset-0 transition-opacity duration-150 ${mode === 'block' ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}
+              className={`absolute inset-0 ${engineMode === 'software' ? 'top-10' : ''} transition-opacity duration-150 ${
+                mode === 'block' && (engineMode !== 'software' || scratchTab === 'code')
+                  ? 'opacity-100 pointer-events-auto'
+                  : 'opacity-0 pointer-events-none'
+              }`}
             >
               <BlocklyWorkspace
                 ref={blocklyRef}
@@ -1585,6 +1619,18 @@ export default function Editor() {
                 className="w-full h-full"
               />
             </div>
+
+            {/* Costumes / Sounds panels (software engine only) */}
+            {engineMode === 'software' && scratchTab === 'costumes' && (
+              <div className="absolute inset-0 top-10">
+                <CostumesPanel />
+              </div>
+            )}
+            {engineMode === 'software' && scratchTab === 'sounds' && (
+              <div className="absolute inset-0 top-10">
+                <SoundsPanel />
+              </div>
+            )}
           </div>
 
           {/* ── Resizer ─────────────────────────────────────────────────── */}

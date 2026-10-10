@@ -19,6 +19,13 @@ export interface SpriteState {
   [key: string]: any;
 }
 
+/** A sprite's own uploaded or recorded sound (as opposed to the built-in synthesized tones). */
+export interface SpriteSound {
+  id: string;
+  name: string;
+  dataUrl: string; // base64 data: URL of the uploaded/recorded audio
+}
+
 export interface SimulatorSprite {
   id: string;
   name: string;
@@ -35,6 +42,10 @@ export interface SimulatorSprite {
   costume?: string; // Current costume name
   costumes: string[]; // Costume image paths this sprite can cycle through
   costumeIndex: number;
+  /** Display name for each entry in `costumes`, same index. Optional for back-compat with older saves. */
+  costumeNames?: string[];
+  /** This sprite's own uploaded/recorded sounds, in addition to the global built-in tones. */
+  customSounds?: SpriteSound[];
   rotationStyle: RotationStyle;
   effects: SpriteEffects;
   state: SpriteState;
@@ -129,7 +140,9 @@ const defaultCatSprite: SimulatorSprite = {
   image: '/sprites/svg.svg',
   costume: 'Stemmantra (New)',
   costumes: ['/sprites/scratch_games.svg', '/sprites/svg.svg'],
+  costumeNames: ['Stemmantra (Old)', 'Stemmantra (New)'],
   costumeIndex: 1,
+  customSounds: [],
   rotationStyle: 'all around',
   effects: { color: 0, ghost: 0, brightness: 0 },
   x: 0,
@@ -381,6 +394,8 @@ export const useSimulatorStore = create<SimulatorStore>()(
             return {
               costumes: [],
               costumeIndex: 0,
+              costumeNames: [],
+              customSounds: [],
               rotationStyle: 'all around',
               effects: { color: 0, ghost: 0, brightness: 0 },
               ...s,
