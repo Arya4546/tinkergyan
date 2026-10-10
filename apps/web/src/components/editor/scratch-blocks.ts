@@ -653,7 +653,7 @@ Blockly.Blocks['scratch_control_forever'] = {
 
 Blockly.Blocks['scratch_control_wait_until'] = {
   init(this: Blockly.Block): void {
-    this.appendValueInput('CONDITION').appendField('wait until');
+    this.appendValueInput('CONDITION').setCheck('Boolean').appendField('wait until');
     this.setInputsInline(true);
     this.setPreviousStatement(true, null);
     this.setNextStatement(true, null);

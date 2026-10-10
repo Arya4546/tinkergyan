@@ -169,7 +169,7 @@ export function AudioTrainerTab() {
   const tile =
     'flex flex-col items-center justify-center gap-1.5 w-20 h-[72px] shrink-0 rounded-xl border border-[#FF6F61]/20 dark:border-[#FF6F61]/20 bg-[#FFEDEA] dark:bg-[#FF6F61]/15 text-[#FF6F61] dark:text-[#FFAB9E] hover:bg-[#FFDDD6] dark:hover:bg-[#FF6F61]/25 hover:border-[#FF6F61]/40 hover:scale-105 active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:scale-100 transition-all';
   const primaryBtn =
-    'bg-gradient-to-b from-[#FF7A6D] to-[#FF6F61] text-white shadow-[0_3px_10px_-2px_rgba(255,111,97,0.55)] hover:shadow-[0_5px_16px_-2px_rgba(255,111,97,0.65)] hover:-translate-y-0.5 active:translate-y-0 disabled:shadow-none disabled:translate-y-0 disabled:bg-slate-200 disabled:text-slate-400 dark:disabled:bg-white/10 dark:disabled:text-white/30 transition-all';
+    'bg-gradient-to-b from-[#FF7A6D] to-[#FF6F61] text-white shadow-[0_3px_10px_-2px_rgba(255,111,97,0.55)] hover:shadow-[0_5px_16px_-2px_rgba(255,111,97,0.65)] hover:-translate-y-0.5 active:translate-y-0 disabled:bg-none disabled:shadow-none disabled:translate-y-0 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400 dark:disabled:bg-white/10 dark:disabled:text-white/30 transition-all';
   const grayBtn =
     'bg-slate-100 text-slate-700 hover:bg-slate-200 dark:bg-white/10 dark:text-white/80 transition-colors';
 

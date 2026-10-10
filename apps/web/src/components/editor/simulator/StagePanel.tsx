@@ -46,26 +46,32 @@ export function StagePanel({ onReset }: StagePanelProps) {
           </div>
         </div>
 
-        <div style={{ padding: '16px', display: 'flex', justifyContent: 'center' }}>
-          <button
-            onClick={() => setStageViewMode('large')}
-            style={{
-              padding: '8px 16px',
-              backgroundColor: 'rgba(255,255,255,0.2)',
-              color: 'white',
-              border: '1px solid rgba(255,255,255,0.4)',
-              borderRadius: '8px',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '8px',
-              cursor: 'pointer',
-              fontWeight: 'bold',
-            }}
-          >
-            <ExitFullscreenIcon size={16} />
-            Exit Fullscreen
-          </button>
-        </div>
+        {/* Positioned absolutely (not in the flex flow below the canvas) so it
+            stays on screen regardless of the canvas's computed aspect-ratio
+            size — a flex-flow button here could get pushed off the viewport
+            on some screen sizes with no way to tell it was ever rendered. */}
+        <button
+          onClick={() => setStageViewMode('large')}
+          style={{
+            position: 'absolute',
+            top: '16px',
+            right: '16px',
+            zIndex: 1,
+            padding: '8px 16px',
+            backgroundColor: 'rgba(255,255,255,0.2)',
+            color: 'white',
+            border: '1px solid rgba(255,255,255,0.4)',
+            borderRadius: '8px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+            cursor: 'pointer',
+            fontWeight: 'bold',
+          }}
+        >
+          <ExitFullscreenIcon size={16} />
+          Exit Fullscreen
+        </button>
       </div>,
       document.body,
     );

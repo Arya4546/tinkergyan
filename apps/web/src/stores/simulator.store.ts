@@ -64,6 +64,7 @@ interface SimulatorStore {
   stageViewMode: StageViewMode;
   cameraX: number;
   cameraY: number;
+  stageZoom: number;
 
   // Sensing state
   mouseX: number;
@@ -101,6 +102,9 @@ interface SimulatorStore {
   setVariable: (name: string, value: string | number) => void;
   resetSimulator: () => void;
   setCamera: (x: number, y: number) => void;
+  zoomIn: () => void;
+  zoomOut: () => void;
+  resetZoom: () => void;
   sendToFront: (id: string) => void;
   sendToBack: (id: string) => void;
   moveLayers: (id: string, delta: number) => void;
@@ -148,6 +152,7 @@ export const useSimulatorStore = create<SimulatorStore>()(
       stageViewMode: 'large',
       cameraX: 0,
       cameraY: 0,
+      stageZoom: 1,
       mouseX: 0,
       mouseY: 0,
       mouseDown: false,
@@ -264,6 +269,7 @@ export const useSimulatorStore = create<SimulatorStore>()(
           stageViewMode: 'large',
           cameraX: 0,
           cameraY: 0,
+          stageZoom: 1,
           mouseX: 0,
           mouseY: 0,
           mouseDown: false,
@@ -278,6 +284,22 @@ export const useSimulatorStore = create<SimulatorStore>()(
 
       setCamera: (x, y) => {
         set({ cameraX: x, cameraY: y });
+      },
+
+      zoomIn: () => {
+        set((state) => ({
+          stageZoom: Math.min(2, Math.round((state.stageZoom + 0.25) * 100) / 100),
+        }));
+      },
+
+      zoomOut: () => {
+        set((state) => ({
+          stageZoom: Math.max(0.5, Math.round((state.stageZoom - 0.25) * 100) / 100),
+        }));
+      },
+
+      resetZoom: () => {
+        set({ stageZoom: 1, cameraX: 0, cameraY: 0 });
       },
 
       sendToFront: (id) => {

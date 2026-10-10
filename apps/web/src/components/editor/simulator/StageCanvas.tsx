@@ -287,6 +287,7 @@ export function StageCanvas() {
     isRunning,
     cameraX,
     cameraY,
+    stageZoom,
     setCamera,
     setMouse,
     setMouseDown,
@@ -514,100 +515,115 @@ export function StageCanvas() {
       }}
       onClick={handleStageClick}
     >
-      {sprites
-        .filter((s) => s.visible)
-        .map((sprite, index) => {
-          const { pctX, pctY } = scratchToPercent(sprite.x, sprite.y);
-          const baseSize = sprite.type === 'character' ? CHARACTER_BASE_SIZE : HARDWARE_BASE_SIZE;
+      {/* Sprites render inside their own zoomable layer so the overlay UI
+          (zoom rail, coord hint, variable monitors) stays fixed-size and
+          correctly positioned no matter the zoom level. */}
+      <div
+        style={{
+          position: 'absolute',
+          inset: 0,
+          transform: `scale(${stageZoom})`,
+          transformOrigin: 'center center',
+          pointerEvents: 'none',
+        }}
+      >
+        {sprites
+          .filter((s) => s.visible)
+          .map((sprite, index) => {
+            const { pctX, pctY } = scratchToPercent(sprite.x, sprite.y);
+            const baseSize = sprite.type === 'character' ? CHARACTER_BASE_SIZE : HARDWARE_BASE_SIZE;
 
-          return (
-            <div
-              key={sprite.id}
-              style={{
-                position: 'absolute',
-                width: `${baseSize}px`,
-                height: `${baseSize}px`,
-                left: `${pctX}%`,
-                top: `${pctY}%`,
-                transform: `translate(-50%, -50%) scale(${sprite.size / 100}) ${spriteRotationTransform(sprite)}`,
-                cursor: dragState?.spriteId === sprite.id ? 'grabbing' : 'grab',
-                zIndex: dragState?.spriteId === sprite.id ? 1000 : index + 1,
-                touchAction: 'none',
-                ...spriteEffectsStyle(sprite.effects),
-              }}
-              onPointerDown={(e) => handleSpritePointerDown(e, sprite)}
-            >
-              {sprite.speech && (
-                <div
-                  style={{
-                    position: 'absolute',
-                    bottom: '100%',
-                    left: '50%',
-                    transform: `translateX(-50%) ${spriteCounterTransform(sprite)}`,
-                    backgroundColor: 'white',
-                    border: '2px solid #D9D9D9',
-                    borderRadius: sprite.speechIsThought ? '24px' : '16px',
-                    padding: '8px 12px',
-                    fontSize: '14px',
-                    color: '#575E75',
-                    whiteSpace: 'nowrap',
-                    marginBottom: '8px',
-                    boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
-                    zIndex: 20,
-                    pointerEvents: 'none',
-                  }}
-                >
-                  {sprite.speech}
-                  {sprite.speechIsThought ? (
-                    // Thought bubble: trailing circles instead of a pointed tail
-                    <>
+            return (
+              <div
+                key={sprite.id}
+                style={{
+                  position: 'absolute',
+                  width: `${baseSize}px`,
+                  height: `${baseSize}px`,
+                  left: `${pctX}%`,
+                  top: `${pctY}%`,
+                  transform: `translate(-50%, -50%) scale(${sprite.size / 100}) ${spriteRotationTransform(sprite)}`,
+                  cursor: dragState?.spriteId === sprite.id ? 'grabbing' : 'grab',
+                  zIndex: dragState?.spriteId === sprite.id ? 1000 : index + 1,
+                  touchAction: 'none',
+                  pointerEvents: 'auto',
+                  ...spriteEffectsStyle(sprite.effects),
+                }}
+                onPointerDown={(e) => handleSpritePointerDown(e, sprite)}
+              >
+                {sprite.speech && (
+                  <div
+                    style={{
+                      position: 'absolute',
+                      bottom: '100%',
+                      left: '50%',
+                      transform: `translateX(-50%) ${spriteCounterTransform(sprite)}`,
+                      backgroundColor: 'white',
+                      border: '2px solid #D9D9D9',
+                      borderRadius: sprite.speechIsThought ? '24px' : '16px',
+                      padding: '10px 16px',
+                      fontSize: '20px',
+                      fontWeight: 600,
+                      color: '#575E75',
+                      whiteSpace: 'nowrap',
+                      marginBottom: '8px',
+                      boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+                      zIndex: 20,
+                      pointerEvents: 'none',
+                    }}
+                  >
+                    {sprite.speech}
+                    {sprite.speechIsThought ? (
+                      // Thought bubble: trailing circles instead of a pointed tail
+                      <>
+                        <div
+                          style={{
+                            position: 'absolute',
+                            bottom: '-10px',
+                            left: '18px',
+                            width: '8px',
+                            height: '8px',
+                            borderRadius: '50%',
+                            backgroundColor: 'white',
+                            border: '2px solid #D9D9D9',
+                          }}
+                        />
+                        <div
+                          style={{
+                            position: 'absolute',
+                            bottom: '-16px',
+                            left: '10px',
+                            width: '5px',
+                            height: '5px',
+                            borderRadius: '50%',
+                            backgroundColor: 'white',
+                            border: '2px solid #D9D9D9',
+                          }}
+                        />
+                      </>
+                    ) : (
+                      // Speech bubble tail
                       <div
                         style={{
                           position: 'absolute',
-                          bottom: '-10px',
-                          left: '18px',
-                          width: '8px',
-                          height: '8px',
-                          borderRadius: '50%',
+                          bottom: '-8px',
+                          left: '20px',
+                          width: '12px',
+                          height: '12px',
                           backgroundColor: 'white',
-                          border: '2px solid #D9D9D9',
+                          borderRight: '2px solid #D9D9D9',
+                          borderBottom: '2px solid #D9D9D9',
+                          transform: 'rotate(45deg)',
                         }}
                       />
-                      <div
-                        style={{
-                          position: 'absolute',
-                          bottom: '-16px',
-                          left: '10px',
-                          width: '5px',
-                          height: '5px',
-                          borderRadius: '50%',
-                          backgroundColor: 'white',
-                          border: '2px solid #D9D9D9',
-                        }}
-                      />
-                    </>
-                  ) : (
-                    // Speech bubble tail
-                    <div
-                      style={{
-                        position: 'absolute',
-                        bottom: '-8px',
-                        left: '20px',
-                        width: '12px',
-                        height: '12px',
-                        backgroundColor: 'white',
-                        borderRight: '2px solid #D9D9D9',
-                        borderBottom: '2px solid #D9D9D9',
-                        transform: 'rotate(45deg)',
-                      }}
-                    />
-                  )}
-                </div>
-              )}
-              {renderSpriteVisual(sprite, updateSprite, isRunning)}
-            </div>
-          );
-        })}
+                    )}
+                  </div>
+                )}
+                {renderSpriteVisual(sprite, updateSprite, isRunning)}
+              </div>
+            );
+          })}
+      </div>
 
       <div className="scratch-coord-hint">
         {mouseCoords ? `x: ${mouseCoords.x} y: ${mouseCoords.y}` : 'x: 0 y: 0'}

@@ -15,6 +15,7 @@ import {
   ChevronRight,
   Cpu,
   MonitorPlay,
+  Brain,
 } from 'lucide-react';
 import { useUIStore } from '../../stores/ui.store';
 import { NewProjectDialog } from '../ui/NewProjectDialog';
@@ -33,10 +34,13 @@ export function Sidebar() {
   const location = useLocation();
   const mobileMenuOpen = useUIStore((s) => s.mobileMenuOpen);
   const setMobileMenuOpen = useUIStore((s) => s.setMobileMenuOpen);
-  const isEngineActive = location.pathname.startsWith('/editor');
+  const isEngineActive =
+    location.pathname.startsWith('/editor') || location.pathname.startsWith('/ai-trainer');
   const [engineExpanded, setEngineExpanded] = useState(isEngineActive);
   const [newProjectOpen, setNewProjectOpen] = useState(false);
-  const [selectedCategory, setSelectedCategory] = useState<'software' | 'hardware' | null>(null);
+  const [selectedCategory, setSelectedCategory] = useState<'software' | 'hardware' | 'ai' | null>(
+    null,
+  );
 
   return (
     <>
@@ -148,6 +152,17 @@ export function Sidebar() {
                       >
                         <MonitorPlay size={16} className="shrink-0 mr-2.5 text-blue-500" />
                         <span className="text-xs font-semibold">Software</span>
+                      </button>
+                      <button
+                        onClick={() => {
+                          setSelectedCategory('ai');
+                          setNewProjectOpen(true);
+                          setMobileMenuOpen(false);
+                        }}
+                        className={`h-9 w-full flex items-center px-3 rounded-lg transition-all duration-200 ${location.pathname.startsWith('/ai-trainer') ? 'bg-purple-100/70 dark:bg-purple-900/40 text-purple-700 dark:text-playful-highlight font-bold' : 'text-slate-500 hover:text-slate-900 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-white/5 font-medium'}`}
+                      >
+                        <Brain size={16} className="shrink-0 mr-2.5 text-[#FF6F61]" />
+                        <span className="text-xs font-semibold">AI</span>
                       </button>
                     </div>
                   )}

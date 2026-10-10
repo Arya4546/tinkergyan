@@ -97,7 +97,7 @@ export function NewProjectDialog({ open, onClose, preSelectedCategory }: NewProj
     >
       <form
         onSubmit={handleSubmit}
-        className="bg-white dark:bg-[#111111] border border-slate-200 dark:border-slate-800 rounded-3xl max-w-lg w-full shadow-2xl p-6 relative flex flex-col gap-5"
+        className="bg-white dark:bg-[#15152b] border border-slate-200 dark:border-white/10 rounded-3xl max-w-lg w-full shadow-2xl p-6 relative flex flex-col gap-5"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Close Button */}
@@ -136,7 +136,7 @@ export function NewProjectDialog({ open, onClose, preSelectedCategory }: NewProj
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             disabled={isCreating}
-            className="w-full h-11 px-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-[#16181D] text-sm text-slate-900 dark:text-white placeholder:text-slate-400 outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
+            className="w-full h-11 px-4 rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-[#1b1b33] text-sm text-slate-900 dark:text-white placeholder:text-slate-400 outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
           />
         </div>
 
@@ -152,10 +152,10 @@ export function NewProjectDialog({ open, onClose, preSelectedCategory }: NewProj
                 type="button"
                 onClick={() => setCategory('software')}
                 disabled={isCreating}
-                className={`flex flex-col items-center text-center p-5 rounded-2xl border bg-slate-50 dark:bg-[#16181D] hover:shadow-md hover:scale-[1.02] active:scale-95 transition-all duration-200 group ${
+                className={`flex flex-col items-center text-center p-5 rounded-2xl border shadow-sm dark:shadow-[0_2px_12px_rgba(0,0,0,0.3)] bg-slate-50 dark:bg-[#1b1b33] hover:shadow-md hover:scale-[1.02] active:scale-95 transition-all duration-200 group ${
                   category === 'software'
                     ? 'border-emerald-500 ring-2 ring-emerald-500/20 bg-emerald-50/20 dark:bg-emerald-950/10'
-                    : 'border-slate-200 dark:border-slate-800'
+                    : 'border-slate-200 dark:border-white/10'
                 }`}
               >
                 <div className="w-12 h-12 rounded-2xl bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
@@ -175,10 +175,10 @@ export function NewProjectDialog({ open, onClose, preSelectedCategory }: NewProj
                 type="button"
                 onClick={() => setCategory('hardware')}
                 disabled={isCreating}
-                className={`flex flex-col items-center text-center p-5 rounded-2xl border bg-slate-50 dark:bg-[#16181D] hover:shadow-md hover:scale-[1.02] active:scale-95 transition-all duration-200 group ${
+                className={`flex flex-col items-center text-center p-5 rounded-2xl border shadow-sm dark:shadow-[0_2px_12px_rgba(0,0,0,0.3)] bg-slate-50 dark:bg-[#1b1b33] hover:shadow-md hover:scale-[1.02] active:scale-95 transition-all duration-200 group ${
                   category === 'hardware'
                     ? 'border-purple-500 ring-2 ring-purple-500/20 bg-purple-50/20 dark:bg-purple-950/10'
-                    : 'border-slate-200 dark:border-slate-800'
+                    : 'border-slate-200 dark:border-white/10'
                 }`}
               >
                 <div className="w-12 h-12 rounded-2xl bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
@@ -198,10 +198,10 @@ export function NewProjectDialog({ open, onClose, preSelectedCategory }: NewProj
                 type="button"
                 onClick={() => setCategory('ai')}
                 disabled={isCreating}
-                className={`flex flex-col items-center text-center p-5 rounded-2xl border bg-slate-50 dark:bg-[#16181D] hover:shadow-md hover:scale-[1.02] active:scale-95 transition-all duration-200 group ${
+                className={`flex flex-col items-center text-center p-5 rounded-2xl border shadow-sm dark:shadow-[0_2px_12px_rgba(0,0,0,0.3)] bg-slate-50 dark:bg-[#1b1b33] hover:shadow-md hover:scale-[1.02] active:scale-95 transition-all duration-200 group ${
                   category === 'ai'
                     ? 'border-[#FF6F61] ring-2 ring-[#FF6F61]/20 bg-[#FFEDEA]/40 dark:bg-[#FF6F61]/10'
-                    : 'border-slate-200 dark:border-slate-800'
+                    : 'border-slate-200 dark:border-white/10'
                 }`}
               >
                 <div className="w-12 h-12 rounded-2xl bg-[#FFEDEA] dark:bg-[#FF6F61]/20 text-[#FF6F61] flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
@@ -235,7 +235,7 @@ export function NewProjectDialog({ open, onClose, preSelectedCategory }: NewProj
                   className={`flex items-center justify-between gap-2 px-3 py-2.5 rounded-xl border text-sm font-semibold text-left transition-all duration-150 ${
                     board === b.fqbn
                       ? 'border-purple-500 ring-2 ring-purple-500/20 bg-purple-50/20 dark:bg-purple-950/10 text-purple-600 dark:text-purple-400'
-                      : 'border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-[#16181D] text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800'
+                      : 'border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-[#1b1b33] text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-white/5'
                   }`}
                 >
                   <span className="truncate">{b.label}</span>
