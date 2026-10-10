@@ -1144,7 +1144,17 @@ export default function Editor() {
       {/* ── Top Control Bar ─────────────────────────────────────── */}
       <div className="shrink-0 w-full h-[72px] flex justify-between items-center z-30 px-4 sm:px-6 gap-2 bg-gradient-to-r from-indigo-600 via-indigo-700 to-blue-700 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900 shadow-[0_8px_30px_-4px_rgba(79,70,229,0.4)] dark:shadow-[0_8px_30px_-4px_rgba(0,0,0,0.5)]">
         {/* Left: Back + project title + dirty indicator */}
-        <div className="flex items-center gap-2 min-w-0">
+        {/*
+          overflow-hidden is a deliberate safety net: this group's children
+          (the title input especially) sit next to two shrink-0 groups on
+          narrower/laptop-width screens. <input> elements don't shrink below
+          their specified width by default (their flex min-width:auto floor
+          resolves to that width, not to min-content) even with min-w-0 on
+          the parent, so without an explicit min-w-0 on the input itself, and
+          without clipping here, the overflowing title visually painted over
+          the Blocks/C++ toggle and board selector instead of just shrinking.
+        */}
+        <div className="flex items-center gap-2 min-w-0 overflow-hidden">
           <Tooltip content="Dashboard" position="bottom">
             <button
               onClick={handleNavigateHome}
@@ -1175,7 +1185,7 @@ export default function Editor() {
                 e.currentTarget.blur();
               }
             }}
-            className="font-sans font-extrabold text-lg sm:text-xl text-white bg-transparent border-none outline-none w-32 sm:w-64 truncate hover:bg-white/10 focus:bg-white/20 rounded-xl px-3 py-1.5 transition-all placeholder-white/70"
+            className="font-sans font-extrabold text-lg sm:text-xl text-white bg-transparent border-none outline-none w-32 sm:w-64 min-w-[70px] truncate hover:bg-white/10 focus:bg-white/20 rounded-xl px-3 py-1.5 transition-all placeholder-white/70"
             spellCheck={false}
             placeholder="Untitled Project"
           />
@@ -1187,7 +1197,7 @@ export default function Editor() {
 
           {/* Gamification surface */}
           {user && (
-            <div className="hidden lg:flex items-center gap-3 px-3 py-1.5 bg-white/10 rounded-full border border-white/20 ml-2 shadow-sm">
+            <div className="hidden 2xl:flex items-center gap-3 px-3 py-1.5 bg-white/10 rounded-full border border-white/20 ml-2 shadow-sm shrink-0">
               <Tooltip content={`${user.streak} day streak!`} position="bottom">
                 <div className="flex items-center gap-1.5 text-warning-400">
                   <Zap size={14} fill="currentColor" />

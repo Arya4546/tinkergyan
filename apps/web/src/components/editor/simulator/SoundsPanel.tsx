@@ -30,9 +30,30 @@ export function SoundsPanel() {
 
   const customSounds = sprite.customSounds ?? [];
 
+  /**
+   * Sound names are the Blockly dropdown's values, so two sounds sharing a
+   * name (a custom sound renamed to "pop", say) would render as duplicate,
+   * indiscriminable entries in that dropdown — and because ScratchEngine
+   * checks customSounds before built-in tones, selecting either "pop" would
+   * silently always play the custom one. Suffixing on collision keeps every
+   * name unique instead.
+   */
+  const uniqueSoundName = (base: string, excludeId?: string): string => {
+    const taken = new Set([
+      ...SOUND_NAMES,
+      ...customSounds.filter((s) => s.id !== excludeId).map((s) => s.name),
+    ]);
+    if (!taken.has(base)) return base;
+    let n = 2;
+    while (taken.has(`${base} (${n})`)) n += 1;
+    return `${base} (${n})`;
+  };
+
   const addCustomSound = (dataUrl: string, name: string) => {
     const id = Math.random().toString(36).slice(2, 9);
-    updateSprite(sprite.id, { customSounds: [...customSounds, { id, name, dataUrl }] });
+    updateSprite(sprite.id, {
+      customSounds: [...customSounds, { id, name: uniqueSoundName(name), dataUrl }],
+    });
   };
 
   const handleUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -84,8 +105,9 @@ export function SoundsPanel() {
   const renameSound = (id: string, newName: string) => {
     const trimmed = newName.trim();
     if (!trimmed) return;
+    const unique = uniqueSoundName(trimmed, id);
     updateSprite(sprite.id, {
-      customSounds: customSounds.map((s) => (s.id === id ? { ...s, name: trimmed } : s)),
+      customSounds: customSounds.map((s) => (s.id === id ? { ...s, name: unique } : s)),
     });
   };
 

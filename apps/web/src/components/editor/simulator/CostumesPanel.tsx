@@ -33,15 +33,32 @@ export function CostumesPanel() {
     updateSprite(sprite.id, { costumeIndex: idx, image: costumes[idx]!, costume: names[idx]! });
   };
 
+  /**
+   * The "switch costume to" dropdown's options come straight from these
+   * names, and ScratchEngine.switchCostume resolves a name to a costume via
+   * `indexOf` — so two costumes sharing a name would render as duplicate
+   * dropdown entries, and the second one would be permanently unreachable
+   * from blocks (indexOf always finds the first match). Suffixing on
+   * collision keeps every name unique instead.
+   */
+  const uniqueCostumeName = (base: string, excludeIndex?: number): string => {
+    const taken = new Set(names.filter((_, i) => i !== excludeIndex));
+    if (!taken.has(base)) return base;
+    let n = 2;
+    while (taken.has(`${base} (${n})`)) n += 1;
+    return `${base} (${n})`;
+  };
+
   const addCostume = (dataUrl: string, name: string) => {
+    const uniqueName = uniqueCostumeName(name);
     const newCostumes = [...costumes, dataUrl];
-    const newNames = [...names, name];
+    const newNames = [...names, uniqueName];
     updateSprite(sprite.id, {
       costumes: newCostumes,
       costumeNames: newNames,
       costumeIndex: newCostumes.length - 1,
       image: dataUrl,
-      costume: name,
+      costume: uniqueName,
     });
   };
 
@@ -62,7 +79,15 @@ export function CostumesPanel() {
     if (costumes.length <= 1) return; // a sprite always needs at least one costume
     const newCostumes = costumes.filter((_, i) => i !== idx);
     const newNames = names.filter((_, i) => i !== idx);
-    const newIndex = Math.min(sprite.costumeIndex, newCostumes.length - 1);
+    // Deleting an entry before the active costume shifts everything after it
+    // down by one, so the active costume's own index must shift with it —
+    // clamping the OLD index to the new length (as this used to do) instead
+    // picked whatever costume happened to slide into that slot, silently
+    // switching the sprite's displayed costume to the wrong one.
+    let newIndex = sprite.costumeIndex;
+    if (idx < sprite.costumeIndex) newIndex -= 1;
+    else if (idx === sprite.costumeIndex) newIndex = Math.min(idx, newCostumes.length - 1);
+    newIndex = Math.max(0, Math.min(newIndex, newCostumes.length - 1));
     updateSprite(sprite.id, {
       costumes: newCostumes,
       costumeNames: newNames,
@@ -76,17 +101,26 @@ export function CostumesPanel() {
     const newCostumes = [...costumes];
     const newNames = [...names];
     newCostumes.splice(idx + 1, 0, costumes[idx]!);
-    newNames.splice(idx + 1, 0, `${names[idx]} copy`);
-    updateSprite(sprite.id, { costumes: newCostumes, costumeNames: newNames });
+    newNames.splice(idx + 1, 0, uniqueCostumeName(`${names[idx]} copy`));
+    // Inserting before the active costume shifts its index up by one too —
+    // otherwise costumeIndex silently points at the wrong (shifted) costume
+    // even though the sprite's actual displayed image hasn't changed.
+    const newIndex = idx < sprite.costumeIndex ? sprite.costumeIndex + 1 : sprite.costumeIndex;
+    updateSprite(sprite.id, {
+      costumes: newCostumes,
+      costumeNames: newNames,
+      costumeIndex: newIndex,
+    });
   };
 
   const renameCostume = (idx: number, newName: string) => {
     const trimmed = newName.trim();
     if (!trimmed) return;
-    const newNames = names.map((n, i) => (i === idx ? trimmed : n));
+    const unique = uniqueCostumeName(trimmed, idx);
+    const newNames = names.map((n, i) => (i === idx ? unique : n));
     updateSprite(sprite.id, {
       costumeNames: newNames,
-      ...(idx === sprite.costumeIndex ? { costume: trimmed } : {}),
+      ...(idx === sprite.costumeIndex ? { costume: unique } : {}),
     });
   };
 
