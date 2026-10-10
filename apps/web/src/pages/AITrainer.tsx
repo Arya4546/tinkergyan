@@ -39,6 +39,9 @@ import { TextTrainerModal } from '../components/editor/TextTrainerModal';
 import { AudioTrainerTab } from '../components/editor/AudioTrainerTab';
 import { PoseTrainerTab } from '../components/editor/PoseTrainerTab';
 import { TabularTrainerTab } from '../components/editor/TabularTrainerTab';
+import { CartoonRocket } from '../components/illustrations/CartoonRocket';
+import { RobotMascot } from '../components/illustrations/RobotMascot';
+import confetti from 'canvas-confetti';
 
 /** Draws the current frame of a video/image into a small square JPEG thumbnail. */
 function captureThumbnail(source: HTMLVideoElement | HTMLImageElement, size = 72): string {
@@ -528,6 +531,12 @@ export default function AITrainer() {
         aiEngine.clearClass('__warmup__');
       }
       setIsTrained(true);
+      void confetti({
+        particleCount: 70,
+        spread: 65,
+        origin: { y: 0.6 },
+        colors: ['#FF6F61', '#E8584A', '#FFAB9E', '#ffffff'],
+      });
     } catch (err) {
       setError(`Training failed: ${err instanceof Error ? err.message : String(err)}`);
     } finally {
@@ -725,6 +734,19 @@ export default function AITrainer() {
   const totalSamples = classes.map((c) => exampleCounts[c] ?? 0).reduce((a, b) => a + b, 0);
   const trainedClassCount = classes.map((c) => exampleCounts[c] ?? 0).filter((c) => c > 0).length;
   const canTrain = trainedClassCount >= 2;
+  // Progressive reveal: don't show Training until there's something to train on,
+  // and don't show Preview until there's a model to test — a child staring at all
+  // three panels at once (most of them inert) is the confusing part, not any one
+  // panel itself.
+  const showTraining = totalSamples > 0;
+  const showPreview = isTrained;
+  const visiblePanels = 1 + (showTraining ? 1 : 0) + (showPreview ? 1 : 0);
+  const gridCols =
+    visiblePanels === 1
+      ? 'grid-cols-[minmax(0,1fr)]'
+      : visiblePanels === 2
+        ? 'grid-cols-[minmax(0,1fr)_280px]'
+        : 'grid-cols-[minmax(0,1fr)_280px_340px]';
 
   const TABS: Array<{ id: TrainerTab; label: string }> = [
     { id: 'image', label: 'Image' },
@@ -760,20 +782,28 @@ export default function AITrainer() {
   // Output bar colours per class, in order.
   const CLASS_COLORS = ['#f59e0b', '#e11d48', '#10b981', '#6366f1', '#0ea5e9', '#a855f7'];
 
-  const card = 'bg-white dark:bg-[#1b1b33] rounded-lg shadow-sm';
+  const card =
+    'bg-white dark:bg-[#1b1b33] rounded-xl shadow-[0_2px_12px_rgba(20,20,40,0.06)] dark:shadow-[0_2px_12px_rgba(0,0,0,0.35)] border border-slate-100 dark:border-white/5';
   const muted = 'text-slate-500 dark:text-white/50';
   const tile =
-    'flex flex-col items-center justify-center gap-1 w-[72px] h-[62px] shrink-0 rounded-md bg-[#e8f0fe] dark:bg-[#1a73e8]/15 text-[#1a73e8] dark:text-[#8ab4f8] hover:bg-[#d2e3fc] dark:hover:bg-[#1a73e8]/25 disabled:opacity-40 disabled:cursor-not-allowed transition-colors';
+    'flex flex-col items-center justify-center gap-1.5 w-20 h-[72px] shrink-0 rounded-xl border border-[#FF6F61]/20 dark:border-[#FF6F61]/20 bg-[#FFEDEA] dark:bg-[#FF6F61]/15 text-[#FF6F61] dark:text-[#FFAB9E] hover:bg-[#FFDDD6] dark:hover:bg-[#FF6F61]/25 hover:border-[#FF6F61]/40 hover:scale-105 active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:scale-100 transition-all';
   const primaryBtn =
-    'bg-[#1a73e8] text-white hover:bg-[#1765cc] disabled:bg-slate-200 disabled:text-slate-400 dark:disabled:bg-white/10 dark:disabled:text-white/30';
+    'bg-gradient-to-b from-[#FF7A6D] to-[#FF6F61] text-white shadow-[0_3px_10px_-2px_rgba(255,111,97,0.55)] hover:shadow-[0_5px_16px_-2px_rgba(255,111,97,0.65)] hover:-translate-y-0.5 active:translate-y-0 disabled:shadow-none disabled:translate-y-0 disabled:bg-slate-200 disabled:text-slate-400 dark:disabled:bg-white/10 dark:disabled:text-white/30 transition-all';
   const grayBtn =
-    'bg-slate-100 text-slate-700 hover:bg-slate-200 dark:bg-white/10 dark:text-white/80 dark:hover:bg-white/15';
+    'bg-slate-100 text-slate-700 hover:bg-slate-200 dark:bg-white/10 dark:text-white/80 dark:hover:bg-white/15 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-slate-100 dark:disabled:hover:bg-white/10 transition-colors';
 
   return (
-    <div className="min-h-screen bg-[#e8eaed] dark:bg-[#0f0f1e] text-slate-800 dark:text-white flex flex-col">
+    <div className="relative min-h-screen bg-[#F3EFEC] dark:bg-[#0f0f1e] text-slate-800 dark:text-white flex flex-col overflow-hidden">
+      {/* Soft decorative colour, so the page doesn't read as a flat grey tool. */}
+      <div className="absolute inset-0 pointer-events-none overflow-hidden">
+        <div className="absolute -top-24 -right-24 w-[420px] h-[420px] rounded-full bg-[#FF6F61]/10 dark:bg-[#FF6F61]/10 blur-3xl animate-float-slow" />
+        <div className="absolute top-[40%] -left-32 w-[360px] h-[360px] rounded-full bg-amber-300/10 dark:bg-amber-400/10 blur-3xl animate-float" />
+        <div className="absolute bottom-[-10%] right-[10%] w-[300px] h-[300px] rounded-full bg-[#FF6F61]/10 dark:bg-[#FF6F61]/10 blur-3xl animate-drift" />
+      </div>
+
       {/* ── Top bar ── */}
-      <header className="sticky top-0 z-20 px-4 pt-3 flex items-start justify-between gap-4">
-        <div className="flex items-center gap-3 bg-white dark:bg-[#15152b] rounded-lg shadow-sm px-4 py-2.5">
+      <header className="relative z-20 sticky top-0 px-5 pt-4 flex items-start justify-between gap-5">
+        <div className="flex items-center gap-3 bg-white dark:bg-[#15152b] rounded-xl shadow-[0_2px_12px_rgba(20,20,40,0.08)] dark:shadow-[0_2px_12px_rgba(0,0,0,0.4)] px-4 py-2.5">
           <button
             onClick={goBackToEditor}
             title="Back to Editor"
@@ -781,7 +811,13 @@ export default function AITrainer() {
           >
             <ArrowLeft size={18} />
           </button>
-          <h1 className="font-semibold text-lg text-[#1a73e8] flex items-center gap-2">
+          <div className="hidden sm:flex items-center gap-1.5 pr-2 border-r border-slate-200 dark:border-white/10">
+            <CartoonRocket className="w-6 h-6" />
+            <span className="font-heading font-black text-base tracking-tight text-slate-800 dark:text-white">
+              Tinkergyan
+            </span>
+          </div>
+          <h1 className="font-heading font-bold text-xl text-[#FF6F61] flex items-center gap-2">
             <Brain size={18} /> Train AI
             {hasUnsavedChanges && (
               <span className="w-1.5 h-1.5 rounded-full bg-amber-400" title="Not saved yet" />
@@ -789,15 +825,15 @@ export default function AITrainer() {
           </h1>
         </div>
 
-        <div className="flex items-center gap-2 bg-white dark:bg-[#15152b] rounded-lg shadow-sm px-2 py-2">
+        <div className="flex items-center gap-2 bg-white dark:bg-[#15152b] rounded-xl shadow-[0_2px_12px_rgba(20,20,40,0.08)] dark:shadow-[0_2px_12px_rgba(0,0,0,0.4)] px-2 py-2">
           {TABS.map(({ id, label }) => (
             <button
               key={id}
               onClick={() => setActiveTab(id)}
-              className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+              className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
                 activeTab === id
-                  ? 'bg-[#1a73e8]/10 text-[#1a73e8] dark:bg-white/10 dark:text-white'
-                  : 'text-slate-500 dark:text-white/50 hover:text-slate-800 dark:hover:text-white'
+                  ? 'bg-[#FF6F61] text-white shadow-[0_2px_8px_-1px_rgba(255,111,97,0.5)]'
+                  : 'text-slate-500 dark:text-white/50 hover:text-slate-800 dark:hover:text-white hover:bg-slate-50 dark:hover:bg-white/5'
               }`}
             >
               {label}
@@ -810,7 +846,7 @@ export default function AITrainer() {
                 onClick={() => void handleSaveAI()}
                 disabled={isSavingAI || (!hasUnsavedChanges && !justSaved)}
                 title="Save to this project"
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium disabled:opacity-40 ${
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium ${
                   justSaved
                     ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300'
                     : primaryBtn
@@ -829,7 +865,7 @@ export default function AITrainer() {
                 onClick={() => importZipRef.current?.click()}
                 disabled={isImporting}
                 title="Open a saved project file"
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium disabled:opacity-40 ${grayBtn}`}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium ${grayBtn}`}
               >
                 {isImporting ? (
                   <Loader2 size={14} className="animate-spin" />
@@ -842,7 +878,7 @@ export default function AITrainer() {
                 onClick={() => void handleExportZip()}
                 disabled={isExporting || totalSamples === 0}
                 title="Download your project as a file"
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium disabled:opacity-40 ${grayBtn}`}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium ${grayBtn}`}
               >
                 {isExporting ? (
                   <Loader2 size={14} className="animate-spin" />
@@ -869,7 +905,7 @@ export default function AITrainer() {
       </header>
 
       {/* ── Main content ── */}
-      <main className="flex-1 flex flex-col">
+      <main className="relative z-10 flex-1 flex flex-col">
         {activeTab === 'text' ? (
           <TextTrainerModal />
         ) : activeTab === 'audio' ? (
@@ -882,7 +918,7 @@ export default function AITrainer() {
           <>
             {isLoading && (
               <div className="flex flex-col items-center justify-center gap-3 py-24">
-                <Loader2 size={36} className="text-[#1a73e8] animate-spin" />
+                <Loader2 size={36} className="text-[#FF6F61] animate-spin" />
                 <p className="text-sm font-semibold">{loadingMessage}</p>
                 <p className={`text-xs ${muted}`}>This only happens once.</p>
               </div>
@@ -897,24 +933,33 @@ export default function AITrainer() {
             )}
 
             {isModelLoaded && !isLoading && (
-              <div className="flex-1 flex justify-center items-stretch py-8 px-6 min-h-[calc(100vh-96px)]">
-                <div className="w-full max-w-[1400px] grid grid-cols-[minmax(0,1fr)_280px_340px] gap-8 items-stretch">
+              <div className="flex-1 flex justify-center items-stretch py-10 px-6 min-h-[calc(100vh-96px)]">
+                <div className={`w-full max-w-[1400px] grid ${gridCols} gap-9 items-stretch`}>
                   {/* ── Classes ── */}
-                  <section className="min-w-0 flex flex-col gap-4">
-                    {classes.map((className) => {
+                  <section className="min-w-0 flex flex-col gap-5">
+                    {classes.map((className, classIdx) => {
                       const count = exampleCounts[className] ?? 0;
                       const thumbs = sampleThumbnails[className] ?? [];
                       const isOpen = webcamClass === className;
+                      const classColor = CLASS_COLORS[classIdx % CLASS_COLORS.length];
                       return (
-                        <div key={className} className={`${card} overflow-hidden`}>
-                          <div className="flex items-center justify-between px-5 py-3 border-b border-slate-100 dark:border-white/10">
-                            <div className="flex items-center gap-2 min-w-0">
+                        <div
+                          key={className}
+                          className={`${card} overflow-hidden border-l-[5px]`}
+                          style={{ borderLeftColor: classColor }}
+                        >
+                          <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 dark:border-white/10">
+                            <div className="flex items-center gap-2.5 min-w-0">
+                              <span
+                                className="w-2.5 h-2.5 rounded-full shrink-0"
+                                style={{ backgroundColor: classColor }}
+                              />
                               <input
                                 defaultValue={className}
                                 onBlur={(e) => handleRenameClass(className, e.target.value)}
                                 onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()}
                                 title="Click to rename"
-                                className="font-semibold text-lg bg-transparent outline-none min-w-0 rounded px-1 -ml-1 border border-transparent focus:border-[#1a73e8]/60 hover:border-slate-200 dark:hover:border-white/20"
+                                className="font-heading font-semibold text-xl bg-transparent outline-none min-w-0 rounded px-1 -ml-1 border border-transparent focus:border-[#FF6F61]/60 hover:border-slate-200 dark:hover:border-white/20"
                               />
                               <Pencil size={14} className="text-slate-400 shrink-0" />
                             </div>
@@ -970,11 +1015,11 @@ export default function AITrainer() {
                           </div>
 
                           {isOpen ? (
-                            <div className="flex bg-[#e8f0fe]/60 dark:bg-[#1a73e8]/10">
+                            <div className="flex bg-[#FFEDEA]/60 dark:bg-[#FF6F61]/10">
                               {/* Webcam recorder */}
                               <div className="w-[285px] shrink-0 p-4 flex flex-col gap-3">
                                 <div className="flex items-center justify-between">
-                                  <span className="text-sm font-medium text-[#1a73e8] dark:text-[#8ab4f8]">
+                                  <span className="text-sm font-medium text-[#FF6F61] dark:text-[#FFAB9E]">
                                     Webcam
                                   </span>
                                   <button
@@ -983,7 +1028,7 @@ export default function AITrainer() {
                                       handleStopWebcam();
                                     }}
                                     title="Close webcam"
-                                    className="p-1 rounded text-[#1a73e8] hover:bg-white/60"
+                                    className="p-1 rounded text-[#FF6F61] hover:bg-white/60"
                                   >
                                     <X size={16} />
                                   </button>
@@ -1016,7 +1061,7 @@ export default function AITrainer() {
                                     className={`flex-1 py-2.5 rounded-md text-sm font-semibold select-none transition-colors ${
                                       isCapturing === className
                                         ? 'bg-red-500 text-white'
-                                        : 'bg-[#1a73e8] text-white hover:bg-[#1765cc] disabled:bg-slate-300'
+                                        : 'bg-[#FF6F61] text-white hover:bg-[#E8584A] disabled:bg-slate-300'
                                     }`}
                                   >
                                     {isCapturing === className ? 'Recording…' : 'Hold to Record'}
@@ -1048,11 +1093,11 @@ export default function AITrainer() {
                               </div>
                             </div>
                           ) : (
-                            <div className="px-5 py-4 space-y-3">
-                              <p className={`text-sm ${muted}`}>
+                            <div className="px-5 py-5 space-y-3">
+                              <p className={`text-sm font-medium ${muted}`}>
                                 {count === 0 ? 'Add Image Samples:' : `${count} Image Samples`}
                               </p>
-                              <div className="flex items-center gap-2 min-w-0">
+                              <div className="flex items-center gap-3 min-w-0">
                                 <button
                                   onClick={async () => {
                                     if (!isWebcamActive) await handleStartWebcam();
@@ -1061,7 +1106,7 @@ export default function AITrainer() {
                                   disabled={!isModelLoaded}
                                   className={tile}
                                 >
-                                  <Video size={20} />
+                                  <Video size={22} />
                                   <span className="text-[11px] font-medium">Webcam</span>
                                 </button>
                                 <button
@@ -1074,7 +1119,7 @@ export default function AITrainer() {
                                   }}
                                   className={tile}
                                 >
-                                  <Upload size={20} />
+                                  <Upload size={22} />
                                   <span className="text-[11px] font-medium">
                                     {uploadProgress[className] ?? 'Upload'}
                                   </span>
@@ -1115,7 +1160,7 @@ export default function AITrainer() {
 
                     <button
                       onClick={handleAddClass}
-                      className="w-full py-5 rounded-lg border-2 border-dashed border-slate-300 dark:border-white/15 text-slate-500 dark:text-white/50 text-base flex items-center justify-center gap-2 hover:border-[#1a73e8] hover:text-[#1a73e8]"
+                      className="w-full py-5 rounded-xl border-2 border-dashed border-slate-300 dark:border-white/15 text-slate-500 dark:text-white/50 text-base flex items-center justify-center gap-2 hover:border-[#FF6F61] hover:text-[#FF6F61] hover:bg-[#FFEDEA]/50 dark:hover:bg-[#FF6F61]/10 hover:scale-[1.01] active:scale-[0.99] transition-all"
                     >
                       <Plus size={18} /> Add a class
                     </button>
@@ -1126,7 +1171,7 @@ export default function AITrainer() {
                         onChange={(e) => setNewClassName(e.target.value)}
                         onKeyDown={(e) => e.key === 'Enter' && handleAddClass()}
                         placeholder={`Class ${classes.length + 1} name`}
-                        className="flex-1 min-w-0 px-3 py-2 rounded-md bg-white dark:bg-[#1b1b33] border border-slate-200 dark:border-white/10 text-sm outline-none focus:border-[#1a73e8]"
+                        className="flex-1 min-w-0 px-3 py-2 rounded-md bg-white dark:bg-[#1b1b33] border border-slate-200 dark:border-white/10 text-sm outline-none focus:border-[#FF6F61]"
                       />
                       <button
                         onClick={handleResetAll}
@@ -1135,6 +1180,16 @@ export default function AITrainer() {
                         Start over
                       </button>
                     </div>
+
+                    {!showTraining && (
+                      <div className="flex flex-col items-center gap-2 py-6 text-center">
+                        <RobotMascot className="w-24 opacity-90" />
+                        <p className={`text-sm max-w-xs ${muted}`}>
+                          Add a few pictures to each class. Once you have some, I&apos;ll help you
+                          train it! 🎉
+                        </p>
+                      </div>
+                    )}
 
                     {/* Processing video — feeds the model; never shown. */}
                     <video
@@ -1148,306 +1203,311 @@ export default function AITrainer() {
                   </section>
 
                   {/* ── Training ── */}
-                  <section className="flex flex-col pt-1 h-full">
-                    <div className={`${card} p-5 flex flex-col gap-4 h-full`}>
-                      <h2 className="text-lg font-semibold">Training</h2>
-                      <button
-                        onClick={() => void handleTrainModel()}
-                        disabled={!canTrain || isTrainingModel || isTrained}
-                        className={`w-full py-2 rounded-md text-sm font-semibold transition-colors flex items-center justify-center gap-2 ${
-                          isTrained
-                            ? grayBtn
-                            : canTrain
-                              ? primaryBtn
-                              : 'bg-slate-100 text-slate-400 dark:bg-white/5 dark:text-white/30'
-                        }`}
-                      >
-                        {isTrainingModel ? (
-                          <>
-                            <Loader2 size={14} className="animate-spin" /> Training…
-                          </>
-                        ) : isTrained ? (
-                          'Model Trained'
-                        ) : (
-                          'Train Model'
-                        )}
-                      </button>
-                      {isTrainingModel && (
-                        <p className="text-xs text-[#1a73e8]">Preparing training data…</p>
-                      )}
-                      {!canTrain && !isTrained && (
-                        <p className={`text-xs ${muted}`}>
-                          Add image samples to at least 2 classes.
-                        </p>
-                      )}
-
-                      <div className="border-t border-slate-100 dark:border-white/10 pt-3">
+                  {showTraining && (
+                    <section className="flex flex-col pt-1 h-full animate-pop-in">
+                      <div className={`${card} p-6 flex flex-col gap-4 h-full`}>
+                        <h2 className="font-heading text-lg font-semibold">Training</h2>
                         <button
-                          onClick={() => setShowAdvanced((v) => !v)}
-                          className="w-full flex items-center justify-between text-sm font-medium text-slate-700 dark:text-white/80"
+                          onClick={() => void handleTrainModel()}
+                          disabled={!canTrain || isTrainingModel || isTrained}
+                          className={`w-full py-2 rounded-md text-sm font-semibold transition-colors flex items-center justify-center gap-2 ${
+                            isTrained
+                              ? grayBtn
+                              : canTrain
+                                ? primaryBtn
+                                : 'bg-slate-100 text-slate-400 dark:bg-white/5 dark:text-white/30'
+                          }`}
                         >
-                          <span>Advanced</span>
-                          <ChevronDown
-                            size={15}
-                            className={`transition-transform ${showAdvanced ? 'rotate-180' : ''}`}
-                          />
+                          {isTrainingModel ? (
+                            <>
+                              <Loader2 size={14} className="animate-spin" /> Training…
+                            </>
+                          ) : isTrained ? (
+                            'Model Trained'
+                          ) : (
+                            'Train Model'
+                          )}
                         </button>
-                        {showAdvanced && (
-                          <div className="pt-3 space-y-3">
-                            <div>
-                              <p className="text-sm font-semibold text-slate-800 dark:text-white">
-                                How sure should it be before it guesses?
-                              </p>
-                              <p className={`text-xs mt-0.5 ${muted}`}>
-                                Pick one. You can change it any time.
-                              </p>
-                            </div>
-                            <div className="space-y-2">
-                              {CAREFUL_LEVELS.map((lvl) => (
-                                <button
-                                  key={lvl.label}
-                                  onClick={() =>
-                                    setTrainingConfig((c) => ({
-                                      ...c,
-                                      predictionThreshold: lvl.value,
-                                    }))
-                                  }
-                                  className={`w-full text-left p-3 rounded-lg border flex items-start gap-3 transition-colors ${
-                                    careLevel === lvl.label
-                                      ? 'border-[#1a73e8] bg-[#1a73e8]/10'
-                                      : 'border-slate-200 dark:border-white/10 hover:bg-slate-50 dark:hover:bg-white/5'
-                                  }`}
-                                >
-                                  <span className="text-xl leading-none mt-0.5">{lvl.emoji}</span>
-                                  <span className="min-w-0">
-                                    <span className="block text-sm font-semibold text-slate-800 dark:text-white">
-                                      {lvl.label}
-                                    </span>
-                                    <span className={`block text-xs mt-0.5 ${muted}`}>
-                                      {lvl.help}
-                                    </span>
-                                  </span>
-                                </button>
-                              ))}
-                            </div>
-                            <button
-                              onClick={() => setTrainingConfig({ ...DEFAULT_TRAINING_CONFIG })}
-                              className={`flex items-center gap-1.5 text-xs font-medium hover:text-slate-800 dark:hover:text-white ${muted}`}
-                            >
-                              <RotateCcw size={12} /> Go back to Just right
-                            </button>
-                          </div>
+                        {isTrainingModel && (
+                          <p className="text-xs text-[#FF6F61]">Preparing training data…</p>
                         )}
-                      </div>
-
-                      <div className="border-t border-slate-100 dark:border-white/10 pt-3">
-                        <button
-                          onClick={() => setShowUnderTheHood((v) => !v)}
-                          className="w-full flex items-center justify-between text-sm font-medium text-slate-700 dark:text-white/80"
-                        >
-                          <span className="flex items-center gap-1.5">
-                            <BarChart3 size={14} /> Under the hood
-                          </span>
-                          <ChevronDown
-                            size={15}
-                            className={`transition-transform ${showUnderTheHood ? 'rotate-180' : ''}`}
-                          />
-                        </button>
-                        {showUnderTheHood && (
-                          <p className={`text-xs leading-relaxed mt-2 ${muted}`}>
-                            Your computer looks at each picture and remembers what it looks like.
-                            When you show it something new, it finds the pictures it remembers most
-                            similar and picks that class. Nothing is sent anywhere: your pictures
-                            stay on this computer.
+                        {!canTrain && !isTrained && (
+                          <p className={`text-xs ${muted}`}>
+                            Add image samples to at least 2 classes.
                           </p>
                         )}
-                      </div>
-                    </div>
-                  </section>
 
-                  {/* ── Preview ── */}
-                  <section className="flex flex-col pt-1 h-full">
-                    <div className={`${card} overflow-hidden h-full flex flex-col`}>
-                      <div className="flex items-center justify-between px-5 py-4">
-                        <h2 className="text-lg font-semibold">Preview</h2>
-                        <button
-                          onClick={() => void handleExportModel()}
-                          disabled={isExporting || totalSamples === 0}
-                          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold disabled:opacity-40 ${grayBtn}`}
-                        >
-                          {isExporting ? (
-                            <Loader2 size={13} className="animate-spin" />
-                          ) : (
-                            <Upload size={13} />
-                          )}
-                          Export Model
-                        </button>
-                      </div>
-
-                      <div className="px-5 pb-4 space-y-3 border-t border-slate-100 dark:border-white/10 pt-3">
-                        <div className="flex items-center justify-between">
+                        <div className="border-t border-slate-100 dark:border-white/10 pt-3">
                           <button
-                            onClick={() => setShowPreviewInput(!showPreviewInput)}
-                            className="text-sm font-medium text-slate-700 dark:text-white/80"
+                            onClick={() => setShowAdvanced((v) => !v)}
+                            className="w-full flex items-center justify-between text-sm font-medium text-slate-700 dark:text-white/80"
                           >
-                            Input
+                            <span>Advanced</span>
+                            <ChevronDown
+                              size={15}
+                              className={`transition-transform ${showAdvanced ? 'rotate-180' : ''}`}
+                            />
                           </button>
-                          <div className="flex items-center gap-2">
-                            <button
-                              onClick={() =>
-                                isWebcamActive ? handleStopWebcam() : void handleStartWebcam()
-                              }
-                              title={isWebcamActive ? 'Turn camera off' : 'Turn camera on'}
-                              className={`relative w-9 h-5 rounded-full transition-colors ${isWebcamActive ? 'bg-[#1a73e8]' : 'bg-slate-300 dark:bg-white/20'}`}
-                            >
-                              <span
-                                className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-all ${isWebcamActive ? 'left-[18px]' : 'left-0.5'}`}
-                              />
-                            </button>
-                            <span className={`text-xs font-medium ${muted}`}>
-                              {isWebcamActive ? 'ON' : 'OFF'}
-                            </span>
-                            <select
-                              value={inputMode}
-                              onChange={(e) => setInputMode(e.target.value as 'webcam' | 'file')}
-                              className="text-xs rounded-md border border-slate-200 dark:border-white/10 bg-transparent px-2 py-1 outline-none"
-                            >
-                              <option value="webcam">Webcam</option>
-                              <option value="file">File</option>
-                            </select>
-                          </div>
+                          {showAdvanced && (
+                            <div className="pt-3 space-y-3">
+                              <div>
+                                <p className="text-sm font-semibold text-slate-800 dark:text-white">
+                                  How sure should it be before it guesses?
+                                </p>
+                                <p className={`text-xs mt-0.5 ${muted}`}>
+                                  Pick one. You can change it any time.
+                                </p>
+                              </div>
+                              <div className="space-y-2">
+                                {CAREFUL_LEVELS.map((lvl) => (
+                                  <button
+                                    key={lvl.label}
+                                    onClick={() =>
+                                      setTrainingConfig((c) => ({
+                                        ...c,
+                                        predictionThreshold: lvl.value,
+                                      }))
+                                    }
+                                    className={`w-full text-left p-3 rounded-lg border flex items-start gap-3 transition-colors ${
+                                      careLevel === lvl.label
+                                        ? 'border-[#FF6F61] bg-[#FF6F61]/10'
+                                        : 'border-slate-200 dark:border-white/10 hover:bg-slate-50 dark:hover:bg-white/5'
+                                    }`}
+                                  >
+                                    <span className="text-xl leading-none mt-0.5">{lvl.emoji}</span>
+                                    <span className="min-w-0">
+                                      <span className="block text-sm font-semibold text-slate-800 dark:text-white">
+                                        {lvl.label}
+                                      </span>
+                                      <span className={`block text-xs mt-0.5 ${muted}`}>
+                                        {lvl.help}
+                                      </span>
+                                    </span>
+                                  </button>
+                                ))}
+                              </div>
+                              <button
+                                onClick={() => setTrainingConfig({ ...DEFAULT_TRAINING_CONFIG })}
+                                className={`flex items-center gap-1.5 text-xs font-medium hover:text-slate-800 dark:hover:text-white ${muted}`}
+                              >
+                                <RotateCcw size={12} /> Go back to Just right
+                              </button>
+                            </div>
+                          )}
                         </div>
 
-                        {showPreviewInput && inputMode === 'webcam' && (
-                          <div
-                            className={`relative aspect-square rounded-md bg-slate-900 overflow-hidden ${isCapturing ? 'ring-2 ring-red-500' : ''}`}
+                        <div className="border-t border-slate-100 dark:border-white/10 pt-3">
+                          <button
+                            onClick={() => setShowUnderTheHood((v) => !v)}
+                            className="w-full flex items-center justify-between text-sm font-medium text-slate-700 dark:text-white/80"
                           >
-                            <video
-                              ref={outputVideoRef}
-                              autoPlay
-                              playsInline
-                              muted
-                              className="w-full h-full object-cover"
-                              style={{ transform: 'scaleX(-1)' }}
-                            />
-                          </div>
-                        )}
-
-                        {showPreviewInput && inputMode === 'file' && (
-                          <div
-                            className="aspect-square rounded-md border-2 border-dashed border-slate-300 dark:border-white/15 flex flex-col items-center justify-center gap-2 cursor-pointer hover:border-[#1a73e8]"
-                            onClick={() => testFileRef.current?.click()}
-                            onDragOver={(e) => e.preventDefault()}
-                            onDrop={(e) => {
-                              e.preventDefault();
-                              const file = e.dataTransfer.files[0];
-                              if (file) void handleTestWithFile(file);
-                            }}
-                          >
-                            {isTestingFile ? (
-                              <Loader2 size={24} className="animate-spin text-[#1a73e8]" />
-                            ) : (
-                              <ImagePlus size={24} className="text-slate-400" />
-                            )}
-                            <span className={`text-xs font-medium ${muted}`}>
-                              {isTestingFile ? 'Checking…' : 'Drop a picture or click'}
+                            <span className="flex items-center gap-1.5">
+                              <BarChart3 size={14} /> Under the hood
                             </span>
-                            <input
-                              ref={testFileRef}
-                              type="file"
-                              accept="image/*"
-                              className="hidden"
-                              onChange={(e) => {
-                                if (e.target.files?.[0]) void handleTestWithFile(e.target.files[0]);
-                                e.target.value = '';
-                              }}
+                            <ChevronDown
+                              size={15}
+                              className={`transition-transform ${showUnderTheHood ? 'rotate-180' : ''}`}
                             />
-                          </div>
-                        )}
+                          </button>
+                          {showUnderTheHood && (
+                            <p className={`text-xs leading-relaxed mt-2 ${muted}`}>
+                              Your computer looks at each picture and remembers what it looks like.
+                              When you show it something new, it finds the pictures it remembers
+                              most similar and picks that class. Nothing is sent anywhere: your
+                              pictures stay on this computer.
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    </section>
+                  )}
 
-                        {inputMode === 'webcam' &&
-                          isWebcamActive &&
-                          availableCameras.length > 1 && (
-                            <select
-                              value={selectedCameraId}
-                              disabled={isSwitchingCamera}
-                              onChange={(e) => void handleSwitchCamera(e.target.value)}
-                              className="w-full text-xs rounded-md border border-slate-200 dark:border-white/10 bg-transparent px-2 py-1.5 outline-none"
+                  {/* ── Preview ── */}
+                  {showPreview && (
+                    <section className="flex flex-col pt-1 h-full animate-pop-in">
+                      <div className={`${card} overflow-hidden h-full flex flex-col`}>
+                        <div className="flex items-center justify-between px-5 py-4">
+                          <h2 className="font-heading text-lg font-semibold">Preview</h2>
+                          <button
+                            onClick={() => void handleExportModel()}
+                            disabled={isExporting || totalSamples === 0}
+                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold ${grayBtn}`}
+                          >
+                            {isExporting ? (
+                              <Loader2 size={13} className="animate-spin" />
+                            ) : (
+                              <Upload size={13} />
+                            )}
+                            Export Model
+                          </button>
+                        </div>
+
+                        <div className="px-5 pb-4 space-y-3 border-t border-slate-100 dark:border-white/10 pt-3">
+                          <div className="flex items-center justify-between">
+                            <button
+                              onClick={() => setShowPreviewInput(!showPreviewInput)}
+                              className="text-sm font-medium text-slate-700 dark:text-white/80"
                             >
-                              {availableCameras.map((cam, i) => (
-                                <option
-                                  key={cam.deviceId}
-                                  value={cam.deviceId}
-                                  className="bg-white dark:bg-[#1b1b33]"
-                                >
-                                  {cam.label || `Camera ${i + 1}`}
-                                </option>
-                              ))}
-                            </select>
+                              Input
+                            </button>
+                            <div className="flex items-center gap-2">
+                              <button
+                                onClick={() =>
+                                  isWebcamActive ? handleStopWebcam() : void handleStartWebcam()
+                                }
+                                title={isWebcamActive ? 'Turn camera off' : 'Turn camera on'}
+                                className={`relative w-9 h-5 rounded-full transition-colors ${isWebcamActive ? 'bg-[#FF6F61]' : 'bg-slate-300 dark:bg-white/20'}`}
+                              >
+                                <span
+                                  className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-all ${isWebcamActive ? 'left-[18px]' : 'left-0.5'}`}
+                                />
+                              </button>
+                              <span className={`text-xs font-medium ${muted}`}>
+                                {isWebcamActive ? 'ON' : 'OFF'}
+                              </span>
+                              <select
+                                value={inputMode}
+                                onChange={(e) => setInputMode(e.target.value as 'webcam' | 'file')}
+                                className="text-xs rounded-md border border-slate-200 dark:border-white/10 bg-transparent px-2 py-1 outline-none"
+                              >
+                                <option value="webcam">Webcam</option>
+                                <option value="file">File</option>
+                              </select>
+                            </div>
+                          </div>
+
+                          {showPreviewInput && inputMode === 'webcam' && (
+                            <div
+                              className={`relative aspect-square rounded-md bg-slate-900 overflow-hidden ${isCapturing ? 'ring-2 ring-red-500' : ''}`}
+                            >
+                              <video
+                                ref={outputVideoRef}
+                                autoPlay
+                                playsInline
+                                muted
+                                className="w-full h-full object-cover"
+                                style={{ transform: 'scaleX(-1)' }}
+                              />
+                            </div>
                           )}
 
-                        {isTrained && inputMode === 'webcam' && isWebcamActive && (
-                          <button
-                            onClick={handleToggleTest}
-                            className={`w-full py-2 rounded-md text-sm font-semibold ${isTesting ? 'bg-red-500 text-white' : primaryBtn}`}
-                          >
-                            {isTesting ? 'Stop guessing' : 'Start guessing'}
-                          </button>
-                        )}
-                      </div>
-
-                      <div className="px-5 py-4 border-t border-slate-100 dark:border-white/10 space-y-3">
-                        <button
-                          onClick={() => setShowPreviewOutput(!showPreviewOutput)}
-                          className="text-sm font-medium text-slate-700 dark:text-white/80"
-                        >
-                          Output
-                        </button>
-                        {showPreviewOutput &&
-                          (Object.keys(confidences).length === 0 ? (
-                            <p className={`text-xs ${muted}`}>
-                              {isTrained
-                                ? 'Show it a picture to see what it thinks.'
-                                : 'You must train a model on the left before you can preview it here.'}
-                            </p>
-                          ) : (
-                            <div className="space-y-2">
-                              {classes.map((label, idx) => {
-                                const conf = confidences[label] ?? 0;
-                                const color = CLASS_COLORS[idx % CLASS_COLORS.length];
-                                return (
-                                  <div
-                                    key={label}
-                                    className={`relative h-9 rounded-md bg-slate-50 dark:bg-white/5 overflow-hidden flex items-center px-3 ${label === currentPrediction ? 'ring-2 ring-[#1a73e8]' : ''}`}
-                                  >
-                                    <div
-                                      className="absolute inset-y-0 left-0 transition-all duration-200"
-                                      style={{
-                                        width: `${conf}%`,
-                                        backgroundColor: color,
-                                        opacity: 0.25,
-                                      }}
-                                    />
-                                    <span
-                                      className="relative text-sm font-semibold"
-                                      style={{ color }}
-                                    >
-                                      {label}
-                                    </span>
-                                    <span
-                                      className="relative ml-auto text-xs font-semibold"
-                                      style={{ color }}
-                                    >
-                                      {conf}%
-                                    </span>
-                                  </div>
-                                );
-                              })}
+                          {showPreviewInput && inputMode === 'file' && (
+                            <div
+                              className="aspect-square rounded-md border-2 border-dashed border-slate-300 dark:border-white/15 flex flex-col items-center justify-center gap-2 cursor-pointer hover:border-[#FF6F61]"
+                              onClick={() => testFileRef.current?.click()}
+                              onDragOver={(e) => e.preventDefault()}
+                              onDrop={(e) => {
+                                e.preventDefault();
+                                const file = e.dataTransfer.files[0];
+                                if (file) void handleTestWithFile(file);
+                              }}
+                            >
+                              {isTestingFile ? (
+                                <Loader2 size={24} className="animate-spin text-[#FF6F61]" />
+                              ) : (
+                                <ImagePlus size={24} className="text-slate-400" />
+                              )}
+                              <span className={`text-xs font-medium ${muted}`}>
+                                {isTestingFile ? 'Checking…' : 'Drop a picture or click'}
+                              </span>
+                              <input
+                                ref={testFileRef}
+                                type="file"
+                                accept="image/*"
+                                className="hidden"
+                                onChange={(e) => {
+                                  if (e.target.files?.[0])
+                                    void handleTestWithFile(e.target.files[0]);
+                                  e.target.value = '';
+                                }}
+                              />
                             </div>
-                          ))}
+                          )}
+
+                          {inputMode === 'webcam' &&
+                            isWebcamActive &&
+                            availableCameras.length > 1 && (
+                              <select
+                                value={selectedCameraId}
+                                disabled={isSwitchingCamera}
+                                onChange={(e) => void handleSwitchCamera(e.target.value)}
+                                className="w-full text-xs rounded-md border border-slate-200 dark:border-white/10 bg-transparent px-2 py-1.5 outline-none"
+                              >
+                                {availableCameras.map((cam, i) => (
+                                  <option
+                                    key={cam.deviceId}
+                                    value={cam.deviceId}
+                                    className="bg-white dark:bg-[#1b1b33]"
+                                  >
+                                    {cam.label || `Camera ${i + 1}`}
+                                  </option>
+                                ))}
+                              </select>
+                            )}
+
+                          {isTrained && inputMode === 'webcam' && isWebcamActive && (
+                            <button
+                              onClick={handleToggleTest}
+                              className={`w-full py-2 rounded-md text-sm font-semibold ${isTesting ? 'bg-red-500 text-white' : primaryBtn}`}
+                            >
+                              {isTesting ? 'Stop guessing' : 'Start guessing'}
+                            </button>
+                          )}
+                        </div>
+
+                        <div className="px-5 py-4 border-t border-slate-100 dark:border-white/10 space-y-3">
+                          <button
+                            onClick={() => setShowPreviewOutput(!showPreviewOutput)}
+                            className="text-sm font-medium text-slate-700 dark:text-white/80"
+                          >
+                            Output
+                          </button>
+                          {showPreviewOutput &&
+                            (Object.keys(confidences).length === 0 ? (
+                              <p className={`text-xs ${muted}`}>
+                                {isTrained
+                                  ? 'Show it a picture to see what it thinks.'
+                                  : 'You must train a model on the left before you can preview it here.'}
+                              </p>
+                            ) : (
+                              <div className="space-y-2">
+                                {classes.map((label, idx) => {
+                                  const conf = confidences[label] ?? 0;
+                                  const color = CLASS_COLORS[idx % CLASS_COLORS.length];
+                                  return (
+                                    <div
+                                      key={label}
+                                      className={`relative h-9 rounded-md bg-slate-50 dark:bg-white/5 overflow-hidden flex items-center px-3 ${label === currentPrediction ? 'ring-2 ring-[#FF6F61]' : ''}`}
+                                    >
+                                      <div
+                                        className="absolute inset-y-0 left-0 transition-all duration-200"
+                                        style={{
+                                          width: `${conf}%`,
+                                          backgroundColor: color,
+                                          opacity: 0.25,
+                                        }}
+                                      />
+                                      <span
+                                        className="relative text-sm font-semibold"
+                                        style={{ color }}
+                                      >
+                                        {label}
+                                      </span>
+                                      <span
+                                        className="relative ml-auto text-xs font-semibold"
+                                        style={{ color }}
+                                      >
+                                        {conf}%
+                                      </span>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            ))}
+                        </div>
                       </div>
-                    </div>
-                  </section>
+                    </section>
+                  )}
                 </div>
               </div>
             )}
@@ -1606,7 +1666,7 @@ async function loadMyModel() {
               <div className="bg-white dark:bg-[#1b1b33] rounded-xl w-full max-w-xl shadow-2xl overflow-hidden">
                 <div className="flex items-center justify-between px-5 py-4 border-b border-slate-200 dark:border-white/10">
                   <span className="font-semibold text-sm flex items-center gap-2">
-                    <PackageOpen size={16} className="text-[#1a73e8]" /> Your model is downloaded
+                    <PackageOpen size={16} className="text-[#FF6F61]" /> Your model is downloaded
                   </span>
                   <button
                     onClick={() => setShowExportCode(false)}

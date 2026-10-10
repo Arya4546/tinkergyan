@@ -6,10 +6,12 @@
  * then test live predictions — all in the browser.
  */
 import { useState, useRef, useCallback, useEffect } from 'react';
+import confetti from 'canvas-confetti';
 import { Mic, MoreVertical, Pencil, ChevronDown, Info, Plus, Play, Square } from 'lucide-react';
 import { audioTrainerEngine } from '../../lib/audio-trainer-engine';
+import { RobotMascot } from '../illustrations/RobotMascot';
 
-const COLOR = '#1a73e8';
+const COLOR = '#FF6F61';
 
 export function AudioTrainerTab() {
   const [classes, setClasses] = useState<string[]>(() => {
@@ -148,38 +150,67 @@ export function AudioTrainerTab() {
     }
   }, [isMicOn, isTesting]);
 
+  const CLASS_COLORS = ['#f59e0b', '#e11d48', '#10b981', '#6366f1', '#0ea5e9', '#a855f7'];
   const canTest = classes.filter((c) => (exampleCounts[c] ?? 0) > 0).length >= 2;
+  const totalSamples = classes.reduce((sum, c) => sum + (exampleCounts[c] ?? 0), 0);
+  // Progressive reveal — don't show Training until there is something to train
+  // on. Preview can't be hidden the same way: it's not just a test panel here,
+  // it's where the one shared microphone gets turned on, and every class's
+  // record button is disabled until that happens. Hiding it before training
+  // would mean there's no way to ever record a first sample.
+  const showTraining = totalSamples > 0;
+  const gridCols = showTraining
+    ? 'grid-cols-[minmax(0,1fr)_280px_340px]'
+    : 'grid-cols-[minmax(0,1fr)_340px]';
 
-  const card = 'bg-white dark:bg-[#1b1b33] rounded-lg shadow-sm';
+  const card =
+    'bg-white dark:bg-[#1b1b33] rounded-xl shadow-[0_2px_12px_rgba(20,20,40,0.06)] dark:shadow-[0_2px_12px_rgba(0,0,0,0.35)] border border-slate-100 dark:border-white/5';
   const muted = 'text-slate-500 dark:text-white/50';
   const tile =
-    'flex flex-col items-center justify-center gap-1 w-[72px] h-[62px] shrink-0 rounded-md bg-[#e8f0fe] dark:bg-[#1a73e8]/15 text-[#1a73e8] dark:text-[#8ab4f8] hover:bg-[#d2e3fc] dark:hover:bg-[#1a73e8]/25 disabled:opacity-40 disabled:cursor-not-allowed transition-colors';
+    'flex flex-col items-center justify-center gap-1.5 w-20 h-[72px] shrink-0 rounded-xl border border-[#FF6F61]/20 dark:border-[#FF6F61]/20 bg-[#FFEDEA] dark:bg-[#FF6F61]/15 text-[#FF6F61] dark:text-[#FFAB9E] hover:bg-[#FFDDD6] dark:hover:bg-[#FF6F61]/25 hover:border-[#FF6F61]/40 hover:scale-105 active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:scale-100 transition-all';
   const primaryBtn =
-    'bg-[#1a73e8] text-white hover:bg-[#1765cc] disabled:bg-slate-200 disabled:text-slate-400 dark:disabled:bg-white/10 dark:disabled:text-white/30';
+    'bg-gradient-to-b from-[#FF7A6D] to-[#FF6F61] text-white shadow-[0_3px_10px_-2px_rgba(255,111,97,0.55)] hover:shadow-[0_5px_16px_-2px_rgba(255,111,97,0.65)] hover:-translate-y-0.5 active:translate-y-0 disabled:shadow-none disabled:translate-y-0 disabled:bg-slate-200 disabled:text-slate-400 dark:disabled:bg-white/10 dark:disabled:text-white/30 transition-all';
   const grayBtn =
-    'bg-slate-100 text-slate-700 hover:bg-slate-200 dark:bg-white/10 dark:text-white/80';
+    'bg-slate-100 text-slate-700 hover:bg-slate-200 dark:bg-white/10 dark:text-white/80 transition-colors';
 
   // Background noise is a normal class in Teachable Machine: it needs 20 samples, other classes 8.
   const minSamples = (name: string) => (name === 'Background Noise' ? 20 : 8);
 
   const handleTrain = () => {
     // The audio model learns as you record, so training only confirms there is enough data.
-    if (canTest) setIsTrained(true);
+    if (canTest) {
+      setIsTrained(true);
+      void confetti({
+        particleCount: 70,
+        spread: 65,
+        origin: { y: 0.6 },
+        colors: ['#FF6F61', '#E8584A', '#FFAB9E', '#ffffff'],
+      });
+    }
   };
 
   return (
-    <div className="flex-1 flex justify-center items-stretch py-8 px-6 min-h-[calc(100vh-96px)]">
-      <div className="w-full max-w-[1400px] grid grid-cols-[minmax(0,1fr)_280px_340px] gap-8 items-stretch">
+    <div className="flex-1 flex justify-center items-stretch py-10 px-6 min-h-[calc(100vh-96px)]">
+      <div className={`w-full max-w-[1400px] grid ${gridCols} gap-9 items-stretch`}>
         {/* ── Classes ── */}
-        <section className="min-w-0 flex flex-col gap-4">
-          {classes.map((className) => {
+        <section className="min-w-0 flex flex-col gap-5">
+          {classes.map((className, classIdx) => {
             const count = exampleCounts[className] ?? 0;
             const needed = minSamples(className);
+            const classColor = CLASS_COLORS[classIdx % CLASS_COLORS.length];
             return (
-              <div key={className} className={`${card} overflow-hidden`}>
-                <div className="flex items-center justify-between px-5 py-3 border-b border-slate-100 dark:border-white/10">
-                  <div className="flex items-center gap-2 min-w-0">
-                    <span className="font-semibold text-lg truncate">{className}</span>
+              <div
+                key={className}
+                className={`${card} overflow-hidden border-l-[5px]`}
+                style={{ borderLeftColor: classColor }}
+              >
+                <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 dark:border-white/10">
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <span
+                      className="w-2.5 h-2.5 rounded-full shrink-0"
+                      style={{ backgroundColor: classColor }}
+                    />
+                    <span className="font-heading font-semibold text-xl truncate">{className}</span>
                     <Pencil size={14} className="text-slate-400 shrink-0" />
                   </div>
                   <div className="relative">
@@ -275,7 +306,7 @@ export function AudioTrainerTab() {
               setClasses((p) => [...p, name]);
               setNewClassName('');
             }}
-            className="w-full py-5 rounded-lg border-2 border-dashed border-slate-300 dark:border-white/15 text-slate-500 dark:text-white/50 text-base flex items-center justify-center gap-2 hover:border-[#1a73e8] hover:text-[#1a73e8]"
+            className="w-full py-5 rounded-lg border-2 border-dashed border-slate-300 dark:border-white/15 text-slate-500 dark:text-white/50 text-base flex items-center justify-center gap-2 hover:border-[#FF6F61] hover:text-[#FF6F61]"
           >
             <Plus size={18} /> Add a class
           </button>
@@ -292,7 +323,7 @@ export function AudioTrainerTab() {
                 }
               }}
               placeholder={`Sound ${classes.length + 1} name`}
-              className="flex-1 min-w-0 px-3 py-2 rounded-md bg-white dark:bg-[#1b1b33] border border-slate-200 dark:border-white/10 text-sm outline-none focus:border-[#1a73e8]"
+              className="flex-1 min-w-0 px-3 py-2 rounded-md bg-white dark:bg-[#1b1b33] border border-slate-200 dark:border-white/10 text-sm outline-none focus:border-[#FF6F61]"
             />
             <button
               onClick={() => {
@@ -305,49 +336,61 @@ export function AudioTrainerTab() {
               Start over
             </button>
           </div>
+
+          {!showTraining && (
+            <div className="flex flex-col items-center gap-2 py-6 text-center">
+              <RobotMascot className="w-24 opacity-90" />
+              <p className={`text-sm max-w-xs ${muted}`}>
+                Turn on the microphone in Preview, then record a few sounds for each class. Once you
+                have some, I&apos;ll help you train it! 🎉
+              </p>
+            </div>
+          )}
         </section>
 
         {/* ── Training ── */}
-        <section className="flex flex-col pt-1 h-full">
-          <div className={`${card} p-5 flex-1 flex flex-col gap-4`}>
-            <h2 className="text-lg font-semibold">Training</h2>
-            <button
-              onClick={handleTrain}
-              disabled={!canTest || isTrained}
-              className={`w-full py-2 rounded-md text-sm font-semibold ${isTrained ? grayBtn : primaryBtn}`}
-            >
-              {isTrained ? 'Model Trained' : 'Train Model'}
-            </button>
-            <p className={`text-xs leading-relaxed ${muted}`}>
-              {isTrained
-                ? 'Your sounds were learned as you recorded them. Try them in the Preview.'
-                : canTest
-                  ? 'Press Train Model when every class has enough sounds.'
-                  : 'Record sounds for at least 2 classes first.'}
-            </p>
-            <div className="border-t border-slate-100 dark:border-white/10 pt-3">
+        {showTraining && (
+          <section className="flex flex-col pt-1 h-full animate-pop-in">
+            <div className={`${card} p-5 flex-1 flex flex-col gap-4`}>
+              <h2 className="text-lg font-semibold">Training</h2>
               <button
-                onClick={() => setShowHood((v) => !v)}
-                className="w-full flex items-center justify-between text-sm font-medium text-slate-700 dark:text-white/80"
+                onClick={handleTrain}
+                disabled={!canTest || isTrained}
+                className={`w-full py-2 rounded-md text-sm font-semibold ${isTrained ? grayBtn : primaryBtn}`}
               >
-                <span className="flex items-center gap-1.5">
-                  <Info size={14} /> How does this work?
-                </span>
-                <ChevronDown
-                  size={15}
-                  className={`transition-transform ${showHood ? 'rotate-180' : ''}`}
-                />
+                {isTrained ? 'Model Trained' : 'Train Model'}
               </button>
-              {showHood && (
-                <p className={`text-xs leading-relaxed mt-2 ${muted}`}>
-                  Your computer listens to each sound and remembers how it sounds. When it hears
-                  something new, it picks the class with the most similar sounds. Nothing is
-                  uploaded: sounds stay on this computer.
-                </p>
-              )}
+              <p className={`text-xs leading-relaxed ${muted}`}>
+                {isTrained
+                  ? 'Your sounds were learned as you recorded them. Try them in the Preview.'
+                  : canTest
+                    ? 'Press Train Model when every class has enough sounds.'
+                    : 'Record sounds for at least 2 classes first.'}
+              </p>
+              <div className="border-t border-slate-100 dark:border-white/10 pt-3">
+                <button
+                  onClick={() => setShowHood((v) => !v)}
+                  className="w-full flex items-center justify-between text-sm font-medium text-slate-700 dark:text-white/80"
+                >
+                  <span className="flex items-center gap-1.5">
+                    <Info size={14} /> How does this work?
+                  </span>
+                  <ChevronDown
+                    size={15}
+                    className={`transition-transform ${showHood ? 'rotate-180' : ''}`}
+                  />
+                </button>
+                {showHood && (
+                  <p className={`text-xs leading-relaxed mt-2 ${muted}`}>
+                    Your computer listens to each sound and remembers how it sounds. When it hears
+                    something new, it picks the class with the most similar sounds. Nothing is
+                    uploaded: sounds stay on this computer.
+                  </p>
+                )}
+              </div>
             </div>
-          </div>
-        </section>
+          </section>
+        )}
 
         {/* ── Preview ── */}
         <section className="flex flex-col pt-1 h-full">
@@ -363,7 +406,7 @@ export function AudioTrainerTab() {
                     onClick={() => (isMicOn ? handleStopMic() : void handleStartMic())}
                     disabled={isIniting}
                     title={isMicOn ? 'Turn microphone off' : 'Turn microphone on'}
-                    className={`relative w-9 h-5 rounded-full transition-colors ${isMicOn ? 'bg-[#1a73e8]' : 'bg-slate-300 dark:bg-white/20'}`}
+                    className={`relative w-9 h-5 rounded-full transition-colors ${isMicOn ? 'bg-[#FF6F61]' : 'bg-slate-300 dark:bg-white/20'}`}
                   >
                     <span
                       className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-all ${isMicOn ? 'left-[18px]' : 'left-0.5'}`}
@@ -413,19 +456,12 @@ export function AudioTrainerTab() {
                 <div className="space-y-2">
                   {classes.map((label, idx) => {
                     const conf = prediction.confs[label] ?? 0;
-                    const color = [
-                      '#f59e0b',
-                      '#e11d48',
-                      '#10b981',
-                      '#6366f1',
-                      '#0ea5e9',
-                      '#a855f7',
-                    ][idx % 6]!;
+                    const color = CLASS_COLORS[idx % CLASS_COLORS.length]!;
                     return (
                       <div
                         key={label}
                         className={`relative h-9 rounded-md bg-slate-50 dark:bg-white/5 overflow-hidden flex items-center px-3 ${
-                          label === prediction.label ? 'ring-2 ring-[#1a73e8]' : ''
+                          label === prediction.label ? 'ring-2 ring-[#FF6F61]' : ''
                         }`}
                       >
                         <div

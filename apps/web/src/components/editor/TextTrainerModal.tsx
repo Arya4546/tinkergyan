@@ -162,11 +162,11 @@ export function TextTrainerModal() {
           onChange={(e) => setNewClassName(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && handleAddClass()}
           placeholder={`Class ${classes.length + 1}`}
-          className="flex-1 px-3 py-2 rounded-lg bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 text-slate-800 dark:text-white text-sm placeholder:text-white/30 outline-none focus:border-[#1a73e8]/50"
+          className="flex-1 px-3 py-2 rounded-lg bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 text-slate-800 dark:text-white text-sm placeholder:text-white/30 outline-none focus:border-[#FF6F61]/50"
         />
         <button
           onClick={handleAddClass}
-          className="px-3 py-2 rounded-lg bg-[#1a73e8]/20 text-[#1a73e8] hover:bg-[#1a73e8]/30 transition-colors"
+          className="px-3 py-2 rounded-lg bg-[#FF6F61]/20 text-[#FF6F61] hover:bg-[#FF6F61]/30 transition-colors"
         >
           <Plus size={16} />
         </button>
@@ -180,7 +180,7 @@ export function TextTrainerModal() {
           isTrained
             ? 'bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30'
             : totalSamples >= 2
-              ? 'bg-[#1a73e8]/20 text-[#1a73e8] border border-[#1a73e8]/30 hover:bg-[#1a73e8]/30'
+              ? 'bg-[#FF6F61]/20 text-[#FF6F61] border border-[#FF6F61]/30 hover:bg-[#FF6F61]/30'
               : 'bg-white dark:bg-white/5 text-slate-400 dark:text-white/30 border border-slate-100 dark:border-white/5 cursor-not-allowed'
         }`}
       >
@@ -212,12 +212,12 @@ export function TextTrainerModal() {
               onChange={(e) => setTestInput(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && void handleTest()}
               placeholder="Type a sentence..."
-              className="flex-1 px-3 py-2 rounded-lg bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 text-slate-800 dark:text-white text-sm placeholder:text-white/30 outline-none focus:border-[#1a73e8]/50"
+              className="flex-1 px-3 py-2 rounded-lg bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 text-slate-800 dark:text-white text-sm placeholder:text-white/30 outline-none focus:border-[#FF6F61]/50"
             />
             <button
               onClick={() => void handleTest()}
               disabled={testLoading}
-              className="px-4 py-2 rounded-lg bg-[#1a73e8]/20 text-[#1a73e8] text-sm font-bold hover:bg-[#1a73e8]/30 transition-colors"
+              className="px-4 py-2 rounded-lg bg-[#FF6F61]/20 text-[#FF6F61] text-sm font-bold hover:bg-[#FF6F61]/30 transition-colors"
             >
               {testLoading ? <Loader2 size={14} className="animate-spin" /> : 'Test'}
             </button>
@@ -260,7 +260,7 @@ function ClassCard({ cls, onRename, onRemove, onAddSentence, onRemoveSentence }:
           defaultValue={cls.name}
           onBlur={(e) => onRename(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()}
-          className="flex-1 text-slate-800 dark:text-white font-bold text-sm bg-transparent outline-none border-b border-transparent focus:border-[#1a73e8]/50 hover:border-white/20 transition-colors"
+          className="flex-1 text-slate-800 dark:text-white font-bold text-sm bg-transparent outline-none border-b border-transparent focus:border-[#FF6F61]/50 hover:border-white/20 transition-colors"
         />
         <span className="text-slate-400 dark:text-white/30 text-xs font-mono">
           {cls.sentences.length}
@@ -298,12 +298,12 @@ function ClassCard({ cls, onRename, onRemove, onAddSentence, onRemoveSentence }:
           onChange={(e) => setInputVal(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && submit()}
           placeholder={`Example for "${cls.name}"...`}
-          className="flex-1 px-2 py-1.5 rounded-lg bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 text-slate-800 dark:text-white text-xs placeholder:text-white/20 outline-none focus:border-[#1a73e8]/40"
+          className="flex-1 px-2 py-1.5 rounded-lg bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 text-slate-800 dark:text-white text-xs placeholder:text-white/20 outline-none focus:border-[#FF6F61]/40"
         />
         <button
           onClick={submit}
           disabled={!inputVal.trim()}
-          className="px-2 py-1.5 rounded-lg bg-[#1a73e8]/10 text-[#1a73e8] text-xs hover:bg-[#1a73e8]/20 transition-colors disabled:opacity-30"
+          className="px-2 py-1.5 rounded-lg bg-[#FF6F61]/10 text-[#FF6F61] text-xs hover:bg-[#FF6F61]/20 transition-colors disabled:opacity-30"
         >
           <Plus size={12} />
         </button>

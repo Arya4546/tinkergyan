@@ -15,6 +15,8 @@
  */
 import { useArduinoSimStore, type PinMode } from '../../../stores/arduino-sim.store';
 import { useEditorStore } from '../../../stores/editor.store';
+import { useAIStore } from '../../../stores/ai.store';
+import { aiEngine } from '../../../lib/ai-engine';
 import { workspaceToArduinoSimCode } from '../arduino-sim-generator';
 
 /** API surface handed to generated sketch code as `api`. */
@@ -39,6 +41,14 @@ export interface ArduinoSimAPI {
   serialBegin: (baud: number) => Promise<void>;
   serialPrint: (text: unknown) => Promise<void>;
   serialPrintln: (text: unknown) => Promise<void>;
+
+  // ── AI Vision ────────────────────────────────────────────────────────────
+  aiStartVision: () => Promise<void>;
+  aiStopVision: () => Promise<void>;
+  onAIPredicted: (label: string, callback: () => Promise<void>) => void;
+  getAIPrediction: () => string;
+  getAIConfidence: (label: string) => number;
+  isAIPredicting: (label: string) => boolean;
 }
 
 /**
@@ -98,6 +108,10 @@ export class ArduinoSimEngine {
   private lastYieldAt = 0;
   /** Buffered partial line from Serial.print (no newline) — flushed by println. */
   private serialBuffer = '';
+  /** Hidden <video> feeding the AI inference loop, created lazily by aiStartVision. */
+  private aiVideoEl: HTMLVideoElement | null = null;
+  /** "if AI sees [label]" callbacks registered by the generated sketch. */
+  private aiPredictedCallbacks: Map<string, Array<() => Promise<void>>> = new Map();
 
   private get board(): BoardProfile {
     return BOARD_PROFILES[useEditorStore.getState().board] ?? DEFAULT_PROFILE;
@@ -251,6 +265,71 @@ export class ArduinoSimEngine {
         await this.tick();
         writeSerial(`${formatForSerial(text)}\n`);
       },
+
+      // ── AI Vision ──────────────────────────────────────────────────────
+      aiStartVision: async () => {
+        if (!aiEngine.isInitialised) await aiEngine.init();
+        useAIStore.getState().setModelLoaded(true);
+
+        if (!this.aiVideoEl) {
+          this.aiVideoEl = document.createElement('video');
+          this.aiVideoEl.setAttribute('autoplay', '');
+          this.aiVideoEl.setAttribute('playsinline', '');
+          this.aiVideoEl.setAttribute('muted', '');
+          this.aiVideoEl.style.display = 'none';
+          document.body.appendChild(this.aiVideoEl);
+        }
+
+        await aiEngine.startWebcam(this.aiVideoEl);
+        useAIStore.getState().setWebcamActive(true);
+
+        if (!aiEngine.isReadyToPredict) return;
+
+        aiEngine.startPredicting(
+          this.aiVideoEl,
+          (result) => {
+            useAIStore.getState().updatePrediction(result.label, result.allConfidences);
+
+            const callbacks = this.aiPredictedCallbacks.get(result.label);
+            if (callbacks && result.confidence >= 70) {
+              for (const cb of callbacks) {
+                void cb().catch((e) => {
+                  if (e instanceof Error && e.message !== 'Aborted')
+                    console.error('AI Script Error:', e);
+                });
+              }
+            }
+          },
+          true,
+          true,
+        );
+        useAIStore.getState().setPredicting(true);
+      },
+
+      aiStopVision: async () => {
+        aiEngine.stopPredicting();
+        aiEngine.stopWebcam();
+        if (this.aiVideoEl) {
+          this.aiVideoEl.remove();
+          this.aiVideoEl = null;
+        }
+        useAIStore.getState().setWebcamActive(false);
+        useAIStore.getState().setPredicting(false);
+        useAIStore.getState().clearPrediction();
+        await this.tick();
+      },
+
+      onAIPredicted: (label, callback) => {
+        const list = this.aiPredictedCallbacks.get(label) ?? [];
+        list.push(callback);
+        this.aiPredictedCallbacks.set(label, list);
+      },
+
+      getAIPrediction: () => useAIStore.getState().currentPrediction ?? '',
+
+      getAIConfidence: (label) => useAIStore.getState().confidences[label] ?? 0,
+
+      isAIPredicting: (label) => useAIStore.getState().currentPrediction === label,
     };
   }
 
@@ -273,6 +352,7 @@ export class ArduinoSimEngine {
 
     this.abortController = new AbortController();
     this.hooks = {};
+    this.aiPredictedCallbacks = new Map();
     this.serialBuffer = '';
     this.startedAt = Date.now();
     this.lastYieldAt = Date.now();
@@ -345,6 +425,16 @@ export class ArduinoSimEngine {
     }
     store.setRunning(false);
     store.setPhase('idle');
+
+    // Clean up any AI vision resources a stopped/finished sketch left running.
+    aiEngine.stopPredicting();
+    aiEngine.stopWebcam();
+    if (this.aiVideoEl) {
+      this.aiVideoEl.remove();
+      this.aiVideoEl = null;
+    }
+    useAIStore.getState().setWebcamActive(false);
+    useAIStore.getState().setPredicting(false);
   }
 }
 

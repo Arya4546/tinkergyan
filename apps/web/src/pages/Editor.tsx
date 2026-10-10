@@ -70,6 +70,7 @@ import { useEditorStore, STARTER_TEMPLATES, type StarterTemplate } from '../stor
 import { useUIStore } from '../stores/ui.store';
 import { useUser } from '../stores/auth.store';
 import { useSimulatorStore } from '../stores/simulator.store';
+import { CartoonRocket } from '../components/illustrations/CartoonRocket';
 import { scratchEngine } from '../components/editor/simulator/ScratchEngine';
 import { workspaceToScratchCode } from '../components/editor/scratch-generator';
 import * as Blockly from 'blockly/core';
@@ -1138,6 +1139,18 @@ export default function Editor() {
               className="w-10 h-10 shrink-0 flex items-center justify-center rounded-xl bg-white/20 text-white hover:bg-white/30 hover:scale-105 active:scale-95 transition-all focus-visible:ring-4 focus-visible:ring-white/50 focus-visible:outline-none shadow-sm backdrop-blur-sm"
             >
               <Home size={20} strokeWidth={2.5} />
+            </button>
+          </Tooltip>
+
+          <Tooltip content="Dashboard" position="bottom">
+            <button
+              onClick={handleNavigateHome}
+              className="hidden md:flex items-center gap-1.5 shrink-0 group"
+            >
+              <CartoonRocket className="w-7 h-7 group-hover:scale-110 group-hover:-rotate-6 transition-transform duration-300 drop-shadow-sm" />
+              <span className="font-heading font-black text-lg tracking-tight text-white drop-shadow-xs">
+                Tinkergyan
+              </span>
             </button>
           </Tooltip>
 

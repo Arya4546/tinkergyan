@@ -14,7 +14,7 @@ import {
   DEFAULT_TABULAR_CONFIG,
 } from '../../lib/tabular-ai-engine';
 
-const COLOR = '#1a73e8';
+const COLOR = '#FF6F61';
 
 export function TabularTrainerTab() {
   const [dataset, setDataset] = useState<TabularDataset | null>(null);
@@ -105,7 +105,7 @@ export function TabularTrainerTab() {
         {/* CSV Upload */}
         {!dataset ? (
           <div
-            className="flex-1 flex flex-col items-center justify-center gap-4 border-2 border-dashed border-slate-300 dark:border-white/20 rounded-2xl hover:border-[#1a73e8]/50 transition-colors cursor-pointer p-10"
+            className="flex-1 flex flex-col items-center justify-center gap-4 border-2 border-dashed border-slate-300 dark:border-white/20 rounded-2xl hover:border-[#FF6F61]/50 transition-colors cursor-pointer p-10"
             onClick={() => fileInputRef.current?.click()}
             onDragOver={(e) => e.preventDefault()}
             onDrop={(e) => {
@@ -123,7 +123,7 @@ export function TabularTrainerTab() {
                 or click to browse — all processing stays in your browser
               </p>
             </div>
-            <button className="px-4 py-2 rounded-lg bg-[#1a73e8]/20 text-[#1a73e8] text-sm font-bold hover:bg-[#1a73e8]/30 transition-colors">
+            <button className="px-4 py-2 rounded-lg bg-[#FF6F61]/20 text-[#FF6F61] text-sm font-bold hover:bg-[#FF6F61]/30 transition-colors">
               Choose CSV File
             </button>
             <input
@@ -158,15 +158,15 @@ export function TabularTrainerTab() {
               </div>
               <div className="grid grid-cols-3 gap-3 text-center">
                 <div className="bg-slate-100 dark:bg-black/20 rounded-lg p-2">
-                  <p className="text-[#1a73e8] font-bold text-lg">{dataset.rows.length}</p>
+                  <p className="text-[#FF6F61] font-bold text-lg">{dataset.rows.length}</p>
                   <p className="text-slate-500 dark:text-white/40 text-[10px]">rows</p>
                 </div>
                 <div className="bg-slate-100 dark:bg-black/20 rounded-lg p-2">
-                  <p className="text-[#1a73e8] font-bold text-lg">{dataset.headers.length}</p>
+                  <p className="text-[#FF6F61] font-bold text-lg">{dataset.headers.length}</p>
                   <p className="text-slate-500 dark:text-white/40 text-[10px]">columns</p>
                 </div>
                 <div className="bg-slate-100 dark:bg-black/20 rounded-lg p-2">
-                  <p className="text-[#1a73e8] font-bold text-lg">
+                  <p className="text-[#FF6F61] font-bold text-lg">
                     {dataset.numericHeaders.length}
                   </p>
                   <p className="text-slate-500 dark:text-white/40 text-[10px]">numeric</p>
@@ -186,7 +186,7 @@ export function TabularTrainerTab() {
               <select
                 value={targetColumn}
                 onChange={(e) => setTargetColumn(e.target.value)}
-                className="w-full px-3 py-2 rounded-lg bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 text-slate-800 dark:text-white text-sm outline-none focus:border-[#1a73e8]/50"
+                className="w-full px-3 py-2 rounded-lg bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 text-slate-800 dark:text-white text-sm outline-none focus:border-[#FF6F61]/50"
               >
                 {dataset.headers.map((h) => (
                   <option key={h} value={h}>
@@ -215,7 +215,7 @@ export function TabularTrainerTab() {
                     max={500}
                     value={epochs}
                     onChange={(e) => setEpochs(Number(e.target.value))}
-                    className="w-full px-2 py-1.5 rounded-lg bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 text-slate-800 dark:text-white text-sm outline-none focus:border-[#1a73e8]/50 text-center"
+                    className="w-full px-2 py-1.5 rounded-lg bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 text-slate-800 dark:text-white text-sm outline-none focus:border-[#FF6F61]/50 text-center"
                   />
                 </div>
                 <div>
@@ -225,7 +225,7 @@ export function TabularTrainerTab() {
                   <select
                     value={batchSize}
                     onChange={(e) => setBatchSize(Number(e.target.value))}
-                    className="w-full px-2 py-1.5 rounded-lg bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 text-slate-800 dark:text-white text-sm outline-none focus:border-[#1a73e8]/50"
+                    className="w-full px-2 py-1.5 rounded-lg bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 text-slate-800 dark:text-white text-sm outline-none focus:border-[#FF6F61]/50"
                   >
                     {[8, 16, 32, 64, 128].map((v) => (
                       <option key={v} value={v}>
@@ -241,7 +241,7 @@ export function TabularTrainerTab() {
                   <select
                     value={learningRate}
                     onChange={(e) => setLearningRate(Number(e.target.value))}
-                    className="w-full px-2 py-1.5 rounded-lg bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 text-slate-800 dark:text-white text-sm outline-none focus:border-[#1a73e8]/50"
+                    className="w-full px-2 py-1.5 rounded-lg bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 text-slate-800 dark:text-white text-sm outline-none focus:border-[#FF6F61]/50"
                   >
                     {[0.01, 0.001, 0.0001].map((v) => (
                       <option key={v} value={v}>
@@ -265,7 +265,7 @@ export function TabularTrainerTab() {
                 isTrained
                   ? 'bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30'
                   : featureColumns.length > 0
-                    ? 'bg-[#1a73e8]/20 text-[#1a73e8] border border-[#1a73e8]/30 hover:bg-[#1a73e8]/30'
+                    ? 'bg-[#FF6F61]/20 text-[#FF6F61] border border-[#FF6F61]/30 hover:bg-[#FF6F61]/30'
                     : 'bg-white dark:bg-white/5 text-slate-400 dark:text-white/30 border border-slate-100 dark:border-white/5 cursor-not-allowed'
               }`}
             >
@@ -356,7 +356,7 @@ export function TabularTrainerTab() {
           <>
             <p className="text-slate-500 dark:text-white/40 text-xs">
               Enter feature values to predict the{' '}
-              <span className="text-[#1a73e8]">{targetColumn}</span> column:
+              <span className="text-[#FF6F61]">{targetColumn}</span> column:
             </p>
             <div className="space-y-2">
               {featureColumns.map((col) => (
@@ -369,14 +369,14 @@ export function TabularTrainerTab() {
                     value={testRow[col] ?? ''}
                     onChange={(e) => setTestRow((r) => ({ ...r, [col]: e.target.value }))}
                     placeholder="0"
-                    className="w-full px-3 py-1.5 rounded-lg bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 text-slate-800 dark:text-white text-sm outline-none focus:border-[#1a73e8]/50"
+                    className="w-full px-3 py-1.5 rounded-lg bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 text-slate-800 dark:text-white text-sm outline-none focus:border-[#FF6F61]/50"
                   />
                 </div>
               ))}
             </div>
             <button
               onClick={handleTest}
-              className="w-full py-2.5 rounded-xl bg-[#1a73e8]/20 text-[#1a73e8] font-bold text-sm hover:bg-[#1a73e8]/30 transition-colors flex items-center justify-center gap-2"
+              className="w-full py-2.5 rounded-xl bg-[#FF6F61]/20 text-[#FF6F61] font-bold text-sm hover:bg-[#FF6F61]/30 transition-colors flex items-center justify-center gap-2"
             >
               <Brain size={14} /> Predict
             </button>
@@ -386,7 +386,7 @@ export function TabularTrainerTab() {
                 <div className="flex items-center gap-2 mb-2">
                   <CheckCircle2 size={14} className="text-emerald-600 dark:text-emerald-400" />
                   <span className="text-slate-800 dark:text-white font-bold text-sm">
-                    Result: <span className="text-[#1a73e8]">{testResult.label}</span>
+                    Result: <span className="text-[#FF6F61]">{testResult.label}</span>
                   </span>
                 </div>
                 {Object.entries(testResult.allConfidences)

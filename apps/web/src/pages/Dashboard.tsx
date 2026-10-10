@@ -131,8 +131,6 @@ export default function Dashboard() {
     if (categoryFilter === 'SHOW_WIZARD') return [];
 
     return projects.filter((p) => {
-      if (categoryFilter === 'HARDWARE' && boardFilter === 'ALL') return false;
-
       if (categoryFilter === 'HARDWARE' && p.boardTarget === 'software') return false;
       if (categoryFilter === 'SOFTWARE' && p.boardTarget !== 'software') return false;
 
@@ -300,7 +298,7 @@ export default function Dashboard() {
 
           {!isLoading && !error && filteredProjects.length === 0 && (
             <div className="flex flex-col items-center justify-center py-10 w-full">
-              {categoryFilter === ('SHOW_WIZARD' as any) ? (
+              {categoryFilter === 'SHOW_WIZARD' ? (
                 <div className="flex flex-col items-center w-full max-w-2xl mx-auto">
                   <h3 className="text-2xl font-bold text-slate-900 dark:text-white mb-2">
                     Select Workspace View
@@ -347,31 +345,6 @@ export default function Dashboard() {
                         </p>
                       </div>
                     </button>
-                  </div>
-                </div>
-              ) : categoryFilter === 'HARDWARE' && boardFilter === 'ALL' ? (
-                <div className="flex flex-col items-center w-full mx-auto">
-                  <h3 className="text-2xl font-bold text-slate-900 dark:text-white mb-2">
-                    Filter by Hardware Board
-                  </h3>
-                  <p className="text-sm text-slate-500 mb-8">
-                    Choose a microcontroller to view its projects.
-                  </p>
-                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 w-full max-w-4xl">
-                    {BOARDS.map((b) => (
-                      <button
-                        key={b.fqbn}
-                        onClick={() => setBoardFilter(b.fqbn)}
-                        className="flex flex-col items-center gap-4 p-6 rounded-3xl border border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 bg-white dark:bg-[#1A1D24] hover:bg-slate-50 dark:hover:bg-slate-800/50 hover:shadow-md transition-all duration-300 group cursor-pointer"
-                      >
-                        <div className="w-14 h-14 bg-slate-50 dark:bg-slate-800/80 text-slate-400 dark:text-slate-500 rounded-2xl flex items-center justify-center group-hover:text-slate-700 dark:group-hover:text-slate-300 group-hover:bg-slate-100 dark:group-hover:bg-slate-700 transition-colors duration-300">
-                          <Cpu size={28} strokeWidth={1.5} />
-                        </div>
-                        <span className="font-medium text-sm text-slate-700 dark:text-slate-300 text-center leading-tight">
-                          {b.label}
-                        </span>
-                      </button>
-                    ))}
                   </div>
                 </div>
               ) : (
