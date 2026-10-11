@@ -58,6 +58,7 @@ import { startHardwareBinding } from '../components/editor/simulator/hardware-bi
 import { StagePanel } from '../components/editor/simulator/StagePanel';
 import { CostumesPanel } from '../components/editor/simulator/CostumesPanel';
 import { SoundsPanel } from '../components/editor/simulator/SoundsPanel';
+import { AIWebcamOverlay } from '../components/editor/AIWebcamOverlay';
 import { WebSerialFlasher } from '../lib/web-serial-flasher';
 import type { FlashBoard } from '../lib/web-serial-flasher';
 import confetti from 'canvas-confetti';
@@ -1672,6 +1673,17 @@ export default function Editor() {
                   <StagePanel onReset={handleResetProject} />
                 ) : (
                   <>
+                    {/* Picture-in-picture AI webcam preview for the hardware
+                      editor — the Scratch Stage gets one laid out beside the
+                      canvas (StagePanel), but this pane stacks its content
+                      vertically, so it floats instead. Reads the same
+                      useAIStore fields that ArduinoSimEngine (Run) and
+                      SerialMonitor (real hardware) both already write to, and
+                      self-hides until an "AI vision" block actually runs. */}
+                    <div className="absolute bottom-3 right-3 z-20">
+                      <AIWebcamOverlay />
+                    </div>
+
                     {/* Serial Monitor (when active and hardware connected) */}
                     {showSerialMonitor && hardwarePort && !isFlashing ? (
                       <SerialMonitor

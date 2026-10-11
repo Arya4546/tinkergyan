@@ -157,7 +157,7 @@ export default function Dashboard() {
                 </div>
                 <div className="text-center">
                   <h3 className="font-semibold text-xl text-slate-900 dark:text-white mb-1.5">
-                    AI
+                    AI Studio
                   </h3>
                   <p className="text-sm text-slate-500 font-medium leading-relaxed">
                     Train an image, sound, or pose model

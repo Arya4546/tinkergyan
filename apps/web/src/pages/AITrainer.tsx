@@ -27,7 +27,6 @@ import {
   Save,
   AlertTriangle,
   ImagePlus,
-  Pencil,
   MoreVertical,
   Trash2,
   BarChart3,
@@ -100,6 +99,17 @@ export default function AITrainer() {
       void useEditorStore.getState().loadProject(projectId);
     }
   }, [projectId]);
+
+  // Leaving AI Studio must clear the shared editor store — otherwise its
+  // stale projectId/board='ai' linger for whichever page mounts next (e.g.
+  // the Editor page after creating an unrelated Hardware/Software project),
+  // which reads them before its own fetch resolves and gets redirected
+  // straight back into this old AI project instead of the new one.
+  useEffect(() => {
+    return () => {
+      useEditorStore.getState().resetEditor();
+    };
+  }, []);
 
   const [activeTab, setActiveTab] = useState<TrainerTab>('image');
   const [classes, setClasses] = useState<string[]>(() => {
@@ -988,7 +998,6 @@ export default function AITrainer() {
                                 title="Click to rename"
                                 className="font-heading font-semibold text-xl bg-transparent outline-none min-w-0 rounded px-1 -ml-1 border border-transparent focus:border-[#FF6F61]/60 hover:border-slate-200 dark:hover:border-white/20"
                               />
-                              <Pencil size={14} className="text-slate-400 shrink-0" />
                             </div>
                             <div className="relative">
                               <button
