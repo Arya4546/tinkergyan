@@ -120,6 +120,60 @@ const ESP32_PWM = ESP32_OUTPUT_CAPABLE;
 // ADC1 channels only — ADC2 pins stop working when WiFi is active.
 const ESP32_ANALOG = ['32', '33', '34', '35', '36', '39'] as const;
 
+/**
+ * ESP32-S3 Dev Module — deliberately conservative. Boards sold as "ESP32"
+ * today are very often an S3 or C3 underneath (see detectChip in
+ * web-serial-flasher.ts), and this chip's pin map genuinely differs by board
+ * revision/flash-PSRAM config, so we omit anything that's reserved on *some*
+ * common variant rather than risk handing out a pin that crashes the board:
+ * 0/3/45/46 (strapping), 19/20 (native USB on many boards), 35-37 (octal
+ * flash/PSRAM on 16MB boards), 43/44 (UART0, used by Serial/upload).
+ */
+const ESP32S3_OUTPUT_CAPABLE = [
+  '1',
+  '2',
+  '4',
+  '5',
+  '6',
+  '7',
+  '8',
+  '9',
+  '10',
+  '11',
+  '12',
+  '13',
+  '14',
+  '15',
+  '16',
+  '17',
+  '18',
+  '21',
+  '38',
+  '39',
+  '40',
+  '41',
+  '42',
+  '47',
+  '48',
+] as const;
+const ESP32S3_DIGITAL = [...ESP32S3_OUTPUT_CAPABLE, 'LED_BUILTIN'] as const;
+const ESP32S3_PWM = ESP32S3_OUTPUT_CAPABLE;
+// ADC1 channels (GPIO1-10) only — ADC2 pins stop working when WiFi is active.
+const ESP32S3_ANALOG = ['1', '2', '4', '5', '6', '7', '8', '9', '10'] as const;
+
+/**
+ * ESP32-C3 Dev Module — single-core RISC-V chip with only 22 GPIOs total, so
+ * there is much less headroom than the other ESP32 variants. Reserved:
+ * 2/8/9 (strapping — 9 is also the BOOT button), 12-17 (internal SPI flash,
+ * not broken out on header pins), 18/19 (native USB on many boards), 20/21
+ * (UART0, used by Serial/upload).
+ */
+const ESP32C3_OUTPUT_CAPABLE = ['0', '1', '3', '4', '5', '6', '7', '10', '11'] as const;
+const ESP32C3_DIGITAL = [...ESP32C3_OUTPUT_CAPABLE, 'LED_BUILTIN'] as const;
+const ESP32C3_PWM = ESP32C3_OUTPUT_CAPABLE;
+// ADC1 channels only (GPIO0/1/3/4 — GPIO2 is ADC1_CH2 but reserved above as strapping).
+const ESP32C3_ANALOG = ['0', '1', '3', '4'] as const;
+
 export const BOARD_DEFINITIONS: readonly BoardDefinition[] = [
   {
     fqbn: 'arduino:avr:uno',
@@ -159,6 +213,22 @@ export const BOARD_DEFINITIONS: readonly BoardDefinition[] = [
     digitalPins: ESP32_DIGITAL,
     pwmPins: ESP32_PWM,
     analogPins: ESP32_ANALOG,
+    uploadBauds: [115200],
+  },
+  {
+    fqbn: 'esp32:esp32:esp32s3',
+    label: 'ESP32-S3',
+    digitalPins: ESP32S3_DIGITAL,
+    pwmPins: ESP32S3_PWM,
+    analogPins: ESP32S3_ANALOG,
+    uploadBauds: [115200],
+  },
+  {
+    fqbn: 'esp32:esp32:esp32c3',
+    label: 'ESP32-C3',
+    digitalPins: ESP32C3_DIGITAL,
+    pwmPins: ESP32C3_PWM,
+    analogPins: ESP32C3_ANALOG,
     uploadBauds: [115200],
   },
 ];

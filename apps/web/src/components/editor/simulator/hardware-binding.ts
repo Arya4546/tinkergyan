@@ -19,9 +19,9 @@ import { useArduinoSimStore } from '../../../stores/arduino-sim.store';
 import { useEditorStore } from '../../../stores/editor.store';
 import { getBoardDefinition } from '../../../lib/boards';
 
-/** Max analogRead value for the selected board. AVR is 10-bit, ESP32 12-bit. */
+/** Max analogRead value for the selected board. AVR is 10-bit, every ESP32 chip is 12-bit. */
 function adcMaxForBoard(): number {
-  return useEditorStore.getState().board === 'esp32:esp32:esp32' ? 4095 : 1023;
+  return useEditorStore.getState().board.startsWith('esp32:esp32:') ? 4095 : 1023;
 }
 
 /** LED_BUILTIN and its pin number must resolve to the same key as the engine uses. */

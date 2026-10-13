@@ -15,12 +15,20 @@ import type { CompileResult } from '../lib/compiler';
 
 export type { CompileResult };
 
+// The esp32:esp32 core (installed in full by setup-arduino-cli.sh) ships board
+// defs for every chip in the family, not just the classic one — so adding a
+// new ESP32 variant here is just adding its FQBN, no new core install needed.
+// Keep this in sync with KnownBoardTarget in packages/shared-types and with
+// WebSerialFlasher.detectChip's chip-name-to-FQBN map, which picks one of
+// these automatically from the chip actually connected over Web Serial.
 export const SUPPORTED_BOARDS = [
   'arduino:avr:uno',
   'arduino:avr:nano',
   'arduino:avr:mega',
   'esp8266:esp8266:nodemcuv2',
   'esp32:esp32:esp32',
+  'esp32:esp32:esp32s3',
+  'esp32:esp32:esp32c3',
 ] as const;
 
 export type BoardFqbn = (typeof SUPPORTED_BOARDS)[number];

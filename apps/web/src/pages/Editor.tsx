@@ -905,6 +905,41 @@ export default function Editor() {
     setShowCodePanel(true);
 
     try {
+      const flasher = new WebSerialFlasher(hardwarePort);
+
+      // Step 0 (ESP boards only): read the actual connected chip over Web
+      // Serial instead of trusting the project's board setting. Boards sold
+      // as plain "ESP32" are very often an S3 or C3 underneath, and
+      // compiling for the wrong chip uploads "successfully" but the board
+      // never runs it — this is what fixes that for every ESP32 variant.
+      let compileBoard = board;
+      if (board.startsWith('esp')) {
+        setFlashMessage('Checking connected chip...');
+        const { chipName, fqbn } = await flasher.detectChip((msg) => console.log('[Flash]', msg));
+
+        if (!fqbn) {
+          addToast({
+            type: 'error',
+            title: `${chipName} isn't supported yet`,
+            message: `Detected a ${chipName} chip, but this app doesn't have firmware support for it yet. Contact support to get it added.`,
+          });
+          setIsFlashing(false);
+          setFlashProgress(0);
+          setFlashMessage('');
+          return;
+        }
+
+        if (fqbn !== board) {
+          setBoard(fqbn);
+          addToast({
+            type: 'info',
+            title: `Detected ${chipName}`,
+            message: `This project was set to ${boardLabel}, but a ${chipName} is connected — switched automatically so the upload matches your hardware.`,
+          });
+        }
+        compileBoard = fqbn;
+      }
+
       // Step 1: Compile for firmware (uses arduino-cli on server)
       addToast({
         type: 'info',
@@ -915,7 +950,7 @@ export default function Editor() {
         await import('../services/api')
       ).api.post('/compile', {
         code,
-        board,
+        board: compileBoard,
         stdin: '',
         target: 'firmware',
       });
@@ -938,9 +973,8 @@ export default function Editor() {
       setFlashProgress(10);
 
       // Step 2: Flash the compiled firmware to the board
-      const flasher = new WebSerialFlasher(hardwarePort);
       await flasher.flash(firmwareResult.hexBase64, {
-        board: board as FlashBoard,
+        board: compileBoard as FlashBoard,
         onProgress: (percent, message) => {
           setFlashProgress(percent);
           setFlashMessage(message);
@@ -962,7 +996,7 @@ export default function Editor() {
       setFlashProgress(0);
       setFlashMessage('');
     }
-  }, [hardwarePort, board, boardLabel, mode, generatedCode, manualCode, addToast]);
+  }, [hardwarePort, board, boardLabel, mode, generatedCode, manualCode, addToast, setBoard]);
 
   // ── Run ────────────────────────────────────────────────────────────────
   const isSimRunning = useArduinoSimStore((s) => s.isRunning);

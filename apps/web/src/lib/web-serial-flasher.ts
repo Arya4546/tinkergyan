@@ -33,6 +33,30 @@ export interface FlashOptions {
   onLog?: (message: string) => void;
 }
 
+/**
+ * Maps esptool-js's own chip-name string (read straight off the connected
+ * chip's ROM, not guessed) to the FQBN that actually compiles correct
+ * firmware for it. Boards sold as plain "ESP32" are very often an S3 or C3
+ * underneath — compiling for the wrong one uploads "successfully" (esptool
+ * only needs the ROM bootloader to talk to it) but the chip never runs it,
+ * which is exactly the "upload hoke hardware me nahi ja raha" symptom.
+ * `null` means esptool-js recognizes the chip but we don't have a board
+ * definition for it yet.
+ */
+const ESP_CHIP_NAME_TO_FQBN: Record<string, FlashBoard | null> = {
+  ESP32: 'esp32:esp32:esp32',
+  'ESP32-S3': 'esp32:esp32:esp32s3',
+  'ESP32-C3': 'esp32:esp32:esp32c3',
+  ESP8266: 'esp8266:esp8266:nodemcuv2',
+};
+
+export interface DetectedChip {
+  /** Raw chip name as read from the ROM, e.g. "ESP32-S3". */
+  chipName: string;
+  /** The FQBN to compile with, or null if this exact chip isn't supported yet. */
+  fqbn: FlashBoard | null;
+}
+
 // Intel HEX parser — converts .hex file content to raw binary
 function parseIntelHex(hexString: string): Uint8Array {
   const lines = hexString.split('\n').filter((l) => l.startsWith(':'));
@@ -604,6 +628,48 @@ export class WebSerialFlasher {
       } catch {
         // Best-effort reopen
       }
+    }
+  }
+
+  /**
+   * Reads the real chip off the ROM bootloader over Web Serial — the same
+   * handshake `flashESP` does as its first step — and maps it to the FQBN
+   * that should be used to compile for it. This runs *before* compiling, so
+   * the Editor can send the server the right board instead of trusting
+   * whatever the project happened to be set up with.
+   *
+   * Leaves the chip reset back to normal boot (not sitting in the ROM
+   * bootloader) and the port closed, since the compile step that follows
+   * doesn't need the port at all — `flashESP` reopens it itself.
+   */
+  async detectChip(onLog?: (message: string) => void): Promise<DetectedChip> {
+    const { ESPLoader, Transport } = await import('esptool-js');
+    const terminal = {
+      clean: () => {},
+      writeLine: (data: string) => onLog?.(`[esptool] ${data}`),
+      write: (data: string) => onLog?.(`[esptool] ${data}`),
+    };
+
+    await this.releaseStreams();
+    try {
+      await this.port.close();
+    } catch {
+      /* already closed */
+    }
+
+    const transport = new Transport(this.port);
+    try {
+      const esploader = new ESPLoader({ transport, baudrate: 115200, terminal });
+      await esploader.main();
+      const chipName = esploader.chip.CHIP_NAME;
+      try {
+        await esploader.after('hard_reset');
+      } catch {
+        /* best-effort — the upload that follows resets it again anyway */
+      }
+      return { chipName, fqbn: ESP_CHIP_NAME_TO_FQBN[chipName] ?? null };
+    } finally {
+      await transport.disconnect();
     }
   }
 

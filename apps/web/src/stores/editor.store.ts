@@ -228,22 +228,67 @@ export interface EditorState {
   scheduleAutoSave: (getBlockXml: () => string) => void;
 }
 
-// ─── ESP Pin Conflict Detection (ESP8266 + ESP32) ────────────────────────────
-// GPIO6–11 connect to the internal SPI flash on both chips — driving them
-// crashes the board into a boot loop. On ESP32, GPIO34–39 are input-only.
+// ─── ESP Pin Conflict Detection (ESP8266 + every ESP32 chip variant) ─────────
+// Which GPIOs will crash the board (reserved for flash/strapping/USB) and
+// which are input-only is chip-specific, not just "AVR vs ESP" — ESP32,
+// ESP32-S3 and ESP32-C3 each reserve a different set (see boards.ts, which
+// already keeps these pins out of the Blockly dropdowns; this regex check is
+// the equivalent safety net for a student typing raw pin numbers in Code mode).
+interface EspPinProfile {
+  boardName: string;
+  /** Pins that crash the board if driven — internal flash/PSRAM/strapping. */
+  reservedPins: readonly string[];
+  /** Pins that silently no-op on digitalWrite/analogWrite. */
+  inputOnlyPins: readonly string[];
+  safePinHint: string;
+}
+
+const ESP_PIN_PROFILES: Record<string, EspPinProfile> = {
+  'esp8266:esp8266:nodemcuv2': {
+    boardName: 'ESP8266 (NodeMCU)',
+    reservedPins: ['6', '7', '8', '9', '10', '11'],
+    inputOnlyPins: [],
+    safePinHint: 'Please use safe pins like D1 (5), D2 (4), D5 (14), or D6 (12).',
+  },
+  'esp32:esp32:esp32': {
+    boardName: 'ESP32',
+    reservedPins: ['6', '7', '8', '9', '10', '11'],
+    inputOnlyPins: ['34', '35', '36', '39'],
+    safePinHint: 'Please use safe pins like 4, 5, 16, 17, 25, 26, or 27.',
+  },
+  'esp32:esp32:esp32s3': {
+    boardName: 'ESP32-S3',
+    reservedPins: ['0', '3', '19', '20', '35', '36', '37', '43', '44', '45', '46'],
+    inputOnlyPins: [],
+    safePinHint: 'Please use safe pins like 4, 5, 6, 7, 8, 9, 10, or 11.',
+  },
+  'esp32:esp32:esp32c3': {
+    boardName: 'ESP32-C3',
+    reservedPins: ['2', '8', '9', '12', '13', '14', '15', '16', '17', '18', '19', '20', '21'],
+    inputOnlyPins: [],
+    safePinHint: 'Please use safe pins like 0, 1, 3, 4, 5, 6, 7, 10, or 11.',
+  },
+};
+
 function detectEspPinConflicts(code: string, board: string): CompileError[] {
-  const isEsp32 = board.startsWith('esp32');
-  const boardName = isEsp32 ? 'ESP32' : 'ESP8266 (NodeMCU)';
-  const safePinHint = isEsp32
-    ? 'Please use safe pins like 4, 5, 16, 17, 25, 26, or 27.'
-    : 'Please use safe pins like D1 (5), D2 (4), D5 (14), or D6 (12).';
+  const profile = ESP_PIN_PROFILES[board];
+  if (!profile) return [];
+  const { boardName, reservedPins, inputOnlyPins, safePinHint } = profile;
+  if (reservedPins.length === 0 && inputOnlyPins.length === 0) return [];
   const errors: CompileError[] = [];
   const lines = code.split('\n');
 
-  // Find variable declarations or defines assigning pins 6-11
-  const varRegex =
-    /(?:const\s+)?(?:int|char|byte|short|uint8_t|uint16_t)\s+([a-zA-Z_][a-zA-Z0-9_]*)\s*=\s*(6|7|8|9|10|11)\b/i;
-  const defineRegex = /#define\s+([a-zA-Z_][a-zA-Z0-9_]*)\s+(6|7|8|9|10|11)\b/i;
+  const reservedAlternation = reservedPins.join('|');
+
+  // Find variable declarations or defines assigning a reserved pin
+  const varRegex = new RegExp(
+    `(?:const\\s+)?(?:int|char|byte|short|uint8_t|uint16_t)\\s+([a-zA-Z_][a-zA-Z0-9_]*)\\s*=\\s*(${reservedAlternation})\\b`,
+    'i',
+  );
+  const defineRegex = new RegExp(
+    `#define\\s+([a-zA-Z_][a-zA-Z0-9_]*)\\s+(${reservedAlternation})\\b`,
+    'i',
+  );
 
   const restrictedVars = new Map<string, { pin: string; lineNum: number }>();
 
@@ -263,46 +308,51 @@ function detectEspPinConflicts(code: string, board: string): CompileError[] {
     }
   });
 
-  // Check for direct usage or variable usage of pins 6-11 in GPIO/Servo functions
+  // Check for direct usage or variable usage of a reserved pin in GPIO/Servo functions
   const functionRegex =
     /\b(pinMode|digitalWrite|digitalRead|analogWrite|analogRead|pulseIn|attach)\s*\(\s*([^,)]+)/i;
+  const rawReservedRegex = new RegExp(`^(${reservedAlternation})$`);
 
-  lines.forEach((line, index) => {
-    const trimmed = line.trim();
-    if (trimmed.startsWith('//') || trimmed.startsWith('*') || trimmed.startsWith('/*')) {
-      return;
-    }
-    const match = line.match(functionRegex);
-    if (match && match[1] && match[2]) {
-      const funcName = match[1];
-      const firstArg = match[2].trim();
-
-      // Check if it's a raw number 6-11
-      if (/^(6|7|8|9|10|11)$/.test(firstArg)) {
-        errors.push({
-          line: index + 1,
-          column: line.indexOf(firstArg) + 1,
-          severity: 'warning',
-          message: `Warning: Pin ${firstArg} is used in ${funcName}(). On ${boardName}, GPIO6 to GPIO11 are reserved for internal SPI flash memory. Using them will crash the board and cause an infinite boot loop. ${safePinHint}`,
-        });
+  if (reservedPins.length > 0) {
+    lines.forEach((line, index) => {
+      const trimmed = line.trim();
+      if (trimmed.startsWith('//') || trimmed.startsWith('*') || trimmed.startsWith('/*')) {
+        return;
       }
-      // Check if it's a variable holding 6-11
-      else if (restrictedVars.has(firstArg)) {
-        const info = restrictedVars.get(firstArg)!;
-        errors.push({
-          line: index + 1,
-          column: line.indexOf(firstArg) + 1,
-          severity: 'warning',
-          message: `Warning: Variable '${firstArg}' (assigned to pin ${info.pin}) is used in ${funcName}(). On ${boardName}, GPIO6 to GPIO11 are reserved for internal SPI flash memory. Using them will crash the board and cause an infinite boot loop. ${safePinHint}`,
-        });
-      }
-    }
-  });
+      const match = line.match(functionRegex);
+      if (match && match[1] && match[2]) {
+        const funcName = match[1];
+        const firstArg = match[2].trim();
 
-  // ESP32 only: GPIO34–39 have no output driver — writing to them silently fails
-  if (isEsp32) {
-    const outputOnInputOnlyRegex =
-      /\b(digitalWrite|analogWrite)\s*\(\s*(34|35|36|39)\b|\bpinMode\s*\(\s*(34|35|36|39)\s*,\s*OUTPUT\b/;
+        // Check if it's a raw reserved pin number
+        if (rawReservedRegex.test(firstArg)) {
+          errors.push({
+            line: index + 1,
+            column: line.indexOf(firstArg) + 1,
+            severity: 'warning',
+            message: `Warning: Pin ${firstArg} is used in ${funcName}(). On ${boardName}, this pin is reserved internally (flash/PSRAM/strapping or native USB) and driving it will crash the board or prevent it from booting. ${safePinHint}`,
+          });
+        }
+        // Check if it's a variable holding a reserved pin
+        else if (restrictedVars.has(firstArg)) {
+          const info = restrictedVars.get(firstArg)!;
+          errors.push({
+            line: index + 1,
+            column: line.indexOf(firstArg) + 1,
+            severity: 'warning',
+            message: `Warning: Variable '${firstArg}' (assigned to pin ${info.pin}) is used in ${funcName}(). On ${boardName}, this pin is reserved internally (flash/PSRAM/strapping or native USB) and driving it will crash the board or prevent it from booting. ${safePinHint}`,
+          });
+        }
+      }
+    });
+  }
+
+  // Input-only pins (classic ESP32's GPIO34-39) have no output driver — writing to them silently fails
+  if (inputOnlyPins.length > 0) {
+    const inputOnlyAlternation = inputOnlyPins.join('|');
+    const outputOnInputOnlyRegex = new RegExp(
+      `\\b(digitalWrite|analogWrite)\\s*\\(\\s*(${inputOnlyAlternation})\\b|\\bpinMode\\s*\\(\\s*(${inputOnlyAlternation})\\s*,\\s*OUTPUT\\b`,
+    );
     lines.forEach((line, index) => {
       const trimmed = line.trim();
       if (trimmed.startsWith('//') || trimmed.startsWith('*') || trimmed.startsWith('/*')) {
@@ -315,7 +365,7 @@ function detectEspPinConflicts(code: string, board: string): CompileError[] {
           line: index + 1,
           column: line.indexOf(pin) + 1,
           severity: 'warning',
-          message: `Warning: Pin ${pin} is input-only on ESP32 (GPIO34 to GPIO39 can only read). Writing to it will not work. Use an output-capable pin like 4, 5, 16, 17, 25, 26, or 27 instead.`,
+          message: `Warning: Pin ${pin} is input-only on ${boardName} (GPIO${inputOnlyPins[0]} to GPIO${inputOnlyPins[inputOnlyPins.length - 1]} can only read). Writing to it will not work. ${safePinHint}`,
         });
       }
     });

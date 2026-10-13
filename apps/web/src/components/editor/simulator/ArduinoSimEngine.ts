@@ -123,6 +123,9 @@ const BOARD_PROFILES: Record<string, BoardProfile> = {
   'arduino:avr:mega': { builtinLed: '13', adcMax: 1023, pwmMax: 255 },
   'esp8266:esp8266:nodemcuv2': { builtinLed: '2', adcMax: 1023, pwmMax: 255 },
   'esp32:esp32:esp32': { builtinLed: '2', adcMax: 4095, pwmMax: 255 },
+  // S3/C3 are different chips, but the same 12-bit ADC / LEDC PWM facts hold.
+  'esp32:esp32:esp32s3': { builtinLed: '2', adcMax: 4095, pwmMax: 255 },
+  'esp32:esp32:esp32c3': { builtinLed: '2', adcMax: 4095, pwmMax: 255 },
 };
 
 const DEFAULT_PROFILE: BoardProfile = BOARD_PROFILES['arduino:avr:uno']!;

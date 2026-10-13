@@ -28,13 +28,25 @@ export type BadgeTriggerType =
   | 'STREAK_7'
   | 'XP_100';
 
-/** Known hardware board targets supported by the compile pipeline. */
+/**
+ * Known hardware board targets supported by the compile pipeline.
+ *
+ * The ESP32 family ships several chips (classic ESP32, S2, S3, C3, C6 — all
+ * commonly sold under the plain "ESP32" name by board vendors) that need
+ * their own FQBN to compile correct firmware; a binary built for the wrong
+ * one uploads "successfully" but never runs. See WebSerialFlasher.detectChip,
+ * which reads the actually-connected chip over Web Serial and picks the
+ * matching target automatically instead of trusting the project's board
+ * setting.
+ */
 export type KnownBoardTarget =
   | 'arduino:avr:uno'
   | 'arduino:avr:nano'
   | 'arduino:avr:mega'
   | 'esp8266:esp8266:nodemcuv2'
-  | 'esp32:esp32:esp32';
+  | 'esp32:esp32:esp32'
+  | 'esp32:esp32:esp32s3'
+  | 'esp32:esp32:esp32c3';
 
 /** Allows known board targets while leaving room for future boards. */
 export type BoardTarget = KnownBoardTarget | (string & {});
