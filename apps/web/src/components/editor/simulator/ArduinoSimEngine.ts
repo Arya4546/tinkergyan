@@ -125,7 +125,10 @@ const BOARD_PROFILES: Record<string, BoardProfile> = {
   'esp32:esp32:esp32': { builtinLed: '2', adcMax: 4095, pwmMax: 255 },
   // S3/C3 are different chips, but the same 12-bit ADC / LEDC PWM facts hold.
   'esp32:esp32:esp32s3': { builtinLed: '2', adcMax: 4095, pwmMax: 255 },
-  'esp32:esp32:esp32c3': { builtinLed: '2', adcMax: 4095, pwmMax: 255 },
+  // Not '2' like the other ESP32 variants — GPIO2 is a strapping/boot pin on
+  // C3 (see boards.ts's ESP32C3_OUTPUT_CAPABLE comment); '4' matches the
+  // single source of truth now shared with boards.ts/hardware-binding.ts.
+  'esp32:esp32:esp32c3': { builtinLed: '4', adcMax: 4095, pwmMax: 255 },
 };
 
 const DEFAULT_PROFILE: BoardProfile = BOARD_PROFILES['arduino:avr:uno']!;
@@ -177,6 +180,23 @@ export class ArduinoSimEngine {
   /** Collapses aliases so LED_BUILTIN and its pin number are the same pin. */
   private normalizePin(pin: string): string {
     return pin === 'LED_BUILTIN' ? this.board.builtinLed : pin;
+  }
+
+  /**
+   * Vision, Emotion and Hand Tracking all share the one physical camera
+   * through aiEngine's stream singleton, and `aiEngine.startWebcam()` no-ops
+   * if a stream is already running. Without this, starting a second one of
+   * the three (or re-starting after a real-hardware Upload session already
+   * grabbed the camera, in the same tab) would leave its video element bound
+   * to nothing — the overlay looks fine (it reads the stream directly) but
+   * that feature's own predictions never fire. Call this before starting any
+   * one of them so there's always exactly one active, cleanly.
+   */
+  private stopAnyActiveCameraAIFeature(): void {
+    aiEngine.stopPredicting();
+    emotionEngine.stopDetecting();
+    handEngine.stopTracking();
+    aiEngine.stopWebcam();
   }
 
   /**
@@ -326,6 +346,7 @@ export class ArduinoSimEngine {
       // ── AI Vision ──────────────────────────────────────────────────────
       aiStartVision: async () => {
         try {
+          this.stopAnyActiveCameraAIFeature();
           if (!aiEngine.isInitialised) await aiEngine.init();
           useAIStore.getState().setModelLoaded(true);
 
@@ -408,22 +429,30 @@ export class ArduinoSimEngine {
       getPoseKeypoint: (partName, axis) => aiEngine.getPoseKeypoint(partName, axis),
 
       startAudioListening: async () => {
-        if (!aiEngine.isInitialised) await aiEngine.init();
-        await aiEngine.startAudioListening();
+        try {
+          if (!aiEngine.isInitialised) await aiEngine.init();
+          await aiEngine.startAudioListening();
 
-        if (!this.speechBridgeRegistered) {
-          aiEngine.onSpeechCommand((word) => {
-            const callbacks = this.speechCommandCallbacks.get(word);
-            if (callbacks) {
-              for (const cb of callbacks) {
-                void cb().catch((e) => {
-                  if (e instanceof Error && e.message !== 'Aborted')
-                    console.error('Speech Script Error:', e);
-                });
+          if (!this.speechBridgeRegistered) {
+            aiEngine.onSpeechCommand((word) => {
+              const callbacks = this.speechCommandCallbacks.get(word);
+              if (callbacks) {
+                for (const cb of callbacks) {
+                  void cb().catch((e) => {
+                    if (e instanceof Error && e.message !== 'Aborted')
+                      console.error('Speech Script Error:', e);
+                  });
+                }
               }
-            }
-          });
-          this.speechBridgeRegistered = true;
+            });
+            this.speechBridgeRegistered = true;
+          }
+        } catch (e) {
+          const msg = e instanceof Error ? e.message : String(e);
+          console.error('[AI Audio] Failed to start:', e);
+          useArduinoSimStore
+            .getState()
+            .appendSerial(`[AI Audio] Could not start: ${msg}`, Date.now());
         }
       },
 
@@ -442,35 +471,49 @@ export class ArduinoSimEngine {
 
       // ── AI Emotion ───────────────────────────────────────────────────────
       aiStartEmotion: async () => {
-        if (!emotionEngine.isInitialised) await emotionEngine.init();
-        if (!this.aiVideoEl) {
-          this.aiVideoEl = document.createElement('video');
-          this.aiVideoEl.setAttribute('autoplay', '');
-          this.aiVideoEl.setAttribute('playsinline', '');
-          this.aiVideoEl.setAttribute('muted', '');
-          this.aiVideoEl.style.display = 'none';
-          document.body.appendChild(this.aiVideoEl);
-        }
-        await aiEngine.startWebcam(this.aiVideoEl);
-        emotionEngine.startDetecting(this.aiVideoEl, (result) => {
-          useAIStore
-            .getState()
-            .updateEmotion(result.emotion, result.allEmotions, result.faceDetected);
-          const cbs = this.emotionCallbacks.get(result.emotion);
-          if (cbs && result.faceDetected && result.confidence >= 50) {
-            for (const cb of cbs) {
-              void cb().catch((e) => {
-                if (e instanceof Error && e.message !== 'Aborted')
-                  console.error('Emotion Script Error:', e);
-              });
-            }
+        try {
+          this.stopAnyActiveCameraAIFeature();
+          if (!emotionEngine.isInitialised) await emotionEngine.init();
+          if (!this.aiVideoEl) {
+            this.aiVideoEl = document.createElement('video');
+            this.aiVideoEl.setAttribute('autoplay', '');
+            this.aiVideoEl.setAttribute('playsinline', '');
+            this.aiVideoEl.setAttribute('muted', '');
+            this.aiVideoEl.style.display = 'none';
+            document.body.appendChild(this.aiVideoEl);
           }
-        });
-        useAIStore.getState().setEmotionActive(true);
+          await aiEngine.startWebcam(this.aiVideoEl);
+          emotionEngine.startDetecting(this.aiVideoEl, (result) => {
+            useAIStore
+              .getState()
+              .updateEmotion(result.emotion, result.allEmotions, result.faceDetected);
+            const cbs = this.emotionCallbacks.get(result.emotion);
+            if (cbs && result.faceDetected && result.confidence >= 50) {
+              for (const cb of cbs) {
+                void cb().catch((e) => {
+                  if (e instanceof Error && e.message !== 'Aborted')
+                    console.error('Emotion Script Error:', e);
+                });
+              }
+            }
+          });
+          useAIStore.getState().setEmotionActive(true);
+        } catch (e) {
+          const msg = e instanceof Error ? e.message : String(e);
+          console.error('[AI Emotion] Failed to start:', e);
+          useArduinoSimStore
+            .getState()
+            .appendSerial(`[AI Emotion] Could not start camera: ${msg}`, Date.now());
+        }
       },
 
       aiStopEmotion: () => {
         emotionEngine.stopDetecting();
+        aiEngine.stopWebcam();
+        if (this.aiVideoEl) {
+          this.aiVideoEl.remove();
+          this.aiVideoEl = null;
+        }
         useAIStore.getState().setEmotionActive(false);
         return Promise.resolve();
       },
@@ -494,40 +537,54 @@ export class ArduinoSimEngine {
 
       // ── AI Hand Tracking ─────────────────────────────────────────────────
       aiStartHandTracking: async () => {
-        if (!handEngine.isInitialised) await handEngine.init();
-        if (!this.aiVideoEl) {
-          this.aiVideoEl = document.createElement('video');
-          this.aiVideoEl.setAttribute('autoplay', '');
-          this.aiVideoEl.setAttribute('playsinline', '');
-          this.aiVideoEl.setAttribute('muted', '');
-          this.aiVideoEl.style.display = 'none';
-          document.body.appendChild(this.aiVideoEl);
-        }
-        await aiEngine.startWebcam(this.aiVideoEl);
-        handEngine.startTracking(this.aiVideoEl, (result) => {
-          useAIStore
-            .getState()
-            .updateHandKeypoints(
-              result.detected,
-              Object.fromEntries(
-                Object.entries(result.keypoints).map(([k, v]) => [k, { x: v.x, y: v.y }]),
-              ),
-            );
-          const cbs = this.handGestureCallbacks.get(result.gesture);
-          if (cbs && result.detected) {
-            for (const cb of cbs) {
-              void cb().catch((e) => {
-                if (e instanceof Error && e.message !== 'Aborted')
-                  console.error('Hand Script Error:', e);
-              });
-            }
+        try {
+          this.stopAnyActiveCameraAIFeature();
+          if (!handEngine.isInitialised) await handEngine.init();
+          if (!this.aiVideoEl) {
+            this.aiVideoEl = document.createElement('video');
+            this.aiVideoEl.setAttribute('autoplay', '');
+            this.aiVideoEl.setAttribute('playsinline', '');
+            this.aiVideoEl.setAttribute('muted', '');
+            this.aiVideoEl.style.display = 'none';
+            document.body.appendChild(this.aiVideoEl);
           }
-        });
-        useAIStore.getState().setHandTrackingActive(true);
+          await aiEngine.startWebcam(this.aiVideoEl);
+          handEngine.startTracking(this.aiVideoEl, (result) => {
+            useAIStore
+              .getState()
+              .updateHandKeypoints(
+                result.detected,
+                Object.fromEntries(
+                  Object.entries(result.keypoints).map(([k, v]) => [k, { x: v.x, y: v.y }]),
+                ),
+              );
+            const cbs = this.handGestureCallbacks.get(result.gesture);
+            if (cbs && result.detected) {
+              for (const cb of cbs) {
+                void cb().catch((e) => {
+                  if (e instanceof Error && e.message !== 'Aborted')
+                    console.error('Hand Script Error:', e);
+                });
+              }
+            }
+          });
+          useAIStore.getState().setHandTrackingActive(true);
+        } catch (e) {
+          const msg = e instanceof Error ? e.message : String(e);
+          console.error('[AI Hand Tracking] Failed to start:', e);
+          useArduinoSimStore
+            .getState()
+            .appendSerial(`[AI Hand Tracking] Could not start camera: ${msg}`, Date.now());
+        }
       },
 
       aiStopHandTracking: () => {
         handEngine.stopTracking();
+        aiEngine.stopWebcam();
+        if (this.aiVideoEl) {
+          this.aiVideoEl.remove();
+          this.aiVideoEl = null;
+        }
         useAIStore.getState().setHandTrackingActive(false);
         return Promise.resolve();
       },

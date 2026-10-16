@@ -29,6 +29,15 @@ export interface BoardDefinition {
    * Ignored by ESP boards — esptool-js negotiates its own connection.
    */
   uploadBauds: readonly number[];
+  /**
+   * The pin `LED_BUILTIN` resolves to for this board — used by the codegen,
+   * the hardware-binding layer, and the simulator so all three agree. Must
+   * be one of this board's own safe/output-capable pins above; it used to be
+   * hardcoded to '2' for every ESP32-family board regardless of chip, which
+   * is wrong (and actively dangerous) for ESP32-C3, where GPIO2 is a
+   * strapping/boot pin — see `digitalPins` above for what each chip reserves.
+   */
+  builtinLed: string;
 }
 
 const UNO_DIGITAL = [
@@ -182,6 +191,7 @@ export const BOARD_DEFINITIONS: readonly BoardDefinition[] = [
     pwmPins: UNO_PWM,
     analogPins: UNO_ANALOG,
     uploadBauds: [115200],
+    builtinLed: '13',
   },
   {
     fqbn: 'arduino:avr:nano',
@@ -190,6 +200,7 @@ export const BOARD_DEFINITIONS: readonly BoardDefinition[] = [
     pwmPins: UNO_PWM,
     analogPins: NANO_ANALOG,
     uploadBauds: [115200, 57600],
+    builtinLed: '13',
   },
   {
     fqbn: 'arduino:avr:mega',
@@ -198,6 +209,7 @@ export const BOARD_DEFINITIONS: readonly BoardDefinition[] = [
     pwmPins: MEGA_PWM,
     analogPins: MEGA_ANALOG,
     uploadBauds: [115200],
+    builtinLed: '13',
   },
   {
     fqbn: 'esp8266:esp8266:nodemcuv2',
@@ -206,6 +218,7 @@ export const BOARD_DEFINITIONS: readonly BoardDefinition[] = [
     pwmPins: ESP8266_PWM,
     analogPins: ESP8266_ANALOG,
     uploadBauds: [115200],
+    builtinLed: '2',
   },
   {
     fqbn: 'esp32:esp32:esp32',
@@ -214,6 +227,7 @@ export const BOARD_DEFINITIONS: readonly BoardDefinition[] = [
     pwmPins: ESP32_PWM,
     analogPins: ESP32_ANALOG,
     uploadBauds: [115200],
+    builtinLed: '2',
   },
   {
     fqbn: 'esp32:esp32:esp32s3',
@@ -222,6 +236,7 @@ export const BOARD_DEFINITIONS: readonly BoardDefinition[] = [
     pwmPins: ESP32S3_PWM,
     analogPins: ESP32S3_ANALOG,
     uploadBauds: [115200],
+    builtinLed: '2',
   },
   {
     fqbn: 'esp32:esp32:esp32c3',
@@ -230,6 +245,11 @@ export const BOARD_DEFINITIONS: readonly BoardDefinition[] = [
     pwmPins: ESP32C3_PWM,
     analogPins: ESP32C3_ANALOG,
     uploadBauds: [115200],
+    // Not '2' (unlike every other ESP32 variant above) — GPIO2 is a
+    // strapping/boot pin on C3 (see ESP32C3_OUTPUT_CAPABLE's comment above),
+    // so this used to map LED_BUILTIN to a pin our own safety list elsewhere
+    // calls dangerous. '4' is one of C3's own safe/output-capable pins.
+    builtinLed: '4',
   },
 ];
 

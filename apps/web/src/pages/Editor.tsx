@@ -300,6 +300,12 @@ export default function Editor() {
   const [showMoreMenu, setShowMoreMenu] = useState(false);
   const [hardwarePort, setHardwarePort] = useState<any>(null);
   const [isFlashing, setIsFlashing] = useState(false);
+  // `isFlashing` state doesn't block a second click until React re-renders —
+  // a fast double-click (or a near-simultaneous second call) lands before
+  // that flush and would construct a second WebSerialFlasher racing the
+  // first one on the same port. A ref guard is synchronous, so it closes
+  // that window; the button's disabled={isFlashing} stays as the visible cue.
+  const isUploadingRef = useRef(false);
   const [flashProgress, setFlashProgress] = useState(0);
   const [flashMessage, setFlashMessage] = useState('');
   const [showSerialMonitor, setShowSerialMonitor] = useState(false);
@@ -875,6 +881,7 @@ export default function Editor() {
 
   // ── Upload to Hardware ───────────────────────────────────────────────────
   const handleUploadToHardware = useCallback(async () => {
+    if (isUploadingRef.current) return;
     if (!hardwarePort) {
       addToast({
         type: 'error',
@@ -898,6 +905,7 @@ export default function Editor() {
       return;
     }
 
+    isUploadingRef.current = true;
     setIsFlashing(true);
     setFlashProgress(0);
     setFlashMessage('Compiling firmware...');
@@ -992,6 +1000,7 @@ export default function Editor() {
       const message = err?.response?.data?.error?.message || err.message || 'Upload failed.';
       addToast({ type: 'error', title: 'Upload error', message });
     } finally {
+      isUploadingRef.current = false;
       setIsFlashing(false);
       setFlashProgress(0);
       setFlashMessage('');

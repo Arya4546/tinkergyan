@@ -12,7 +12,25 @@ import { Tooltip } from '../ui/Tooltip';
 import { useAIStore } from '../../stores/ai.store';
 import { aiEngine } from '../../lib/ai-engine';
 import { emotionEngine } from '../../lib/emotion-engine';
+import { handEngine } from '../../lib/hand-engine';
 import { speechEngine } from '../../lib/speech-engine';
+
+/**
+ * Vision, Emotion and Hand Tracking all share the one physical camera
+ * through aiEngine's stream singleton. `aiEngine.startWebcam()` no-ops if a
+ * stream is already running, so if a student runs a sketch in Simulate mode
+ * (which owns the camera via its own hidden <video>) and then connects real
+ * hardware and uploads — without a page refresh — the real-hardware path's
+ * own <video> never gets the stream attached, and predictions silently never
+ * fire. Call this before starting any one of the three to guarantee a clean
+ * handoff regardless of which mode (or which of the three) had it before.
+ */
+function stopAnyActiveCameraAIFeature(): void {
+  aiEngine.stopPredicting();
+  emotionEngine.stopDetecting();
+  handEngine.stopTracking();
+  aiEngine.stopWebcam();
+}
 
 const BAUD_RATES = [300, 1200, 2400, 4800, 9600, 19200, 38400, 57600, 115200] as const;
 
@@ -105,9 +123,19 @@ export function SerialMonitor({ port, onClose }: SerialMonitorProps) {
               parts.forEach((part) => {
                 const text = part.trim();
                 if (text === 'AI_AUDIO_CTRL:ON') {
-                  if (!aiEngine.isInitialised)
-                    void aiEngine.init().then(() => void aiEngine.startAudioListening());
-                  else void aiEngine.startAudioListening();
+                  const startAudio = async () => {
+                    try {
+                      if (!aiEngine.isInitialised) await aiEngine.init();
+                      await aiEngine.startAudioListening();
+                    } catch (e) {
+                      const msg = e instanceof Error ? e.message : String(e);
+                      console.error('[AI Audio] Failed to start:', e);
+                      setLines((prev) =>
+                        [...prev, `> [AI Audio] Could not start: ${msg}`].slice(-500),
+                      );
+                    }
+                  };
+                  void startAudio();
                 } else if (text === 'AI_AUDIO_CTRL:OFF') {
                   void aiEngine.stopAudioListening();
                 } else if (text === 'AI_VISION:ON') {
@@ -119,6 +147,7 @@ export function SerialMonitor({ port, onClose }: SerialMonitorProps) {
                   // in the monitor itself, since this component has no toast access.
                   const startVision = async () => {
                     try {
+                      stopAnyActiveCameraAIFeature();
                       if (!aiEngine.isInitialised) await aiEngine.init();
                       useAIStore.getState().setModelLoaded(true);
 
@@ -178,39 +207,53 @@ export function SerialMonitor({ port, onClose }: SerialMonitorProps) {
                 } else if (text === 'AI_EMOTION_CTRL:ON') {
                   // Start emotion detection and stream results back over Serial
                   const startEmotion = async () => {
-                    if (!emotionEngine.isInitialised) await emotionEngine.init();
-                    let videoEl = document.getElementById('hardware-ai-video') as HTMLVideoElement;
-                    if (!videoEl) {
-                      videoEl = document.createElement('video');
-                      videoEl.id = 'hardware-ai-video';
-                      videoEl.autoplay = true;
-                      videoEl.playsInline = true;
-                      videoEl.muted = true;
-                      videoEl.style.display = 'none';
-                      document.body.appendChild(videoEl);
-                    }
-                    await aiEngine.startWebcam(videoEl);
-                    emotionEngine.startDetecting(videoEl, async (result) => {
-                      useAIStore
-                        .getState()
-                        .updateEmotion(result.emotion, result.allEmotions, result.faceDetected);
-                      // Send emotion back to board
-                      if (result.faceDetected && port?.writable) {
-                        try {
-                          const enc = new TextEncoder();
-                          const w = port.writable.getWriter();
-                          await w.write(enc.encode(`AI_EMOTION:${result.emotion}\n`));
-                          w.releaseLock();
-                        } catch {
-                          /* ignore */
-                        }
+                    try {
+                      stopAnyActiveCameraAIFeature();
+                      if (!emotionEngine.isInitialised) await emotionEngine.init();
+                      let videoEl = document.getElementById(
+                        'hardware-ai-video',
+                      ) as HTMLVideoElement;
+                      if (!videoEl) {
+                        videoEl = document.createElement('video');
+                        videoEl.id = 'hardware-ai-video';
+                        videoEl.autoplay = true;
+                        videoEl.playsInline = true;
+                        videoEl.muted = true;
+                        videoEl.style.display = 'none';
+                        document.body.appendChild(videoEl);
                       }
-                    });
-                    useAIStore.getState().setEmotionActive(true);
+                      await aiEngine.startWebcam(videoEl);
+                      emotionEngine.startDetecting(videoEl, async (result) => {
+                        useAIStore
+                          .getState()
+                          .updateEmotion(result.emotion, result.allEmotions, result.faceDetected);
+                        // Send emotion back to board
+                        if (result.faceDetected && port?.writable) {
+                          try {
+                            const enc = new TextEncoder();
+                            const w = port.writable.getWriter();
+                            await w.write(enc.encode(`AI_EMOTION:${result.emotion}\n`));
+                            w.releaseLock();
+                          } catch {
+                            /* ignore */
+                          }
+                        }
+                      });
+                      useAIStore.getState().setEmotionActive(true);
+                    } catch (e) {
+                      const msg = e instanceof Error ? e.message : String(e);
+                      console.error('[AI Emotion] Failed to start:', e);
+                      setLines((prev) =>
+                        [...prev, `> [AI Emotion] Could not start camera: ${msg}`].slice(-500),
+                      );
+                    }
                   };
                   void startEmotion();
                 } else if (text === 'AI_EMOTION_CTRL:OFF') {
                   emotionEngine.stopDetecting();
+                  aiEngine.stopWebcam();
+                  const videoEl = document.getElementById('hardware-ai-video');
+                  if (videoEl) videoEl.remove();
                   useAIStore.getState().setEmotionActive(false);
                 } else if (text === 'AI_HAND_CTRL:ON') {
                   // Hand tracking start — handled by Scratch engine in software mode
@@ -269,6 +312,18 @@ export function SerialMonitor({ port, onClose }: SerialMonitorProps) {
       // Cleanup reader on unmount
       if (readerRef.current) {
         readerRef.current.cancel().catch(() => {});
+      }
+
+      // Nothing released the camera if the board disconnected (or this panel
+      // was just closed) without ever sending an AI_xxx_CTRL:OFF token first
+      // — without this, the camera stream (and its on-device indicator light)
+      // stayed reserved indefinitely, with no UI path left to release it.
+      if (useAIStore.getState().isWebcamActive || useAIStore.getState().isEmotionActive) {
+        stopAnyActiveCameraAIFeature();
+        document.getElementById('hardware-ai-video')?.remove();
+        useAIStore.getState().setWebcamActive(false);
+        useAIStore.getState().setPredicting(false);
+        useAIStore.getState().setEmotionActive(false);
       }
     };
   }, [port]); // eslint-disable-line react-hooks/exhaustive-deps

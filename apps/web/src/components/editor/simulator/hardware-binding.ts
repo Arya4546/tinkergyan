@@ -27,8 +27,11 @@ function adcMaxForBoard(): number {
 /** LED_BUILTIN and its pin number must resolve to the same key as the engine uses. */
 function normalizePin(pin: string): string {
   if (pin !== 'LED_BUILTIN') return pin;
-  const board = useEditorStore.getState().board;
-  return board.startsWith('esp') ? '2' : '13';
+  // Was hardcoded to '2' for every ESP-family board regardless of chip — wrong
+  // (and dangerous) for ESP32-C3, where GPIO2 is a strapping pin. boards.ts's
+  // per-board `builtinLed` is the single source of truth all three LED_BUILTIN
+  // resolvers (this one, arduino-generator.ts, ArduinoSimEngine.ts) now share.
+  return getBoardDefinition(useEditorStore.getState().board).builtinLed;
 }
 
 /** The pin a component is wired to, or null if the student hasn't wired it. */

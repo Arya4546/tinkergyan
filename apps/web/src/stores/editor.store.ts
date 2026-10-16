@@ -252,13 +252,47 @@ const ESP_PIN_PROFILES: Record<string, EspPinProfile> = {
   },
   'esp32:esp32:esp32': {
     boardName: 'ESP32',
-    reservedPins: ['6', '7', '8', '9', '10', '11'],
+    // 0 (boot strap) and 1/3 (Serial0 TX/RX) were missing here — S3 and C3's
+    // profiles below both correctly reserve their equivalents, this one
+    // didn't. Driving 1/3 while Serial.begin() is active breaks Serial
+    // output and can break the next Upload's auto-reset handshake.
+    reservedPins: ['0', '1', '3', '6', '7', '8', '9', '10', '11'],
     inputOnlyPins: ['34', '35', '36', '39'],
     safePinHint: 'Please use safe pins like 4, 5, 16, 17, 25, 26, or 27.',
   },
   'esp32:esp32:esp32s3': {
     boardName: 'ESP32-S3',
-    reservedPins: ['0', '3', '19', '20', '35', '36', '37', '43', '44', '45', '46'],
+    // 22-34 is a conservative addition: it's neither in boards.ts's safe
+    // dropdown list nor was it in this reserved list before, so a hand-typed
+    // digitalWrite(28, ...) got no warning either way. Several real S3
+    // boards use part of this range for octal PSRAM/flash, so treating it as
+    // reserved (warn, don't silently allow) is the safer default.
+    reservedPins: [
+      '0',
+      '3',
+      '19',
+      '20',
+      '22',
+      '23',
+      '24',
+      '25',
+      '26',
+      '27',
+      '28',
+      '29',
+      '30',
+      '31',
+      '32',
+      '33',
+      '34',
+      '35',
+      '36',
+      '37',
+      '43',
+      '44',
+      '45',
+      '46',
+    ],
     inputOnlyPins: [],
     safePinHint: 'Please use safe pins like 4, 5, 6, 7, 8, 9, 10, or 11.',
   },

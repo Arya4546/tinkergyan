@@ -651,26 +651,45 @@ export class WebSerialFlasher {
     };
 
     await this.releaseStreams();
-    try {
-      await this.port.close();
-    } catch {
-      /* already closed */
-    }
+    // Bare `port.close()` + swallow is exactly the pattern `closePortFully`
+    // exists to replace (see its doc comment) — a lock left over from the
+    // Serial Monitor's reader not having released yet makes close() reject,
+    // and swallowing that leaves the port open so the `main()` connect below
+    // fails with a confusing "Failed to open serial port" instead of this.
+    if (!(await this.closePortFully())) throw new Error(PORT_BUSY_HINT);
 
     const transport = new Transport(this.port);
+    let result: DetectedChip;
     try {
       const esploader = new ESPLoader({ transport, baudrate: 115200, terminal });
       await esploader.main();
-      const chipName = esploader.chip.CHIP_NAME;
+      // esptool-js can leave `chip` unset for a chip ID it doesn't recognize
+      // (a corrupted read, or a chip newer than this esptool-js version) —
+      // without this guard that surfaces as a raw `Cannot read properties of
+      // null` instead of a clear "not supported yet" message.
+      const chipName = esploader.chip?.CHIP_NAME;
+      if (!chipName) {
+        throw new Error(
+          'Could not identify the connected chip. Check the USB cable and try again.',
+        );
+      }
       try {
         await esploader.after('hard_reset');
       } catch {
         /* best-effort — the upload that follows resets it again anyway */
       }
-      return { chipName, fqbn: ESP_CHIP_NAME_TO_FQBN[chipName] ?? null };
+      // Captured here, not returned directly from inside this try: a `return`
+      // inside a try is silently overridden if the `finally` below throws,
+      // which would report a successful detection as a failed upload.
+      result = { chipName, fqbn: ESP_CHIP_NAME_TO_FQBN[chipName] ?? null };
     } finally {
-      await transport.disconnect();
+      try {
+        await transport.disconnect();
+      } catch {
+        /* best-effort — detection already succeeded or failed above */
+      }
     }
+    return result;
   }
 
   private async flashESP(
@@ -703,12 +722,11 @@ export class WebSerialFlasher {
     try {
       onProgress?.(5, 'Connecting to ROM bootloader...');
 
-      // Ensure the port is closed so esptool-js can open it cleanly at 115200 baud
-      try {
-        await this.port.close();
-      } catch {
-        /* ignore if already closed */
-      }
+      // Ensure the port is closed so esptool-js can open it cleanly at 115200
+      // baud. Bare close()+swallow (the old code here) silently leaves the
+      // port open when something else still holds a stream lock — see the
+      // same fix in detectChip() above and closePortFully()'s doc comment.
+      if (!(await this.closePortFully())) throw new Error(PORT_BUSY_HINT);
 
       const transport = new Transport(this.port);
       const esploader = new ESPLoader({
