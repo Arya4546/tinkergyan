@@ -111,35 +111,61 @@ export function SerialMonitor({ port, onClose }: SerialMonitorProps) {
                 } else if (text === 'AI_AUDIO_CTRL:OFF') {
                   void aiEngine.stopAudioListening();
                 } else if (text === 'AI_VISION:ON') {
+                  // This chain (TF.js model load, then getUserMedia) had no error
+                  // handling at all — a rejection anywhere in it (camera permission
+                  // denied, camera already in use, model failed to load) died as a
+                  // silent unhandled rejection: the board prints AI_VISION:ON, and
+                  // nothing else ever happens, with no way to tell why. Surface it
+                  // in the monitor itself, since this component has no toast access.
                   const startVision = async () => {
-                    if (!aiEngine.isInitialised) await aiEngine.init();
-                    useAIStore.getState().setModelLoaded(true);
+                    try {
+                      if (!aiEngine.isInitialised) await aiEngine.init();
+                      useAIStore.getState().setModelLoaded(true);
 
-                    let videoEl = document.getElementById('hardware-ai-video') as HTMLVideoElement;
-                    if (!videoEl) {
-                      videoEl = document.createElement('video');
-                      videoEl.id = 'hardware-ai-video';
-                      videoEl.autoplay = true;
-                      videoEl.playsInline = true;
-                      videoEl.muted = true;
-                      videoEl.style.display = 'none';
-                      document.body.appendChild(videoEl);
+                      let videoEl = document.getElementById(
+                        'hardware-ai-video',
+                      ) as HTMLVideoElement;
+                      if (!videoEl) {
+                        videoEl = document.createElement('video');
+                        videoEl.id = 'hardware-ai-video';
+                        videoEl.autoplay = true;
+                        videoEl.playsInline = true;
+                        videoEl.muted = true;
+                        videoEl.style.display = 'none';
+                        document.body.appendChild(videoEl);
+                      }
+
+                      await aiEngine.startWebcam(videoEl);
+                      useAIStore.getState().setWebcamActive(true);
+
+                      if (!aiEngine.isReadyToPredict) {
+                        setLines((prev) =>
+                          [
+                            ...prev,
+                            '> [AI Vision] Camera started, but no trained classes were found — train and save at least 2 classes in AI Studio first.',
+                          ].slice(-500),
+                        );
+                        return;
+                      }
+
+                      aiEngine.startPredicting(
+                        videoEl,
+                        (result) => {
+                          useAIStore
+                            .getState()
+                            .updatePrediction(result.label, result.allConfidences);
+                        },
+                        true,
+                        false,
+                      );
+                      useAIStore.getState().setPredicting(true);
+                    } catch (e) {
+                      const msg = e instanceof Error ? e.message : String(e);
+                      console.error('[AI Vision] Failed to start:', e);
+                      setLines((prev) =>
+                        [...prev, `> [AI Vision] Could not start camera: ${msg}`].slice(-500),
+                      );
                     }
-
-                    await aiEngine.startWebcam(videoEl);
-                    useAIStore.getState().setWebcamActive(true);
-
-                    if (!aiEngine.isReadyToPredict) return;
-
-                    aiEngine.startPredicting(
-                      videoEl,
-                      (result) => {
-                        useAIStore.getState().updatePrediction(result.label, result.allConfidences);
-                      },
-                      true,
-                      false,
-                    );
-                    useAIStore.getState().setPredicting(true);
                   };
                   void startVision();
                 } else if (text === 'AI_VISION:OFF') {

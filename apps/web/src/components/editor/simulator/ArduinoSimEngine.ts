@@ -325,42 +325,58 @@ export class ArduinoSimEngine {
 
       // ── AI Vision ──────────────────────────────────────────────────────
       aiStartVision: async () => {
-        if (!aiEngine.isInitialised) await aiEngine.init();
-        useAIStore.getState().setModelLoaded(true);
+        try {
+          if (!aiEngine.isInitialised) await aiEngine.init();
+          useAIStore.getState().setModelLoaded(true);
 
-        if (!this.aiVideoEl) {
-          this.aiVideoEl = document.createElement('video');
-          this.aiVideoEl.setAttribute('autoplay', '');
-          this.aiVideoEl.setAttribute('playsinline', '');
-          this.aiVideoEl.setAttribute('muted', '');
-          this.aiVideoEl.style.display = 'none';
-          document.body.appendChild(this.aiVideoEl);
-        }
+          if (!this.aiVideoEl) {
+            this.aiVideoEl = document.createElement('video');
+            this.aiVideoEl.setAttribute('autoplay', '');
+            this.aiVideoEl.setAttribute('playsinline', '');
+            this.aiVideoEl.setAttribute('muted', '');
+            this.aiVideoEl.style.display = 'none';
+            document.body.appendChild(this.aiVideoEl);
+          }
 
-        await aiEngine.startWebcam(this.aiVideoEl);
-        useAIStore.getState().setWebcamActive(true);
+          await aiEngine.startWebcam(this.aiVideoEl);
+          useAIStore.getState().setWebcamActive(true);
 
-        if (!aiEngine.isReadyToPredict) return;
+          if (!aiEngine.isReadyToPredict) {
+            useArduinoSimStore
+              .getState()
+              .appendSerial(
+                '[AI Vision] Camera started, but no trained classes were found — train and save at least 2 classes in AI Studio first.',
+                Date.now(),
+              );
+            return;
+          }
 
-        aiEngine.startPredicting(
-          this.aiVideoEl,
-          (result) => {
-            useAIStore.getState().updatePrediction(result.label, result.allConfidences);
+          aiEngine.startPredicting(
+            this.aiVideoEl,
+            (result) => {
+              useAIStore.getState().updatePrediction(result.label, result.allConfidences);
 
-            const callbacks = this.aiPredictedCallbacks.get(result.label);
-            if (callbacks && result.confidence >= 70) {
-              for (const cb of callbacks) {
-                void cb().catch((e) => {
-                  if (e instanceof Error && e.message !== 'Aborted')
-                    console.error('AI Script Error:', e);
-                });
+              const callbacks = this.aiPredictedCallbacks.get(result.label);
+              if (callbacks && result.confidence >= 70) {
+                for (const cb of callbacks) {
+                  void cb().catch((e) => {
+                    if (e instanceof Error && e.message !== 'Aborted')
+                      console.error('AI Script Error:', e);
+                  });
+                }
               }
-            }
-          },
-          true,
-          true,
-        );
-        useAIStore.getState().setPredicting(true);
+            },
+            true,
+            true,
+          );
+          useAIStore.getState().setPredicting(true);
+        } catch (e) {
+          const msg = e instanceof Error ? e.message : String(e);
+          console.error('[AI Vision] Failed to start:', e);
+          useArduinoSimStore
+            .getState()
+            .appendSerial(`[AI Vision] Could not start camera: ${msg}`, Date.now());
+        }
       },
 
       aiStopVision: async () => {
