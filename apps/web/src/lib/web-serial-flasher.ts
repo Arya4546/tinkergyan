@@ -752,7 +752,7 @@ export class WebSerialFlasher {
       result = { chipName, fqbn: ESP_CHIP_NAME_TO_FQBN[chipName] ?? null };
     } finally {
       try {
-        await transport.disconnect();
+        await this.disconnectWithTimeout(transport);
       } catch {
         /* best-effort — detection already succeeded or failed above */
       }
@@ -862,12 +862,24 @@ export class WebSerialFlasher {
       // trick SerialMonitor.tsx already uses for ESP32) doesn't depend on any
       // assumed prior pin state, so it's a cheap defensive addition even
       // though esploader.after() already (sometimes) handles it.
-      try {
-        await new ClassicReset(transport, 50).reset();
-      } catch (err) {
-        onLog?.(`[esptool] Reset notice: ${err instanceof Error ? err.message : String(err)}`);
+      //
+      // Run it twice, with a longer hold, rather than once: a browser's
+      // WebSerial control-line toggling has more latency/jitter than the
+      // native OS serial access Arduino IDE/esptool.py get, so the exact
+      // instant GPIO0 settles relative to the reset pulse is less precise
+      // here. A single attempt can land on the wrong side of that race even
+      // though the sequence itself is identical to what a desktop tool sends
+      // — a second attempt, with more margin, gives it another chance to
+      // land correctly without requiring a manual power-cycle every time.
+      for (let resetAttempt = 0; resetAttempt < 2; resetAttempt++) {
+        try {
+          await new ClassicReset(transport, 250).reset();
+        } catch (err) {
+          onLog?.(`[esptool] Reset notice: ${err instanceof Error ? err.message : String(err)}`);
+        }
+        if (resetAttempt === 0) await this.delay(150);
       }
-      await transport.disconnect();
+      await this.disconnectWithTimeout(transport);
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       onLog?.(`ESP Flash Error: ${msg}`);
@@ -946,5 +958,24 @@ export class WebSerialFlasher {
 
   private delay(ms: number): Promise<void> {
     return new Promise((r) => setTimeout(r, ms));
+  }
+
+  /**
+   * esptool-js's Transport.disconnect() polls `port.readable?.locked` /
+   * `writable?.locked` in a loop with no timeout at all — if anything ever
+   * holds that lock and doesn't release it (even something unrelated to
+   * esptool-js, like a Serial Monitor session mid-teardown), disconnect()
+   * never resolves. Since detectChip()/flashESP() directly await it, that
+   * hangs the entire upload forever with no further log output — exactly a
+   * frozen "Checking connected chip..." with 0% progress and nothing else
+   * printed, which is otherwise unrecoverable without reloading the page.
+   * By the time this runs, detection or flashing has already fully
+   * succeeded or failed; a stuck cleanup here is a far smaller problem than
+   * hanging the UI indefinitely, so give it a bounded window and move on.
+   */
+  private async disconnectWithTimeout(transport: {
+    disconnect: () => Promise<void>;
+  }): Promise<void> {
+    await Promise.race([transport.disconnect(), this.delay(2000)]);
   }
 }

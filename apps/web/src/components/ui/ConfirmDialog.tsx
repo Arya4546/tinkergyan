@@ -2,14 +2,16 @@
  * ConfirmDialog.tsx
  *
  * Reusable confirmation modal for destructive actions.
- * Hardware-brutalist aesthetic, keyboard accessible.
+ * Matches the rest of the app's look (rounded-3xl cards, soft shadows,
+ * the same purple/red accents as NewProjectDialog and the project cards),
+ * keyboard accessible.
  *
  * Usage:
  *   <ConfirmDialog
  *     open={showDelete}
- *     title="DELETE_PROJECT"
+ *     title="Delete Project"
  *     message="This action is irreversible."
- *     confirmLabel="DELETE"
+ *     confirmLabel="Delete"
  *     onConfirm={() => handleDelete()}
  *     onCancel={() => setShowDelete(false)}
  *     variant="danger"
@@ -19,22 +21,22 @@ import { useEffect, useRef } from 'react';
 import { AlertTriangle } from 'lucide-react';
 
 export interface ConfirmDialogProps {
-  open:         boolean;
-  title:        string;
-  message:      string;
+  open: boolean;
+  title: string;
+  message: string;
   confirmLabel?: string;
-  cancelLabel?:  string;
-  variant?:     'danger' | 'default';
-  onConfirm:    () => void;
-  onCancel:     () => void;
+  cancelLabel?: string;
+  variant?: 'danger' | 'default';
+  onConfirm: () => void;
+  onCancel: () => void;
 }
 
 export function ConfirmDialog({
   open,
   title,
   message,
-  confirmLabel = 'CONFIRM',
-  cancelLabel = 'CANCEL',
+  confirmLabel = 'Confirm',
+  cancelLabel = 'Cancel',
   variant = 'default',
   onConfirm,
   onCancel,
@@ -59,43 +61,41 @@ export function ConfirmDialog({
 
   return (
     <div
-      className="fixed inset-0 z-[200] bg-black/60 flex items-center justify-center p-4"
+      className="fixed inset-0 z-[200] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4"
       onClick={onCancel}
     >
       <div
-        className="bg-white dark:bg-[#111111] hw-border max-w-sm w-full shadow-lg"
+        className="bg-white dark:bg-[#15152b] border border-slate-200 dark:border-white/10 rounded-3xl max-w-sm w-full shadow-2xl p-6 flex flex-col gap-5"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Header */}
-        <div className={`px-6 py-4 hw-border-b flex items-center gap-3 ${isDanger ? 'bg-red-500/5' : ''}`}>
-          {isDanger && <AlertTriangle size={16} className="text-red-500 shrink-0" />}
-          <h3 className="font-mono text-sm font-bold uppercase tracking-widest text-slate-900 dark:text-white">
-            {title}
-          </h3>
+        <div className="flex items-start gap-3.5">
+          {isDanger && (
+            <div className="w-10 h-10 rounded-2xl bg-red-50 dark:bg-red-950/40 flex items-center justify-center shrink-0">
+              <AlertTriangle size={18} className="text-red-500" />
+            </div>
+          )}
+          <div>
+            <h3 className="text-lg font-bold text-slate-900 dark:text-white">{title}</h3>
+            <p className="text-sm text-slate-500 dark:text-slate-400 mt-1 leading-relaxed">
+              {message}
+            </p>
+          </div>
         </div>
 
-        {/* Body */}
-        <div className="px-6 py-5">
-          <p className="font-mono text-xs text-slate-500 uppercase tracking-wider leading-relaxed">
-            {message}
-          </p>
-        </div>
-
-        {/* Actions */}
-        <div className="px-6 py-4 hw-border-t flex justify-end gap-3">
+        <div className="flex justify-end gap-3">
           <button
             onClick={onCancel}
-            className="h-10 px-5 hw-key bg-white dark:bg-[#000000] text-slate-900 dark:text-white border border-slate-900 dark:border-slate-800 font-mono text-[10px] font-bold uppercase tracking-widest hover:bg-slate-100 dark:hover:bg-slate-800"
+            className="h-10 px-5 rounded-xl text-sm font-bold text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-white/5 hover:bg-slate-200 dark:hover:bg-white/10 transition-colors"
           >
             {cancelLabel}
           </button>
           <button
             ref={confirmRef}
             onClick={onConfirm}
-            className={`h-10 px-5 hw-key font-mono text-[10px] font-bold uppercase tracking-widest ${
+            className={`h-10 px-5 rounded-xl text-sm font-bold text-white transition-all shadow-sm ${
               isDanger
-                ? 'bg-red-500 text-white border-red-600 hover:bg-red-600'
-                : 'bg-slate-900 text-white border-slate-900 hover:bg-slate-800 dark:bg-white dark:text-slate-900 dark:border-white dark:hover:bg-slate-200'
+                ? 'bg-red-500 hover:bg-red-600'
+                : 'bg-gradient-to-r from-playful-primary to-purple-600 hover:from-purple-600 hover:to-playful-primary'
             }`}
           >
             {confirmLabel}

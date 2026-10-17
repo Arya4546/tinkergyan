@@ -309,6 +309,13 @@ export default function Editor() {
   const [flashProgress, setFlashProgress] = useState(0);
   const [flashMessage, setFlashMessage] = useState('');
   const [showSerialMonitor, setShowSerialMonitor] = useState(false);
+  // True only for the Serial Monitor auto-opened right after a successful
+  // upload — tells it to skip its own DTR reset pulse on that first open,
+  // since the flasher already just reset the board into run mode and this
+  // pulse (DTR only, no matching RTS) was found to be undoing that reset
+  // immediately afterward on some boards. Cleared on any manual toggle/close
+  // so a later, user-initiated reopen still gets the normal nudge.
+  const [justFlashed, setJustFlashed] = useState(false);
   const [showCodePanel, setShowCodePanel] = useState(
     () => searchParams.get('engine') === 'software',
   );
@@ -1006,6 +1013,7 @@ export default function Editor() {
         title: `Done! Uploaded to your ${boardLabel} 🚀`,
         message: 'Your code is running on the board!',
       });
+      setJustFlashed(true);
       setShowSerialMonitor(true); // Auto-open serial monitor after flash
     } catch (err: any) {
       const message = err?.response?.data?.error?.message || err.message || 'Upload failed.';
@@ -1501,7 +1509,10 @@ export default function Editor() {
               {hardwarePort && (
                 <Tooltip content="Toggle Hardware Serial Monitor Log" position="bottom">
                   <button
-                    onClick={() => setShowSerialMonitor(!showSerialMonitor)}
+                    onClick={() => {
+                      setJustFlashed(false);
+                      setShowSerialMonitor(!showSerialMonitor);
+                    }}
                     className={`w-9 h-9 rounded-full flex items-center justify-center transition-all focus-visible:ring-2 focus-visible:ring-white focus-visible:outline-none ${
                       showSerialMonitor
                         ? 'bg-white text-indigo-600 shadow-sm'
@@ -1742,11 +1753,16 @@ export default function Editor() {
                     {showSerialMonitor && hardwarePort && !isFlashing ? (
                       <SerialMonitor
                         port={hardwarePort}
+                        skipInitialResetPulse={justFlashed}
                         onDisconnect={() => {
                           setHardwarePort(null);
                           setShowSerialMonitor(false);
+                          setJustFlashed(false);
                         }}
-                        onClose={() => setShowSerialMonitor(false)}
+                        onClose={() => {
+                          setShowSerialMonitor(false);
+                          setJustFlashed(false);
+                        }}
                       />
                     ) : (
                       <>

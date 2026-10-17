@@ -84,6 +84,7 @@ const MEGA_PWM = [
 const MEGA_ANALOG = Array.from({ length: 16 }, (_, i) => `A${i}`);
 
 const ESP8266_DIGITAL = [
+  'LED_BUILTIN',
   'D0',
   'D1',
   'D2',
@@ -95,7 +96,6 @@ const ESP8266_DIGITAL = [
   'D8',
   'RX',
   'TX',
-  'LED_BUILTIN',
 ] as const;
 const ESP8266_PWM = ['D1', 'D2', 'D5', 'D6', 'D7', 'D8'] as const;
 const ESP8266_ANALOG = ['A0'] as const;
@@ -123,7 +123,7 @@ const ESP32_OUTPUT_CAPABLE = [
   '32',
   '33',
 ] as const;
-const ESP32_DIGITAL = [...ESP32_OUTPUT_CAPABLE, '34', '35', '36', '39', 'LED_BUILTIN'] as const;
+const ESP32_DIGITAL = ['LED_BUILTIN', ...ESP32_OUTPUT_CAPABLE, '34', '35', '36', '39'] as const;
 // Every output-capable ESP32 pin supports PWM via the LEDC peripheral.
 const ESP32_PWM = ESP32_OUTPUT_CAPABLE;
 // ADC1 channels only — ADC2 pins stop working when WiFi is active.
@@ -165,7 +165,7 @@ const ESP32S3_OUTPUT_CAPABLE = [
   '47',
   '48',
 ] as const;
-const ESP32S3_DIGITAL = [...ESP32S3_OUTPUT_CAPABLE, 'LED_BUILTIN'] as const;
+const ESP32S3_DIGITAL = ['LED_BUILTIN', ...ESP32S3_OUTPUT_CAPABLE] as const;
 const ESP32S3_PWM = ESP32S3_OUTPUT_CAPABLE;
 // ADC1 channels (GPIO1-10) only — ADC2 pins stop working when WiFi is active.
 const ESP32S3_ANALOG = ['1', '2', '4', '5', '6', '7', '8', '9', '10'] as const;
@@ -178,7 +178,7 @@ const ESP32S3_ANALOG = ['1', '2', '4', '5', '6', '7', '8', '9', '10'] as const;
  * (UART0, used by Serial/upload).
  */
 const ESP32C3_OUTPUT_CAPABLE = ['0', '1', '3', '4', '5', '6', '7', '10', '11'] as const;
-const ESP32C3_DIGITAL = [...ESP32C3_OUTPUT_CAPABLE, 'LED_BUILTIN'] as const;
+const ESP32C3_DIGITAL = ['LED_BUILTIN', ...ESP32C3_OUTPUT_CAPABLE] as const;
 const ESP32C3_PWM = ESP32C3_OUTPUT_CAPABLE;
 // ADC1 channels only (GPIO0/1/3/4 — GPIO2 is ADC1_CH2 but reserved above as strapping).
 const ESP32C3_ANALOG = ['0', '1', '3', '4'] as const;

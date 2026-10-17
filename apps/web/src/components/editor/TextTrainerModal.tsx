@@ -170,7 +170,7 @@ export function TextTrainerModal() {
           onClick={handleAddClass}
           title="Add class"
           aria-label="Add class"
-          className="shrink-0 flex items-center gap-1 px-3 py-1.5 rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-white/10 dark:text-white/70 dark:hover:bg-white/15 text-xs font-semibold transition-colors"
+          className="shrink-0 flex items-center gap-1 px-3 py-1.5 rounded-lg bg-slate-200 text-slate-800 hover:bg-slate-300 dark:bg-white/20 dark:text-white dark:hover:bg-white/30 text-xs font-bold transition-colors"
         >
           <Plus size={14} /> Add class
         </button>
@@ -225,7 +225,7 @@ export function TextTrainerModal() {
               disabled={testLoading || !testInput.trim()}
               title="Test the trained model"
               aria-label="Test"
-              className="shrink-0 px-4 py-2 rounded-lg bg-[#FF6F61]/20 text-[#FF6F61] text-sm font-bold hover:bg-[#FF6F61]/30 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+              className="shrink-0 px-4 py-2 rounded-lg bg-[#FF6F61]/25 text-[#FF6F61] dark:text-[#FFAB9E] text-sm font-bold hover:bg-[#FF6F61]/35 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
             >
               {testLoading ? <Loader2 size={14} className="animate-spin" /> : 'Test'}
             </button>
@@ -269,7 +269,7 @@ function ClassCard({ cls, onRename, onRemove, onAddSentence, onRemoveSentence }:
           onBlur={(e) => onRename(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()}
           title="Rename class"
-          className="flex-1 min-w-0 text-slate-800 dark:text-white font-bold text-sm bg-transparent outline-none border-b border-transparent focus:border-[#FF6F61]/50 hover:border-slate-300 dark:hover:border-white/20 transition-colors"
+          className="flex-1 min-w-0 text-slate-900 dark:text-white font-extrabold text-base bg-transparent outline-none border-b border-transparent focus:border-[#FF6F61]/50 hover:border-slate-300 dark:hover:border-white/20 transition-colors"
         />
         <span className="shrink-0 text-slate-400 dark:text-white/30 text-xs font-mono">
           {cls.sentences.length}
@@ -279,7 +279,7 @@ function ClassCard({ cls, onRename, onRemove, onAddSentence, onRemoveSentence }:
             onClick={onRemove}
             title="Remove class"
             aria-label="Remove class"
-            className="shrink-0 p-1.5 rounded-md text-slate-400 dark:text-white/40 hover:bg-red-500/10 hover:text-red-500 transition-colors"
+            className="shrink-0 p-1.5 rounded-md text-slate-500 dark:text-white/60 hover:bg-red-500/15 hover:text-red-500 transition-colors"
           >
             <Trash2 size={14} />
           </button>
@@ -301,7 +301,7 @@ function ClassCard({ cls, onRename, onRemove, onAddSentence, onRemoveSentence }:
                 onClick={() => onRemoveSentence(i)}
                 title="Remove example"
                 aria-label="Remove example"
-                className="shrink-0 p-1 rounded-md text-slate-400 dark:text-white/40 hover:bg-red-500/10 hover:text-red-500 transition-colors"
+                className="shrink-0 p-1 rounded-md text-slate-500 dark:text-white/60 hover:bg-red-500/15 hover:text-red-500 transition-colors"
               >
                 <X size={13} />
               </button>
@@ -325,7 +325,7 @@ function ClassCard({ cls, onRename, onRemove, onAddSentence, onRemoveSentence }:
           disabled={!inputVal.trim()}
           title="Add example"
           aria-label="Add example"
-          className="shrink-0 px-2.5 py-2 rounded-lg bg-[#FF6F61]/10 text-[#FF6F61] hover:bg-[#FF6F61]/20 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+          className="shrink-0 px-2.5 py-2 rounded-lg bg-[#FF6F61]/25 text-[#FF6F61] dark:text-[#FFAB9E] hover:bg-[#FF6F61]/35 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
         >
           <Plus size={14} />
         </button>

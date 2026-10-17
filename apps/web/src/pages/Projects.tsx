@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import {
   FolderCode,
@@ -12,6 +12,8 @@ import {
   Cpu,
   Brain,
   SlidersHorizontal,
+  Check,
+  X,
 } from 'lucide-react';
 import { useProjectStore } from '../stores/project.store';
 import { PageHeader } from '../components/ui/PageHeader';
@@ -26,13 +28,17 @@ type FilterType = 'ALL' | 'BLOCK' | 'CODE';
 type CategoryFilterType = 'ALL' | 'HARDWARE' | 'SOFTWARE';
 
 export default function Projects() {
-  const { projects, isLoading, error, fetchProjects, removeProject } = useProjectStore();
+  const { projects, isLoading, error, fetchProjects, removeProject, removeProjects } =
+    useProjectStore();
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<FilterType>('ALL');
   const [categoryFilter, setCategoryFilter] = useState<CategoryFilterType>('ALL');
   const [boardFilter, setBoardFilter] = useState<string>('ALL');
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
   const [isNewProjectOpen, setIsNewProjectOpen] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [isBulkDeleteOpen, setIsBulkDeleteOpen] = useState(false);
+  const [isBulkDeleting, setIsBulkDeleting] = useState(false);
   const isFirstRender = useRef(true);
 
   useEffect(() => {
@@ -59,6 +65,16 @@ export default function Projects() {
 
   const filtered = projects;
 
+  // A project that's selected but no longer in the current filtered view
+  // (the filters changed since it was selected) shouldn't count toward the
+  // bulk-delete total or actually get deleted — purely derived from
+  // `selectedIds` + `filtered`, so it never needs an effect or a manual
+  // reset when the filters change.
+  const visibleSelectedIds = useMemo(() => {
+    const filteredIds = new Set(filtered.map((p) => p.id));
+    return new Set([...selectedIds].filter((id) => filteredIds.has(id)));
+  }, [selectedIds, filtered]);
+
   const handleDelete = () => {
     if (!deleteTarget) return;
     void (async () => {
@@ -68,6 +84,34 @@ export default function Projects() {
   };
 
   const deleteProjectTitle = projects.find((p) => p.id === deleteTarget)?.title ?? '';
+
+  const toggleSelected = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const allFilteredSelected = filtered.length > 0 && filtered.every((p) => selectedIds.has(p.id));
+  const toggleSelectAll = () => {
+    setSelectedIds(allFilteredSelected ? new Set() : new Set(filtered.map((p) => p.id)));
+  };
+
+  const handleBulkDelete = () => {
+    if (isBulkDeleting) return;
+    void (async () => {
+      setIsBulkDeleting(true);
+      // Ids that fail to delete are restored by removeProjects and returned
+      // here, so they stay selected — the student can see exactly what's
+      // left and try again, instead of the whole batch silently reverting.
+      const failedIds = await removeProjects(Array.from(visibleSelectedIds));
+      setIsBulkDeleting(false);
+      setIsBulkDeleteOpen(false);
+      setSelectedIds(new Set(failedIds));
+    })();
+  };
 
   return (
     <div className="w-full h-full flex flex-col font-playful bg-transparent">
@@ -221,9 +265,43 @@ export default function Projects() {
         )}
 
         {!isLoading && !error && filtered.length > 0 && (
+          <div className="flex items-center justify-between mb-4 gap-3">
+            <button
+              onClick={toggleSelectAll}
+              className="text-xs font-bold text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white transition-colors"
+            >
+              {allFilteredSelected ? 'Deselect all' : `Select all (${filtered.length})`}
+            </button>
+
+            {visibleSelectedIds.size > 0 && (
+              <div className="flex items-center gap-2 bg-white dark:bg-[#141824] border border-slate-200/80 dark:border-slate-800 rounded-xl px-3 py-1.5 shadow-sm">
+                <span className="text-xs font-bold text-slate-600 dark:text-slate-300">
+                  {visibleSelectedIds.size} selected
+                </span>
+                <button
+                  onClick={() => setSelectedIds(new Set())}
+                  title="Clear selection"
+                  aria-label="Clear selection"
+                  className="p-1 rounded-md text-slate-400 hover:text-slate-700 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-white/10 transition-colors"
+                >
+                  <X size={13} />
+                </button>
+                <button
+                  onClick={() => setIsBulkDeleteOpen(true)}
+                  className="flex items-center gap-1.5 text-xs font-bold text-white bg-red-500 hover:bg-red-600 rounded-lg px-3 py-1.5 transition-colors"
+                >
+                  <Trash2 size={13} /> Delete Selected
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+
+        {!isLoading && !error && filtered.length > 0 && (
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
             {filtered.map((project) => {
               const isBlock = project.type === 'BLOCK';
+              const isSelected = selectedIds.has(project.id);
               const isAi = project.boardTarget === 'ai';
               const isSoftware = project.boardTarget === 'software';
               const boardLabel = getBoardLabel(project.boardTarget);
@@ -233,25 +311,47 @@ export default function Projects() {
               return (
                 <div
                   key={project.id}
-                  className="bg-white/80 dark:bg-[#141824]/90 border border-slate-200/80 dark:border-white/10 rounded-3xl p-6 flex flex-col hover:border-purple-300 dark:hover:border-purple-500/40 shadow-2xs hover:shadow-lg hover:-translate-y-1 transition-all group"
+                  className={`bg-white/80 dark:bg-[#141824]/90 border rounded-3xl p-6 flex flex-col shadow-2xs hover:shadow-lg hover:-translate-y-1 transition-all group ${
+                    isSelected
+                      ? 'border-purple-400 dark:border-purple-500 ring-2 ring-purple-400/30'
+                      : 'border-slate-200/80 dark:border-white/10 hover:border-purple-300 dark:hover:border-purple-500/40'
+                  }`}
                 >
                   <div className="flex items-start justify-between mb-4">
-                    <div
-                      className={`w-11 h-11 rounded-2xl flex items-center justify-center shrink-0 ${
-                        isAi
-                          ? 'bg-[#FFEDEA] dark:bg-[#FF6F61]/20 text-[#FF6F61]'
-                          : isBlock
-                            ? 'bg-purple-100 dark:bg-purple-950/50 text-playful-primary dark:text-playful-highlight'
-                            : 'bg-amber-100 dark:bg-amber-950/50 text-amber-600 dark:text-amber-400'
-                      }`}
-                    >
-                      {isAi ? (
-                        <Brain size={20} />
-                      ) : isBlock ? (
-                        <Blocks size={20} />
-                      ) : (
-                        <TerminalSquare size={20} />
-                      )}
+                    <div className="flex items-center gap-2.5">
+                      <button
+                        onClick={() => toggleSelected(project.id)}
+                        title={isSelected ? 'Deselect project' : 'Select project'}
+                        aria-label={isSelected ? 'Deselect project' : 'Select project'}
+                        className={`w-5 h-5 rounded-md border-2 flex items-center justify-center shrink-0 transition-all ${
+                          visibleSelectedIds.size > 0
+                            ? 'opacity-100'
+                            : 'opacity-0 group-hover:opacity-100'
+                        } ${
+                          isSelected
+                            ? 'bg-purple-600 border-purple-600 text-white'
+                            : 'border-slate-300 dark:border-slate-600 hover:border-purple-400'
+                        }`}
+                      >
+                        {isSelected && <Check size={12} strokeWidth={3} />}
+                      </button>
+                      <div
+                        className={`w-11 h-11 rounded-2xl flex items-center justify-center shrink-0 ${
+                          isAi
+                            ? 'bg-[#FFEDEA] dark:bg-[#FF6F61]/20 text-[#FF6F61]'
+                            : isBlock
+                              ? 'bg-purple-100 dark:bg-purple-950/50 text-playful-primary dark:text-playful-highlight'
+                              : 'bg-amber-100 dark:bg-amber-950/50 text-amber-600 dark:text-amber-400'
+                        }`}
+                      >
+                        {isAi ? (
+                          <Brain size={20} />
+                        ) : isBlock ? (
+                          <Blocks size={20} />
+                        ) : (
+                          <TerminalSquare size={20} />
+                        )}
+                      </div>
                     </div>
                     <div className="flex items-center gap-2">
                       <span
@@ -326,6 +426,17 @@ export default function Projects() {
         variant="danger"
         onConfirm={handleDelete}
         onCancel={() => setDeleteTarget(null)}
+      />
+      <ConfirmDialog
+        open={isBulkDeleteOpen}
+        title="Delete Projects"
+        message={`Are you sure you want to permanently delete ${visibleSelectedIds.size} project${
+          visibleSelectedIds.size === 1 ? '' : 's'
+        }? This cannot be undone.`}
+        confirmLabel={isBulkDeleting ? 'Deleting…' : 'Delete'}
+        variant="danger"
+        onConfirm={handleBulkDelete}
+        onCancel={() => setIsBulkDeleteOpen(false)}
       />
       <NewProjectDialog open={isNewProjectOpen} onClose={() => setIsNewProjectOpen(false)} />
     </div>

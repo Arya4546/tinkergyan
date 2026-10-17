@@ -38,9 +38,28 @@ interface SerialMonitorProps {
   port: any; // SerialPort from Web Serial API
   onDisconnect?: () => void;
   onClose?: () => void;
+  /**
+   * Skip the DTR pulse below on this mount's first open. Set this when the
+   * monitor is auto-opened right after a successful upload: the board was
+   * *just* reset into run mode by the flasher's own careful DTR/RTS
+   * sequence, and re-opening the port here sends another DTR pulse that
+   * only touches DTR, never RTS — on some boards' auto-reset circuits that's
+   * enough to glitch the chip back toward reset with nothing to then tell
+   * it to boot normally, undoing a reset that had just succeeded. Skipping
+   * it here specifically (while keeping it for a user manually reopening
+   * the monitor on an otherwise-idle connection, where this pulse is a
+   * useful nudge) was found by noticing every reset-timing improvement in
+   * the flasher itself made no observable difference — this auto-open runs
+   * immediately after and was overriding it every time.
+   */
+  skipInitialResetPulse?: boolean;
 }
 
-export function SerialMonitor({ port, onClose }: SerialMonitorProps) {
+export function SerialMonitor({
+  port,
+  onClose,
+  skipInitialResetPulse = false,
+}: SerialMonitorProps) {
   const [lines, setLines] = useState<string[]>([]);
   const [inputValue, setInputValue] = useState('');
   const [baudRate, setBaudRate] = useState(9600);
@@ -88,13 +107,15 @@ export function SerialMonitor({ port, onClose }: SerialMonitorProps) {
       if (!port.readable) {
         try {
           await port.open({ baudRate });
-          try {
-            // Pulse DTR to reset the board into run mode (fixes ESP32 hanging after flash)
-            await port.setSignals({ dataTerminalReady: true, requestToSend: false });
-            await new Promise((resolve) => setTimeout(resolve, 100));
-            await port.setSignals({ dataTerminalReady: false, requestToSend: false });
-          } catch {
-            /* ignore if signals cannot be set */
+          if (!skipInitialResetPulse) {
+            try {
+              // Pulse DTR to reset the board into run mode (fixes ESP32 hanging after flash)
+              await port.setSignals({ dataTerminalReady: true, requestToSend: false });
+              await new Promise((resolve) => setTimeout(resolve, 100));
+              await port.setSignals({ dataTerminalReady: false, requestToSend: false });
+            } catch {
+              /* ignore if signals cannot be set */
+            }
           }
         } catch (openErr: any) {
           console.warn('Port open error:', openErr);
@@ -323,7 +344,7 @@ export function SerialMonitor({ port, onClose }: SerialMonitorProps) {
       setIsReading(false);
       isStartingRef.current = false;
     }
-  }, [port, baudRate, isReading]);
+  }, [port, baudRate, isReading, skipInitialResetPulse]);
 
   // Auto-start reading when port is provided
   useEffect(() => {
