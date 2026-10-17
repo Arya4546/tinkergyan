@@ -588,9 +588,57 @@ arduinoGenerator.forBlock['procedures_callreturn'] = function (block, generator)
 };
 
 /**
+ * Block types that are valid C++ on their own at file scope: the program hat
+ * (expands to #include + setup()/loop()) and named function definitions.
+ * Every other registered block above — digitalWrite, delay, if/else, loops,
+ * math, variables, AI blocks, everything — is only valid C++ *inside* a
+ * function body.
+ */
+const VALID_TOP_LEVEL_BLOCK_TYPES = new Set([
+  'arduino_program',
+  'procedures_defnoreturn',
+  'procedures_defreturn',
+]);
+
+/**
  * Generates Arduino C++ from a Blockly workspace.
  * Always prefixes the sketch with the correct header and variable declarations.
+ *
+ * Reimplements Blockly's own CodeGenerator.workspaceToCode (init -> per-top-
+ * block blockToCode -> join -> finish) rather than calling it directly, to
+ * add one filter: only the block types in VALID_TOP_LEVEL_BLOCK_TYPES are
+ * generated as top-level code. The built-in version generates code for
+ * *every* top-level block unconditionally — so a single block accidentally
+ * left disconnected from the program (a stray drag, a duplicate-paste gone
+ * wrong, an undo artifact) gets its statement emitted directly at file
+ * scope, which is never valid C++ for anything other than those two types.
+ * The resulting compiler error ("expected constructor, destructor, or type
+ * conversion before '(' token") points at the compiler's confusion, not at
+ * the actual stray block, so this was previously unfixable by a student
+ * without being told to hunt the canvas for a disconnected block. Excluding
+ * it here instead treats a disconnected block the way the visual editor
+ * already implies it behaves: inert, since nothing ever calls it.
  */
 export function workspaceToArduinoCode(workspace: Workspace): string {
-  return arduinoGenerator.workspaceToCode(workspace);
+  const generator = arduinoGenerator as unknown as {
+    init: (ws: Workspace) => void;
+    finish: (code: string) => string;
+    blockToCode: (block: Block) => string | [string, Order];
+    scrubNakedValue: (line: string) => string;
+  };
+
+  generator.init(workspace);
+
+  const codeList: string[] = [];
+  for (const block of workspace.getTopBlocks(true)) {
+    if (!VALID_TOP_LEVEL_BLOCK_TYPES.has(block.type)) continue;
+
+    let line = generator.blockToCode(block);
+    if (Array.isArray(line)) line = line[0];
+    if (line) {
+      codeList.push(block.outputConnection ? generator.scrubNakedValue(line) : line);
+    }
+  }
+
+  return generator.finish(codeList.join('\n'));
 }

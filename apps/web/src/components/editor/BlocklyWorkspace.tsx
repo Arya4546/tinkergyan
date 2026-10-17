@@ -18,7 +18,7 @@ import * as En from 'blockly/msg/en';
 import './arduino-blocks';
 import './scratch-blocks';
 import './ai-blocks';
-import { arduinoGenerator } from './arduino-generator';
+import { workspaceToArduinoCode } from './arduino-generator';
 import './ai-arduino-generator';
 import './ai-scratch-generator';
 import { getToolbox } from './toolbox';
@@ -238,7 +238,7 @@ export const BlocklyWorkspace = forwardRef<BlocklyWorkspaceHandle, BlocklyWorksp
       },
       getCode() {
         if (!workspaceRef.current) return '';
-        return arduinoGenerator.workspaceToCode(workspaceRef.current);
+        return workspaceToArduinoCode(workspaceRef.current);
       },
       undo() {
         if (!workspaceRef.current) return;
@@ -372,7 +372,7 @@ export const BlocklyWorkspace = forwardRef<BlocklyWorkspaceHandle, BlocklyWorksp
         }
 
         try {
-          const code = arduinoGenerator.workspaceToCode(workspaceRef.current);
+          const code = workspaceToArduinoCode(workspaceRef.current);
           onCodeChange(code);
         } catch {
           // Expected in software mode: the Arduino generator has no handlers
@@ -442,7 +442,7 @@ export const BlocklyWorkspace = forwardRef<BlocklyWorkspaceHandle, BlocklyWorksp
 
         // Emit initial code from the root block
         try {
-          const code = arduinoGenerator.workspaceToCode(workspaceRef.current);
+          const code = workspaceToArduinoCode(workspaceRef.current);
           onCodeChange(code);
         } catch {
           onCodeChange('');
@@ -474,7 +474,7 @@ export const BlocklyWorkspace = forwardRef<BlocklyWorkspaceHandle, BlocklyWorksp
       }
       // Re-generate code so the C++ preview reflects the correct board-specific header
       try {
-        const code = arduinoGenerator.workspaceToCode(workspaceRef.current);
+        const code = workspaceToArduinoCode(workspaceRef.current);
         onCodeChange(code);
       } catch {
         // Generator errors should not crash the editor

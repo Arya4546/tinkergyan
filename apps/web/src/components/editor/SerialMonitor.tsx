@@ -57,6 +57,15 @@ export function SerialMonitor({ port, onClose }: SerialMonitorProps) {
   const readerRef = useRef<ReadableStreamDefaultReader<string> | null>(null);
   const isPausedRef = useRef(isPaused);
   const linesRef = useRef(lines);
+  // `isReading` (React state) isn't enough to guard against a second
+  // concurrent startReading() call: it's only set to true *after*
+  // `port.open()` resolves, so two calls that both start before either
+  // finishes opening both see isReading === false and both call port.open()
+  // — which the Web Serial API rejects with "A call to open() is already in
+  // progress." This reliably happens in dev under StrictMode, which
+  // deliberately double-invokes mount effects. A ref is set synchronously,
+  // closing that gap the state check can't.
+  const isStartingRef = useRef(false);
 
   // Keep refs in sync
   isPausedRef.current = isPaused;
@@ -71,7 +80,8 @@ export function SerialMonitor({ port, onClose }: SerialMonitorProps) {
 
   // Start reading when port changes or baud rate changes
   const startReading = useCallback(async () => {
-    if (!port || isReading) return;
+    if (!port || isReading || isStartingRef.current) return;
+    isStartingRef.current = true;
 
     try {
       // If port is not open or needs reopening with new baud rate
@@ -90,15 +100,25 @@ export function SerialMonitor({ port, onClose }: SerialMonitorProps) {
           console.warn('Port open error:', openErr);
           setLines((prev) => [...prev, `> Error opening port: ${openErr.message || openErr}`]);
           setIsReading(false);
+          isStartingRef.current = false;
           return;
         }
       }
 
       if (!port.readable) {
         setLines((prev) => [...prev, '> Error: Port is not readable after open.']);
+        isStartingRef.current = false;
         return;
       }
 
+      // isStartingRef stays true for the whole reading session, not just
+      // until the port opens: clearing it here left a gap where StrictMode's
+      // double-invoke of this effect could slip past the guard above (both
+      // isReading and isStartingRef already false/true-then-cleared) and
+      // call port.readable.pipeTo() a second time on the same now-open
+      // stream — "Cannot pipe a locked stream". It's only cleared below,
+      // alongside every setIsReading(false), matching isReading's own
+      // lifetime exactly.
       setIsReading(true);
 
       const decoder = new TextDecoderStream();
@@ -291,6 +311,7 @@ export function SerialMonitor({ port, onClose }: SerialMonitorProps) {
         reader.releaseLock();
         readerRef.current = null;
         setIsReading(false);
+        isStartingRef.current = false;
         try {
           await readableStreamClosed;
         } catch {
@@ -300,6 +321,7 @@ export function SerialMonitor({ port, onClose }: SerialMonitorProps) {
     } catch (err) {
       console.warn('Failed to start serial reader:', err);
       setIsReading(false);
+      isStartingRef.current = false;
     }
   }, [port, baudRate, isReading]);
 

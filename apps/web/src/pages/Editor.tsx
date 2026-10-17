@@ -912,6 +912,17 @@ export default function Editor() {
     setShowSerialMonitor(false); // Close serial monitor during flash
     setShowCodePanel(true);
 
+    // The two state updates above unmount <SerialMonitor>, whose cleanup
+    // effect is what actually cancels its reader and releases the port's
+    // lock — but React schedules that unmount; it has not happened yet at
+    // this line. Without yielding here, WebSerialFlasher's own retry loop
+    // (closePortFully) starts racing that cleanup instead of running after
+    // it, and on a slow USB-serial driver the race can still lose within the
+    // retry budget, surfacing PORT_BUSY_HINT for what is actually just a
+    // normal, brief handover. A tick is enough for React to commit the
+    // unmount and run the cleanup effect before we touch the port at all.
+    await new Promise((resolve) => setTimeout(resolve, 50));
+
     try {
       const flasher = new WebSerialFlasher(hardwarePort);
 

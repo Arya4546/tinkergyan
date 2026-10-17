@@ -944,7 +944,11 @@ export default function AITrainer() {
       {/* ── Main content ── */}
       <main className="relative z-10 flex-1 flex flex-col">
         {activeTab === 'text' ? (
-          <TextTrainerModal />
+          <div className="flex-1 flex justify-center py-10 px-6 min-h-[calc(100vh-96px)]">
+            <div className="w-full max-w-2xl">
+              <TextTrainerModal />
+            </div>
+          </div>
         ) : activeTab === 'audio' ? (
           <AudioTrainerTab />
         ) : activeTab === 'pose' ? (

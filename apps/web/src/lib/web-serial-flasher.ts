@@ -11,6 +11,7 @@
  *   await flasher.flash(hexBase64, { board, onProgress });
  */
 import { getBoardDefinition, type BoardFqbn } from './boards';
+import { md5Hex } from './md5';
 
 export type FlashBoard = BoardFqbn;
 
@@ -26,6 +27,33 @@ const PORT_BUSY_HINT =
   "The board's serial port is busy. Close the Serial Monitor and any other program " +
   'using the board (Arduino IDE, another browser tab), then press Upload again. ' +
   'If it still will not open, unplug the USB cable and plug it back in.';
+
+/**
+ * What to tell a student when writeFlash()'s own MD5 verify (see
+ * calculateMD5Hash in flashESP below) catches a write that the board ACKed
+ * but never actually stored — esptool-js's raw message, "MD5 of file does
+ * not match data in flash!", says nothing a child or teacher can act on.
+ */
+const FLASH_VERIFY_FAILED_HINT =
+  'The upload finished, but the board never actually saved it — its flash chip ' +
+  'stopped responding partway through. Unplug the USB cable, plug it back in, and ' +
+  'press Upload again. If it keeps happening, try a different USB cable or port.';
+
+/**
+ * esptool-js's `Transport.connect()` calls `SerialPort.open()` directly, with
+ * no try/catch of its own — so when the port is still busy (most commonly:
+ * the Serial Monitor's reader lock from a previous session hasn't finished
+ * releasing yet, a race `closePortFully()` can't fully close before this
+ * runs), the browser's raw, unhelpful DOMException reaches the caller
+ * unchanged: "Failed to execute 'open' on 'SerialPort': Failed to open
+ * serial port." Call sites that invoke `esploader.main()` must catch that
+ * and rethrow PORT_BUSY_HINT instead — this checks whether an error is that
+ * one.
+ */
+function isPortOpenError(err: unknown): boolean {
+  const msg = err instanceof Error ? err.message : String(err);
+  return msg.includes('Failed to open serial port') || msg.includes("execute 'open'");
+}
 
 export interface FlashOptions {
   board: FlashBoard;
@@ -206,15 +234,21 @@ export class WebSerialFlasher {
    * only reliable way to know the close took — `close()` resolving is not
    * enough on its own, and it rejects outright while a stream is locked. The
    * retries give an unmounting Serial Monitor time to finish releasing.
+   *
+   * Budget is ~4s total (vs. an earlier ~1.2s): canceling a reader mid-`read()`
+   * has to wait for the USB-serial driver to actually acknowledge it, which on
+   * some chipsets/OSes takes noticeably longer than a React render cycle. 4s
+   * is still a hard cap — a genuinely stuck port still reports busy rather
+   * than hanging indefinitely.
    */
   private async closePortFully(): Promise<boolean> {
-    for (let attempt = 0; attempt < 6; attempt++) {
+    for (let attempt = 0; attempt < 14; attempt++) {
       if (this.port.readable === null && this.port.writable === null) return true;
       try {
         await this.port.close();
         return true;
       } catch {
-        await this.delay(200);
+        await this.delay(300);
       }
     }
     return this.port.readable === null && this.port.writable === null;
@@ -290,15 +324,28 @@ export class WebSerialFlasher {
         log(`Port opened at ${uploadBaud} baud for flashing`);
         onProgress?.(10, 'Port ready');
 
-        // Reset the board by toggling DTR and RTS signals
-        log('Asserting DTR to reset board...');
-        onProgress?.(15, 'Waiting for bootloader');
-        await this.resetIntoBootloader();
+        // A single DTR/RTS pulse occasionally fails to land the board in its
+        // bootloader's brief sync window — well-documented flakiness in AVR
+        // auto-reset circuits (especially cheap clone boards), unrelated to
+        // baud rate. No amount of resending GET_SYNC helps if the chip was
+        // never in the bootloader to begin with, so retry the whole
+        // reset-then-sync cycle a few times before moving on. This is
+        // exactly what manually retrying Upload (or refreshing the page)
+        // already did by accident — doing it here means students don't have
+        // to.
+        for (let resetAttempt = 0; resetAttempt < 3 && !synced; resetAttempt++) {
+          log(
+            resetAttempt === 0
+              ? 'Asserting DTR to reset board...'
+              : `Asserting DTR to reset board... (retry ${resetAttempt + 1}/3)`,
+          );
+          onProgress?.(15, 'Waiting for bootloader');
+          await this.resetIntoBootloader();
 
-        // Sync with bootloader
-        log('Syncing with STK500 bootloader...');
-        onProgress?.(20, 'Syncing with bootloader');
-        synced = await this.trySyncV1();
+          log('Syncing with STK500 bootloader...');
+          onProgress?.(20, 'Syncing with bootloader');
+          synced = await this.trySyncV1();
+        }
         if (synced) break;
 
         log(`No response at ${uploadBaud} baud`);
@@ -496,27 +543,39 @@ export class WebSerialFlasher {
     onProgress?.(10, 'Port ready');
 
     try {
-      // Reset the board by toggling DTR and RTS signals
-      log('Asserting DTR to reset board...');
-      onProgress?.(15, 'Waiting for bootloader');
-      await this.resetIntoBootloader();
-
-      // Sync with bootloader using CMD_SIGN_ON (0x01)
-      log('Syncing with STK500v2 bootloader...');
-      onProgress?.(20, 'Syncing with bootloader');
-
+      // A single DTR/RTS pulse occasionally fails to land the board in its
+      // bootloader's brief sync window (see the identical fix/comment in
+      // flashAVR for the STK500v1/Uno path) — retry the whole reset-then-
+      // sync cycle a few times rather than just resending CMD_SIGN_ON
+      // against a chip that may never have entered the bootloader at all.
       let synced = false;
-      for (let attempt = 0; attempt < 10; attempt++) {
-        try {
-          const resp = await this.sendCommandV2([0x01]); // CMD_SIGN_ON
-          if (resp[0] === 0x01 && resp[1] === 0x00) {
-            synced = true;
-            break;
+      for (let resetAttempt = 0; resetAttempt < 3 && !synced; resetAttempt++) {
+        log(
+          resetAttempt === 0
+            ? 'Asserting DTR to reset board...'
+            : `Asserting DTR to reset board... (retry ${resetAttempt + 1}/3)`,
+        );
+        onProgress?.(15, 'Waiting for bootloader');
+        await this.resetIntoBootloader();
+
+        // Sync with bootloader using CMD_SIGN_ON (0x01)
+        log('Syncing with STK500v2 bootloader...');
+        onProgress?.(20, 'Syncing with bootloader');
+
+        for (let attempt = 0; attempt < 10; attempt++) {
+          try {
+            const resp = await this.sendCommandV2([0x01]); // CMD_SIGN_ON
+            if (resp[0] === 0x01 && resp[1] === 0x00) {
+              synced = true;
+              break;
+            }
+          } catch (e) {
+            log(
+              `Sync attempt ${attempt + 1} failed: ${e instanceof Error ? e.message : String(e)}`,
+            );
           }
-        } catch (e) {
-          log(`Sync attempt ${attempt + 1} failed: ${e instanceof Error ? e.message : String(e)}`);
+          await this.delay(50);
         }
-        await this.delay(50);
       }
 
       if (!synced) {
@@ -662,7 +721,16 @@ export class WebSerialFlasher {
     let result: DetectedChip;
     try {
       const esploader = new ESPLoader({ transport, baudrate: 115200, terminal });
-      await esploader.main();
+      try {
+        await esploader.main();
+      } catch (err) {
+        // esploader.main() calls Transport.connect() -> SerialPort.open()
+        // with no catch of its own — see isPortOpenError's doc comment.
+        // Without this, a busy port surfaces here as the browser's raw,
+        // unactionable "Failed to execute 'open' on 'SerialPort'" instead.
+        if (isPortOpenError(err)) throw new Error(PORT_BUSY_HINT);
+        throw err;
+      }
       // esptool-js can leave `chip` unset for a chip ID it doesn't recognize
       // (a corrupted read, or a chip newer than this esptool-js version) —
       // without this guard that surfaces as a raw `Cannot read properties of
@@ -702,7 +770,7 @@ export class WebSerialFlasher {
     // Dynamically import esptool-js to avoid inflating the main bundle size.
     // If the chunk is stale after a deploy, the global handler in main.tsx
     // will auto-reload the page before this promise settles.
-    const { ESPLoader, Transport } = await import('esptool-js');
+    const { ESPLoader, Transport, ClassicReset } = await import('esptool-js');
 
     // ESPTool-JS terminal interface
     const terminal = {
@@ -735,8 +803,12 @@ export class WebSerialFlasher {
         terminal,
       });
 
+      // esploader.main() already probes the flash chip's ID itself and logs
+      // the same "Flash ID" / "Failed to communicate with the flash chip"
+      // warning when that probe fails — a second, separate flashId() call
+      // here added nothing we acted on and just doubled the odds of that
+      // (benign-looking but informative) warning appearing in the log.
       await esploader.main();
-      await esploader.flashId();
 
       onProgress?.(15, 'Preparing flash...');
 
@@ -762,6 +834,15 @@ export class WebSerialFlasher {
           const percent = 15 + Math.round((written / total) * 85);
           onProgress?.(percent, `Flashing... ${Math.round((written / total) * 100)}%`);
         },
+        // Without this, "success" only means every packet was ACKed over the
+        // wire — it says nothing about whether the flash chip actually stored
+        // the bytes. A board whose flash chip is intermittently unresponsive
+        // (surfaced earlier as "Flash ID: 0" / "Failed to communicate with
+        // the flash chip") can ACK every packet while writing nothing, which
+        // is exactly "uploads fine, board never runs the code" with no error
+        // anywhere. This makes esptool-js read the flash back and compare its
+        // MD5 against ours, turning that silent failure into a real one.
+        calculateMD5Hash: md5Hex,
       });
 
       onLog?.('ESP Flashing complete. Resetting board...');
@@ -770,10 +851,32 @@ export class WebSerialFlasher {
       } catch (err) {
         onLog?.(`[esptool] Reset notice: ${err instanceof Error ? err.message : String(err)}`);
       }
+      // esploader.after('hard_reset') just releases RTS after a short delay —
+      // it assumes DTR/RTS are already in the right base state left over from
+      // the stub protocol's own handshake. That assumption doesn't hold on
+      // every board's auto-reset circuit: on some, the chip stays stuck
+      // between bootloader and the app — the flash write verifies correct
+      // (MD5 matches), but nothing runs until the board is physically power-
+      // cycled. The classic DTR/RTS pulse sequence below (the same one
+      // Arduino IDE/esptool.py use for NodeMCU-style boards, and the same
+      // trick SerialMonitor.tsx already uses for ESP32) doesn't depend on any
+      // assumed prior pin state, so it's a cheap defensive addition even
+      // though esploader.after() already (sometimes) handles it.
+      try {
+        await new ClassicReset(transport, 50).reset();
+      } catch (err) {
+        onLog?.(`[esptool] Reset notice: ${err instanceof Error ? err.message : String(err)}`);
+      }
       await transport.disconnect();
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       onLog?.(`ESP Flash Error: ${msg}`);
+      if (isPortOpenError(err)) {
+        throw new Error(PORT_BUSY_HINT);
+      }
+      if (msg.includes('MD5 of file does not match')) {
+        throw new Error(FLASH_VERIFY_FAILED_HINT);
+      }
       throw new Error(`Failed to flash ESP: ${msg}`);
     }
   }
