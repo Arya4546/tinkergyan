@@ -846,6 +846,25 @@ export class WebSerialFlasher {
       });
 
       onLog?.('ESP Flashing complete. Resetting board...');
+      // Try a *software* reset first, on the same data channel the write
+      // itself just used — proven 100% reliable (every byte MD5-verified) —
+      // instead of the DTR/RTS control lines, which direct hardware testing
+      // (toggling them in isolation, with the port confirmed open) showed do
+      // nothing at all on some boards: no code can fix a signal that never
+      // reaches the chip. esptool-js's stub exposes a dedicated
+      // ESP_RUN_USER_CODE command for exactly this — it tells the chip
+      // "jump to the flashed app" directly over TX/RX, with zero dependency
+      // on DTR/RTS. Only defined for ESP8266's stub; ESP32 variants fall
+      // through to the signal-based reset below unchanged.
+      if (esploader.chip?.CHIP_NAME === 'ESP8266') {
+        try {
+          await esploader.after('soft_reset');
+        } catch (err) {
+          onLog?.(
+            `[esptool] Soft reset notice: ${err instanceof Error ? err.message : String(err)}`,
+          );
+        }
+      }
       try {
         await esploader.after('hard_reset');
       } catch (err) {
