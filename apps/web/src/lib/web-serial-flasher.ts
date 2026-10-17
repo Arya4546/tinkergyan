@@ -271,6 +271,47 @@ export class WebSerialFlasher {
     this.writer = null;
   }
 
+  /**
+   * Reset an ESP board so it boots the sketch we just flashed, not its
+   * bootloader.
+   *
+   * On the standard auto-reset circuit, DTR drives GPIO0 and RTS drives EN,
+   * both inverted: DTR true => GPIO0 LOW, RTS true => EN LOW (held in reset).
+   * The chip latches its boot mode at the instant EN rises, and GPIO0 LOW at
+   * that instant means "enter UART download mode". So the only thing that
+   * matters is GPIO0's level on that one edge:
+   *
+   *   D0  GPIO0 HIGH  — select normal boot
+   *   R1  EN LOW      — assert reset
+   *   W   hold
+   *   R0  EN HIGH     — release with GPIO0 still HIGH => runs the sketch
+   *
+   * This is deliberately NOT esptool-js's `ClassicReset`, which ends
+   * `setDTR(true); setRTS(false)` — releasing EN while GPIO0 is LOW. That is
+   * the *enter the bootloader* sequence esptool runs before flashing, and
+   * calling it after a flash leaves the chip sitting in its bootloader with
+   * the freshly written sketch never starting — the "upload succeeds but
+   * nothing runs until you unplug the cable" symptom. A power cycle fixed it
+   * only because DTR/RTS idle then, so GPIO0 is pulled HIGH.
+   *
+   * `esploader.after('hard_reset')` is also not enough on its own: it is just
+   * `sleep(100); setRTS(false)`, which assumes EN is already asserted. After
+   * a flash it is not, so that call changes nothing.
+   */
+  private async resetIntoRunMode(
+    transport: { setDTR: (v: boolean) => Promise<void>; setRTS: (v: boolean) => Promise<void> },
+    onLog?: (message: string) => void,
+  ): Promise<void> {
+    try {
+      await transport.setDTR(false); // GPIO0 HIGH — boot the sketch, not the bootloader
+      await transport.setRTS(true); // EN LOW — hold in reset
+      await this.delay(100);
+      await transport.setRTS(false); // EN HIGH — release; GPIO0 is still HIGH
+    } catch (err) {
+      onLog?.(`[esptool] Reset notice: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }
+
   /** Toggle DTR/RTS to reset the board into its serial bootloader. */
   private async resetIntoBootloader(): Promise<void> {
     await this.port.setSignals({ dataTerminalReady: false, requestToSend: false });
@@ -770,7 +811,7 @@ export class WebSerialFlasher {
     // Dynamically import esptool-js to avoid inflating the main bundle size.
     // If the chunk is stale after a deploy, the global handler in main.tsx
     // will auto-reload the page before this promise settles.
-    const { ESPLoader, Transport, ClassicReset } = await import('esptool-js');
+    const { ESPLoader, Transport } = await import('esptool-js');
 
     // ESPTool-JS terminal interface
     const terminal = {
@@ -845,59 +886,8 @@ export class WebSerialFlasher {
         calculateMD5Hash: md5Hex,
       });
 
-      onLog?.('ESP Flashing complete. Resetting board...');
-      // Try a *software* reset first, on the same data channel the write
-      // itself just used — proven 100% reliable (every byte MD5-verified) —
-      // instead of the DTR/RTS control lines, which direct hardware testing
-      // (toggling them in isolation, with the port confirmed open) showed do
-      // nothing at all on some boards: no code can fix a signal that never
-      // reaches the chip. esptool-js's stub exposes a dedicated
-      // ESP_RUN_USER_CODE command for exactly this — it tells the chip
-      // "jump to the flashed app" directly over TX/RX, with zero dependency
-      // on DTR/RTS. Only defined for ESP8266's stub; ESP32 variants fall
-      // through to the signal-based reset below unchanged.
-      if (esploader.chip?.CHIP_NAME === 'ESP8266') {
-        try {
-          await esploader.after('soft_reset');
-        } catch (err) {
-          onLog?.(
-            `[esptool] Soft reset notice: ${err instanceof Error ? err.message : String(err)}`,
-          );
-        }
-      }
-      try {
-        await esploader.after('hard_reset');
-      } catch (err) {
-        onLog?.(`[esptool] Reset notice: ${err instanceof Error ? err.message : String(err)}`);
-      }
-      // esploader.after('hard_reset') just releases RTS after a short delay —
-      // it assumes DTR/RTS are already in the right base state left over from
-      // the stub protocol's own handshake. That assumption doesn't hold on
-      // every board's auto-reset circuit: on some, the chip stays stuck
-      // between bootloader and the app — the flash write verifies correct
-      // (MD5 matches), but nothing runs until the board is physically power-
-      // cycled. The classic DTR/RTS pulse sequence below (the same one
-      // Arduino IDE/esptool.py use for NodeMCU-style boards, and the same
-      // trick SerialMonitor.tsx already uses for ESP32) doesn't depend on any
-      // assumed prior pin state, so it's a cheap defensive addition even
-      // though esploader.after() already (sometimes) handles it.
-      //
-      // Run it twice, with a longer hold, rather than once: a browser's
-      // WebSerial control-line toggling has more latency/jitter than the
-      // native OS serial access Arduino IDE/esptool.py get, so the exact
-      // instant GPIO0 settles relative to the reset pulse is less precise
-      // here. A single attempt can land on the wrong side of that race even
-      // though the sequence itself is identical to what a desktop tool sends
-      // — a second attempt, with more margin, gives it another chance to
-      // land correctly without requiring a manual power-cycle every time.
-      for (let resetAttempt = 0; resetAttempt < 2; resetAttempt++) {
-        try {
-          await new ClassicReset(transport, 250).reset();
-        } catch (err) {
-          onLog?.(`[esptool] Reset notice: ${err instanceof Error ? err.message : String(err)}`);
-        }
-        if (resetAttempt === 0) await this.delay(150);
-      }
+      onLog?.('ESP Flashing complete. Resetting board into run mode...');
+      await this.resetIntoRunMode(transport, onLog);
       await this.disconnectWithTimeout(transport);
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
