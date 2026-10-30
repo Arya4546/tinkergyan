@@ -162,6 +162,18 @@ class PoseTrainerEngine {
     if (!this.classifier || this.getExampleCounts()[label] === undefined) return;
     this.classifier.clearClass(label);
   }
+
+  /** Rename a trained class by updating the underlying dataset */
+  renameClass(oldLabel: string, newLabel: string): void {
+    if (!this.classifier || oldLabel === newLabel) return;
+    const dataset = this.classifier.getClassifierDataset();
+    if (dataset[oldLabel]) {
+      dataset[newLabel] = dataset[oldLabel];
+      delete dataset[oldLabel];
+      this.classifier.setClassifierDataset(dataset);
+    }
+  }
+
   clearAll(): void {
     this.classifier?.clearAllClasses();
   }

@@ -30,6 +30,7 @@ import {
   MoreVertical,
   Trash2,
   BarChart3,
+  Pencil,
 } from 'lucide-react';
 import { aiEngine, type TrainingConfig, DEFAULT_TRAINING_CONFIG } from '../lib/ai-engine';
 import { useAIStore } from '../stores/ai.store';
@@ -195,6 +196,7 @@ export default function AITrainer() {
     name: string;
   } | null>(null);
   const captureIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const classNameInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
   const fileInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
   const importZipRef = useRef<HTMLInputElement | null>(null);
   const testFileRef = useRef<HTMLInputElement | null>(null);
@@ -488,7 +490,18 @@ export default function AITrainer() {
   const handleRenameClass = useCallback(
     (oldName: string, newName: string) => {
       const trimmed = newName.trim();
-      if (!trimmed || trimmed === oldName || classes.includes(trimmed)) return;
+      if (!trimmed || trimmed === oldName) {
+        if (classNameInputRefs.current[oldName]) {
+          classNameInputRefs.current[oldName].value = oldName;
+        }
+        return;
+      }
+      if (classes.includes(trimmed)) {
+        if (classNameInputRefs.current[oldName]) {
+          classNameInputRefs.current[oldName].value = oldName;
+        }
+        return;
+      }
       aiEngine.renameClass(oldName, trimmed);
       setClasses((prev) => prev.map((c) => (c === oldName ? trimmed : c)));
       setSampleThumbnails((prev) => {
@@ -990,18 +1003,41 @@ export default function AITrainer() {
                           style={{ borderLeftColor: classColor }}
                         >
                           <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 dark:border-white/10">
-                            <div className="flex items-center gap-2.5 min-w-0">
+                            <div className="flex items-center gap-2 min-w-0">
                               <span
                                 className="w-2.5 h-2.5 rounded-full shrink-0"
                                 style={{ backgroundColor: classColor }}
                               />
                               <input
+                                ref={(el) => {
+                                  classNameInputRefs.current[className] = el;
+                                }}
                                 defaultValue={className}
                                 onBlur={(e) => handleRenameClass(className, e.target.value)}
-                                onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') e.currentTarget.blur();
+                                  if (e.key === 'Escape') {
+                                    e.currentTarget.value = className;
+                                    e.currentTarget.blur();
+                                  }
+                                }}
                                 title="Click to rename"
-                                className="font-heading font-semibold text-xl bg-transparent outline-none min-w-0 rounded px-1 -ml-1 border border-transparent focus:border-[#FF6F61]/60 hover:border-slate-200 dark:hover:border-white/20"
+                                className="font-heading font-semibold text-xl bg-transparent outline-none min-w-0 rounded px-1 -ml-1 border border-transparent focus:border-[#FF6F61]/60 hover:border-slate-200 dark:hover:border-white/20 transition-colors"
                               />
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const el = classNameInputRefs.current[className];
+                                  if (el) {
+                                    el.focus();
+                                    el.select();
+                                  }
+                                }}
+                                title="Rename class"
+                                className="p-1 rounded text-slate-400 hover:text-slate-600 dark:hover:text-white transition-colors shrink-0"
+                              >
+                                <Pencil size={14} />
+                              </button>
                             </div>
                             <div className="relative">
                               <button
@@ -1020,6 +1056,22 @@ export default function AITrainer() {
                                     onClick={() => setMenuClass(null)}
                                   />
                                   <div className="absolute right-0 top-full mt-1 z-20 w-56 rounded-lg bg-white dark:bg-[#24244a] shadow-lg border border-slate-200 dark:border-white/10 py-1 text-left">
+                                    <button
+                                      onClick={() => {
+                                        setMenuClass(null);
+                                        setTimeout(() => {
+                                          const el = classNameInputRefs.current[className];
+                                          if (el) {
+                                            el.focus();
+                                            el.select();
+                                          }
+                                        }, 50);
+                                      }}
+                                      className="w-full px-3 py-2 text-sm text-left hover:bg-slate-50 dark:hover:bg-white/5 flex items-center gap-2 text-slate-700 dark:text-white/80"
+                                    >
+                                      <Pencil size={13} className="text-slate-400" />
+                                      Rename class
+                                    </button>
                                     <button
                                       onClick={() => {
                                         setMenuClass(null);

@@ -70,6 +70,7 @@ export function PoseTrainerTab() {
     Array<{ x: number; y: number; score: number }>
   >([]);
 
+  const inputRefs = useRef<Record<string, HTMLInputElement | null>>({});
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const captureIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -233,6 +234,30 @@ export function PoseTrainerTab() {
   const grayBtn =
     'bg-slate-100 text-slate-700 hover:bg-slate-200 dark:bg-white/10 dark:text-white/80 transition-colors';
 
+  const handleRenameClass = useCallback(
+    (oldName: string, newName: string) => {
+      const trimmed = newName.trim();
+      if (!trimmed || trimmed === oldName) {
+        if (inputRefs.current[oldName]) {
+          inputRefs.current[oldName].value = oldName;
+        }
+        return;
+      }
+      if (classes.includes(trimmed)) {
+        if (inputRefs.current[oldName]) {
+          inputRefs.current[oldName].value = oldName;
+        }
+        return;
+      }
+      poseTrainerEngine.renameClass(oldName, trimmed);
+      setClasses((prev) => prev.map((c) => (c === oldName ? trimmed : c)));
+      if (openClass === oldName) setOpenClass(trimmed);
+      if (isCapturing === oldName) setIsCapturing(trimmed);
+      syncCounts();
+    },
+    [classes, openClass, isCapturing, syncCounts],
+  );
+
   const handleTrain = () => {
     // The pose model learns as you record, so training only confirms there is enough data.
     if (canTest) {
@@ -262,13 +287,41 @@ export function PoseTrainerTab() {
                 style={{ borderLeftColor: classColor }}
               >
                 <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 dark:border-white/10">
-                  <div className="flex items-center gap-2.5 min-w-0">
+                  <div className="flex items-center gap-2 min-w-0">
                     <span
                       className="w-2.5 h-2.5 rounded-full shrink-0"
                       style={{ backgroundColor: classColor }}
                     />
-                    <span className="font-heading font-semibold text-xl truncate">{className}</span>
-                    <Pencil size={14} className="text-slate-400 shrink-0" />
+                    <input
+                      ref={(el) => {
+                        inputRefs.current[className] = el;
+                      }}
+                      defaultValue={className}
+                      onBlur={(e) => handleRenameClass(className, e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') e.currentTarget.blur();
+                        if (e.key === 'Escape') {
+                          e.currentTarget.value = className;
+                          e.currentTarget.blur();
+                        }
+                      }}
+                      title="Click to rename"
+                      className="font-heading font-semibold text-xl bg-transparent outline-none min-w-0 rounded px-1 -ml-1 border border-transparent focus:border-[#FF6F61]/60 hover:border-slate-200 dark:hover:border-white/20 transition-colors"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const el = inputRefs.current[className];
+                        if (el) {
+                          el.focus();
+                          el.select();
+                        }
+                      }}
+                      title="Rename class"
+                      className="p-1 rounded text-slate-400 hover:text-slate-600 dark:hover:text-white transition-colors shrink-0"
+                    >
+                      <Pencil size={14} />
+                    </button>
                   </div>
                   <div className="relative">
                     <button
@@ -282,6 +335,22 @@ export function PoseTrainerTab() {
                       <>
                         <div className="fixed inset-0 z-10" onClick={() => setMenuClass(null)} />
                         <div className="absolute right-0 top-full mt-1 z-20 w-56 rounded-lg bg-white dark:bg-[#24244a] shadow-lg border border-slate-200 dark:border-white/10 py-1">
+                          <button
+                            onClick={() => {
+                              setMenuClass(null);
+                              setTimeout(() => {
+                                const el = inputRefs.current[className];
+                                if (el) {
+                                  el.focus();
+                                  el.select();
+                                }
+                              }, 50);
+                            }}
+                            className="w-full px-3 py-2 text-sm text-left hover:bg-slate-50 dark:hover:bg-white/5 flex items-center gap-2 text-slate-700 dark:text-white/80"
+                          >
+                            <Pencil size={13} className="text-slate-400" />
+                            Rename class
+                          </button>
                           <button
                             disabled={count === 0}
                             onClick={() => {
