@@ -19,6 +19,7 @@ import {
   Camera,
 } from 'lucide-react';
 import { poseTrainerEngine } from '../../lib/pose-trainer-engine';
+import { useAIStore } from '../../stores/ai.store';
 import { RobotMascot } from '../illustrations/RobotMascot';
 import { aiEngine } from '../../lib/ai-engine';
 
@@ -46,6 +47,8 @@ const SKELETON_PAIRS = [
 
 export function PoseTrainerTab() {
   const [classes, setClasses] = useState<string[]>(() => {
+    const saved = useAIStore.getState().savedClasses;
+    if (saved && saved.length > 0) return saved;
     const existing = poseTrainerEngine.isInitialised
       ? Object.keys(poseTrainerEngine.getExampleCounts())
       : [];
@@ -82,10 +85,37 @@ export function PoseTrainerTab() {
     }
   }, []);
 
-  // Sync counts on mount
+  const poseModelLoaded = useAIStore((s) => s.poseModelLoaded);
+  const savedTab = useAIStore((s) => s.savedTab);
+  const savedClasses = useAIStore((s) => s.savedClasses);
+  const setSavedProjectAI = useAIStore((s) => s.setSavedProjectAI);
+
+  const isInitialMount = useRef(true);
+  // Keep savedClasses in sync for saving
+  useEffect(() => {
+    if (isInitialMount.current) {
+      isInitialMount.current = false;
+      return;
+    }
+    setSavedProjectAI({ classes });
+  }, [classes, setSavedProjectAI]);
+
+  // Sync counts and classes on mount and when restored
   useEffect(() => {
     syncCounts();
-  }, [syncCounts]);
+    const isPoseTab = !savedTab || savedTab === 'pose';
+    const counts = poseTrainerEngine.isInitialised ? poseTrainerEngine.getExampleCounts() : {};
+    const keys = Object.keys(counts);
+    const toUse = isPoseTab && savedClasses && savedClasses.length > 0 ? savedClasses : keys;
+    if (toUse.length > 0) {
+      setClasses(toUse);
+      setExampleCounts({ ...counts });
+      const trainedCount = toUse.filter((c) => (counts[c] ?? 0) > 0).length;
+      if (trainedCount >= 2) {
+        setIsTrained(true);
+      }
+    }
+  }, [syncCounts, poseModelLoaded, savedTab, savedClasses]);
 
   // Draw skeleton overlay on canvas
   useEffect(() => {

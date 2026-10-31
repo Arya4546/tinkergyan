@@ -16,10 +16,19 @@
 import { create } from 'zustand';
 import { api } from '../services/api';
 import { aiEngine } from '../lib/ai-engine';
+import { audioTrainerEngine } from '../lib/audio-trainer-engine';
+import { poseTrainerEngine } from '../lib/pose-trainer-engine';
 import { useAIStore } from './ai.store';
 import { useSimulatorStore, type SimulatorSprite } from './simulator.store';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
+
+export interface AIMetadata {
+  tab?: 'image' | 'text' | 'audio' | 'pose' | 'numbers' | undefined;
+  classes?: string[] | undefined;
+  thumbnails?: Record<string, string[]> | undefined;
+  textData?: { classes: { name: string; sentences: string[] }[] } | undefined;
+}
 
 export interface CompileError {
   line: number;
@@ -213,9 +222,18 @@ export interface EditorState {
   isLoading: boolean;
   isDirty: boolean;
   isPublic: boolean;
+  lastLoadedAIState: {
+    aiDataset?: string;
+    aiAudioDataset?: string;
+    aiPoseDataset?: string;
+    aiTab?: 'image' | 'text' | 'audio' | 'pose' | 'numbers';
+    aiClasses?: string[];
+    aiThumbnails?: Record<string, string[]>;
+    aiTextData?: { classes: { name: string; sentences: string[] }[] };
+  } | null;
   setProjectTitle: (title: string) => void;
   setBlockXml: (xml: string) => void;
-  saveProject: (blockXml: string) => Promise<void>;
+  saveProject: (blockXml: string, aiMetadata?: AIMetadata) => Promise<void>;
   loadProject: (id: string) => Promise<void>;
   resetEditor: () => void;
   loadTemplate: (template: StarterTemplate) => void;
@@ -426,6 +444,15 @@ const INITIAL_STATE = {
   isLoading: false,
   isDirty: false,
   isPublic: false,
+  lastLoadedAIState: null as {
+    aiDataset?: string;
+    aiAudioDataset?: string;
+    aiPoseDataset?: string;
+    aiTab?: 'image' | 'text' | 'audio' | 'pose' | 'numbers';
+    aiClasses?: string[];
+    aiThumbnails?: Record<string, string[]>;
+    aiTextData?: { classes: { name: string; sentences: string[] }[] };
+  } | null,
   _autoSaveTimer: null as ReturnType<typeof setTimeout> | null,
 };
 
@@ -509,6 +536,12 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
       // Extract blockXml and AI dataset from blockState
       let blockXml = '';
       let aiDataset: string | null = null;
+      let aiAudioDataset: string | null = null;
+      let aiPoseDataset: string | null = null;
+      let aiTab: 'image' | 'text' | 'audio' | 'pose' | 'numbers' | undefined;
+      let aiClasses: string[] | undefined;
+      let aiThumbnails: Record<string, string[]> | undefined;
+      let aiTextData: { classes: { name: string; sentences: string[] }[] } | undefined;
       let savedSprites: SimulatorSprite[] | undefined;
       let savedActiveSpriteId: string | undefined;
 
@@ -522,15 +555,27 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
         // Legacy format: plain XML string
         blockXml = parsedState;
       } else if (parsedState && typeof parsedState === 'object') {
-        // New format: { blockXml: string, aiDataset?: string }, stored as a JSON string
+        // New format: { blockXml: string, aiDataset?: string, ... }, stored as a JSON string
         const state = parsedState as {
           blockXml?: string;
           aiDataset?: string;
+          aiAudioDataset?: string;
+          aiPoseDataset?: string;
+          aiTab?: 'image' | 'text' | 'audio' | 'pose' | 'numbers';
+          aiClasses?: string[];
+          aiThumbnails?: Record<string, string[]>;
+          aiTextData?: { classes: { name: string; sentences: string[] }[] };
           sprites?: SimulatorSprite[];
           activeSpriteId?: string;
         };
         blockXml = state.blockXml ?? '';
         aiDataset = state.aiDataset ?? null;
+        aiAudioDataset = state.aiAudioDataset ?? null;
+        aiPoseDataset = state.aiPoseDataset ?? null;
+        aiTab = state.aiTab;
+        aiClasses = state.aiClasses;
+        aiThumbnails = state.aiThumbnails;
+        aiTextData = state.aiTextData;
         savedSprites = state.sprites;
         savedActiveSpriteId = state.activeSpriteId;
       }
@@ -541,6 +586,23 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
         const activeSpriteId = useSimulatorStore.getState().activeSpriteId;
         if (activeSpriteId) simulator.setSpriteProgram(activeSpriteId, blockXml);
       }
+
+      const loadedAIState = {
+        ...(aiDataset ? { aiDataset } : {}),
+        ...(aiAudioDataset ? { aiAudioDataset } : {}),
+        ...(aiPoseDataset ? { aiPoseDataset } : {}),
+        ...(aiTab ? { aiTab } : {}),
+        ...(aiClasses ? { aiClasses } : {}),
+        ...(aiThumbnails ? { aiThumbnails } : {}),
+        ...(aiTextData ? { aiTextData } : {}),
+      };
+
+      useAIStore.getState().setSavedProjectAI({
+        tab: aiTab,
+        classes: aiClasses,
+        thumbnails: aiThumbnails,
+        textData: aiTextData,
+      });
 
       set({
         projectId: project.id,
@@ -553,20 +615,44 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
         isPublic: !!project.isPublic,
         isDirty: false,
         compileResult: null,
+        lastLoadedAIState: loadedAIState,
       });
 
-      // Restore AI model if dataset exists
+      // Restore Image AI model if dataset exists
       if (aiDataset) {
         try {
           if (!aiEngine.isInitialised) await aiEngine.init();
           aiEngine.deserializeDataset(aiDataset);
-          const labels = aiEngine.getClassLabels();
+          const labels = aiClasses && aiClasses.length > 0 ? aiClasses : aiEngine.getClassLabels();
           const counts = aiEngine.getExampleCounts();
           useAIStore.getState().setModelLoaded(true);
           useAIStore.getState().updateTrainingState(labels, counts);
           useAIStore.getState().setSerializedDataset(aiDataset);
+          useAIStore.getState().setImageModelLoaded(true);
         } catch (err) {
-          console.warn('Failed to restore AI model from project:', err);
+          console.warn('Failed to restore AI image model from project:', err);
+        }
+      }
+
+      // Restore Audio AI model if dataset exists
+      if (aiAudioDataset) {
+        try {
+          if (!audioTrainerEngine.isInitialised) await audioTrainerEngine.init();
+          audioTrainerEngine.deserializeDataset(aiAudioDataset);
+          useAIStore.getState().setAudioModelLoaded(true);
+        } catch (err) {
+          console.warn('Failed to restore AI audio model from project:', err);
+        }
+      }
+
+      // Restore Pose AI model if dataset exists
+      if (aiPoseDataset) {
+        try {
+          if (!poseTrainerEngine.isInitialised) await poseTrainerEngine.init();
+          poseTrainerEngine.deserializeDataset(aiPoseDataset);
+          useAIStore.getState().setPoseModelLoaded(true);
+        } catch (err) {
+          console.warn('Failed to restore AI pose model from project:', err);
         }
       }
     } catch {
@@ -598,24 +684,52 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
 
   markDirty: () => set({ isDirty: true }),
 
-  saveProject: async (blockXml: string) => {
-    const { projectId, projectTitle, generatedCode, board, mode, manualCode } = get();
+  saveProject: async (blockXml: string, aiMetadata?: AIMetadata) => {
+    const { projectId, projectTitle, generatedCode, board, mode, manualCode, lastLoadedAIState } =
+      get();
     set({ isSaving: true });
     try {
       const code = mode === 'code' ? manualCode : generatedCode;
 
-      // Serialize AI dataset if a model has been trained
-      let aiDataset: string | null = null;
+      // 1. Image AI dataset
+      let aiDataset = lastLoadedAIState?.aiDataset ?? null;
       if (aiEngine.isInitialised) {
         try {
-          aiDataset = await aiEngine.serializeDataset();
+          const fresh = await aiEngine.serializeDataset();
+          if (fresh) aiDataset = fresh;
         } catch {
-          // Non-fatal — save the project without AI data
+          // Keep previous
         }
       }
 
-      // If there's an AI dataset, wrap blockXml + aiDataset in a JSON object.
-      // Otherwise, keep the plain XML string for backward compatibility.
+      // 2. Audio AI dataset
+      let aiAudioDataset = lastLoadedAIState?.aiAudioDataset ?? null;
+      if (audioTrainerEngine.isInitialised) {
+        try {
+          const fresh = await audioTrainerEngine.serializeDataset();
+          if (fresh) aiAudioDataset = fresh;
+        } catch {
+          // Keep previous
+        }
+      }
+
+      // 3. Pose AI dataset
+      let aiPoseDataset = lastLoadedAIState?.aiPoseDataset ?? null;
+      if (poseTrainerEngine.isInitialised) {
+        try {
+          const fresh = await poseTrainerEngine.serializeDataset();
+          if (fresh) aiPoseDataset = fresh;
+        } catch {
+          // Keep previous
+        }
+      }
+
+      // 4. Tab, classes, thumbnails, textData metadata
+      const aiTab = aiMetadata?.tab ?? lastLoadedAIState?.aiTab;
+      const aiClasses = aiMetadata?.classes ?? lastLoadedAIState?.aiClasses;
+      const aiThumbnails = aiMetadata?.thumbnails ?? lastLoadedAIState?.aiThumbnails;
+      const aiTextData = aiMetadata?.textData ?? lastLoadedAIState?.aiTextData;
+
       const simulator = useSimulatorStore.getState();
       const sprites = simulator.sprites.map((s) =>
         s.id === simulator.activeSpriteId ? { ...s, blockXml } : s,
@@ -623,9 +737,25 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
       const blockState = JSON.stringify({
         blockXml,
         ...(aiDataset ? { aiDataset } : {}),
+        ...(aiAudioDataset ? { aiAudioDataset } : {}),
+        ...(aiPoseDataset ? { aiPoseDataset } : {}),
+        ...(aiTab ? { aiTab } : {}),
+        ...(aiClasses && aiClasses.length > 0 ? { aiClasses } : {}),
+        ...(aiThumbnails && Object.keys(aiThumbnails).length > 0 ? { aiThumbnails } : {}),
+        ...(aiTextData ? { aiTextData } : {}),
         sprites,
         activeSpriteId: simulator.activeSpriteId,
       });
+
+      const updatedAIState = {
+        ...(aiDataset ? { aiDataset } : {}),
+        ...(aiAudioDataset ? { aiAudioDataset } : {}),
+        ...(aiPoseDataset ? { aiPoseDataset } : {}),
+        ...(aiTab ? { aiTab } : {}),
+        ...(aiClasses ? { aiClasses } : {}),
+        ...(aiThumbnails ? { aiThumbnails } : {}),
+        ...(aiTextData ? { aiTextData } : {}),
+      };
 
       if (projectId) {
         await api.patch(`/projects/${projectId}`, {
@@ -644,7 +774,7 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
         });
         set({ projectId: data.data.project.id });
       }
-      set({ isDirty: false, blockXml });
+      set({ isDirty: false, blockXml, lastLoadedAIState: updatedAIState });
     } finally {
       set({ isSaving: false });
     }

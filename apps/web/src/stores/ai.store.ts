@@ -39,6 +39,13 @@ interface AIState {
   // ── Persistence ─────────────────────────────────────────────────────────
   serializedDataset: string | null;
   serializedTextExamples: string | null;
+  savedTab: 'image' | 'text' | 'audio' | 'pose' | 'numbers' | null;
+  savedClasses: string[] | null;
+  savedThumbnails: Record<string, string[]> | null;
+  savedTextData: { classes: { name: string; sentences: string[] }[] } | null;
+  audioModelLoaded: boolean;
+  poseModelLoaded: boolean;
+  imageModelLoaded: boolean;
 
   // ── Actions ─────────────────────────────────────────────────────────────
   setModelLoaded: (loaded: boolean) => void;
@@ -48,6 +55,15 @@ interface AIState {
   clearPrediction: () => void;
   updateTrainingState: (labels: string[], counts: Record<string, number>) => void;
   setSerializedDataset: (data: string | null) => void;
+  setSavedProjectAI: (data: {
+    tab?: 'image' | 'text' | 'audio' | 'pose' | 'numbers' | null | undefined;
+    classes?: string[] | null | undefined;
+    thumbnails?: Record<string, string[]> | null | undefined;
+    textData?: { classes: { name: string; sentences: string[] }[] } | null | undefined;
+  }) => void;
+  setAudioModelLoaded: (loaded: boolean) => void;
+  setPoseModelLoaded: (loaded: boolean) => void;
+  setImageModelLoaded: (loaded: boolean) => void;
   // Emotion
   setEmotionActive: (active: boolean) => void;
   updateEmotion: (
@@ -98,6 +114,13 @@ const INITIAL_STATE = {
   handKeypoints: {} as Record<string, { x: number; y: number }>,
   serializedDataset: null as string | null,
   serializedTextExamples: null as string | null,
+  savedTab: null as 'image' | 'text' | 'audio' | 'pose' | 'numbers' | null,
+  savedClasses: null as string[] | null,
+  savedThumbnails: null as Record<string, string[]> | null,
+  savedTextData: null as { classes: { name: string; sentences: string[] }[] } | null,
+  audioModelLoaded: false,
+  poseModelLoaded: false,
+  imageModelLoaded: false,
 };
 
 export const useAIStore = create<AIState>()((set) => ({
@@ -112,6 +135,16 @@ export const useAIStore = create<AIState>()((set) => ({
 
   updateTrainingState: (labels, counts) => set({ classLabels: labels, exampleCounts: counts }),
   setSerializedDataset: (data) => set({ serializedDataset: data }),
+  setSavedProjectAI: (data) =>
+    set((prev) => ({
+      savedTab: data.tab !== undefined ? data.tab : prev.savedTab,
+      savedClasses: data.classes !== undefined ? data.classes : prev.savedClasses,
+      savedThumbnails: data.thumbnails !== undefined ? data.thumbnails : prev.savedThumbnails,
+      savedTextData: data.textData !== undefined ? data.textData : prev.savedTextData,
+    })),
+  setAudioModelLoaded: (loaded) => set({ audioModelLoaded: loaded }),
+  setPoseModelLoaded: (loaded) => set({ poseModelLoaded: loaded }),
+  setImageModelLoaded: (loaded) => set({ imageModelLoaded: loaded }),
 
   // Emotion
   setEmotionActive: (active) => set({ isEmotionActive: active }),

@@ -55,11 +55,13 @@ class PoseTrainerEngine {
   // ── Lifecycle ─────────────────────────────────────────────────────────────
 
   /**
-   * Must be called with the MoveNet detector instance from aiEngine.
-   * aiEngine.init() must have been called first.
+   * Can be called with the MoveNet detector instance from aiEngine (or called without it for dataset deserialization).
    */
-  async init(sharedDetector: any): Promise<void> {
-    if (this._isInitialised) return;
+  async init(sharedDetector?: any): Promise<void> {
+    if (this._isInitialised) {
+      if (sharedDetector && !this.detector) this.detector = sharedDetector;
+      return;
+    }
     const [tfModule, knnModule] = await Promise.all([
       import('@tensorflow/tfjs'),
       import('@tensorflow-models/knn-classifier'),
@@ -67,7 +69,7 @@ class PoseTrainerEngine {
     tfRef = tfModule;
     await tfRef.ready();
     this.classifier = knnModule.create() as unknown as KNNClassifier;
-    this.detector = sharedDetector;
+    this.detector = sharedDetector ?? null;
     this._isInitialised = true;
   }
 

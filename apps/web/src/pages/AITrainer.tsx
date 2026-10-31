@@ -114,6 +114,10 @@ export default function AITrainer() {
 
   const [activeTab, setActiveTab] = useState<TrainerTab>('image');
   const [classes, setClasses] = useState<string[]>(() => {
+    const savedTab = useAIStore.getState().savedTab;
+    const isImage = !savedTab || savedTab === 'image';
+    const saved = isImage ? useAIStore.getState().savedClasses : null;
+    if (saved && saved.length > 0) return saved;
     const labels = useAIStore.getState().classLabels.filter((l) => !l.startsWith('text:'));
     return labels.length > 0 ? labels : ['Class 1', 'Class 2'];
   });
@@ -213,7 +217,42 @@ export default function AITrainer() {
     setPredicting,
     updatePrediction,
     clearPrediction,
+    savedTab,
+    savedClasses,
+    savedThumbnails,
+    classLabels,
   } = useAIStore();
+
+  const projectTitle = useEditorStore((s) => s.projectTitle);
+  const setProjectTitle = useEditorStore((s) => s.setProjectTitle);
+
+  // Restore active tab if saved in project
+  useEffect(() => {
+    if (savedTab) setActiveTab(savedTab);
+  }, [savedTab]);
+
+  // Restore sample thumbnails if saved in project
+  useEffect(() => {
+    if (savedThumbnails && Object.keys(savedThumbnails).length > 0) {
+      setSampleThumbnails((prev) => ({ ...prev, ...savedThumbnails }));
+    }
+  }, [savedThumbnails]);
+
+  // Restore classes and trained state when project finishes loading
+  useEffect(() => {
+    const nonText = classLabels.filter((l) => !l.startsWith('text:'));
+    const isImageProject = !savedTab || savedTab === 'image';
+    const candidateClasses =
+      isImageProject && savedClasses && savedClasses.length > 0 ? savedClasses : nonText;
+    if (candidateClasses.length > 0) {
+      setClasses(candidateClasses);
+      const total = candidateClasses.reduce((sum, c) => sum + (exampleCounts[c] ?? 0), 0);
+      const trainedClasses = candidateClasses.filter((c) => (exampleCounts[c] ?? 0) > 0);
+      if (total > 0 && trainedClasses.length >= 2) {
+        setIsTrained(true);
+      }
+    }
+  }, [savedTab, savedClasses, classLabels, exampleCounts]);
 
   const syncTrainingState = useCallback(() => {
     const counts = aiEngine.getExampleCounts();
@@ -758,7 +797,26 @@ export default function AITrainer() {
     setError(null);
     try {
       const { blockXml, saveProject } = useEditorStore.getState();
-      await saveProject(blockXml);
+
+      // Trim thumbnails per class (max 20) to keep JSON size compact and well under limits
+      const compactThumbs: Record<string, string[]> = {};
+      for (const [cls, thumbs] of Object.entries(sampleThumbnails)) {
+        compactThumbs[cls] = thumbs.slice(0, 20);
+      }
+
+      const activeClasses =
+        activeTab === 'audio' || activeTab === 'pose'
+          ? (useAIStore.getState().savedClasses ?? classes)
+          : activeTab === 'text'
+            ? (useAIStore.getState().savedTextData?.classes.map((c) => c.name) ?? classes)
+            : classes;
+
+      await saveProject(blockXml, {
+        tab: activeTab,
+        classes: activeClasses,
+        thumbnails: compactThumbs,
+        textData: useAIStore.getState().savedTextData ?? undefined,
+      });
       setHasUnsavedChanges(false);
       setJustSaved(true);
       setTimeout(() => setJustSaved(false), 2000);
@@ -767,7 +825,7 @@ export default function AITrainer() {
     } finally {
       setIsSavingAI(false);
     }
-  }, []);
+  }, [activeTab, classes, sampleThumbnails]);
 
   const handleSaveAndLeave = useCallback(async () => {
     await handleSaveAI();
@@ -873,6 +931,16 @@ export default function AITrainer() {
               <span className="w-1.5 h-1.5 rounded-full bg-amber-400" title="Not saved yet" />
             )}
           </h1>
+          <span className="text-slate-300 dark:text-white/20">|</span>
+          <input
+            value={projectTitle}
+            onChange={(e) => {
+              setProjectTitle(e.target.value);
+              setHasUnsavedChanges(true);
+            }}
+            placeholder="Project name"
+            className="font-heading font-semibold text-sm bg-transparent outline-none max-w-[150px] truncate rounded px-1 -ml-1 border border-transparent hover:border-slate-300 dark:hover:border-white/20 focus:border-[#FF6F61] transition-colors"
+          />
         </div>
 
         <div className="flex items-center gap-2 bg-white dark:bg-[#15152b] rounded-xl shadow-[0_2px_12px_rgba(20,20,40,0.08)] dark:shadow-[0_2px_12px_rgba(0,0,0,0.4)] px-2 py-2">
@@ -889,28 +957,28 @@ export default function AITrainer() {
               {label}
             </button>
           ))}
+          <div className="w-px h-6 bg-slate-200 dark:bg-white/10 mx-1" />
+          <button
+            onClick={() => void handleSaveAI()}
+            disabled={isSavingAI}
+            title="Save to this project"
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium ${
+              justSaved
+                ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300'
+                : primaryBtn
+            }`}
+          >
+            {isSavingAI ? (
+              <Loader2 size={14} className="animate-spin" />
+            ) : justSaved ? (
+              <Check size={14} />
+            ) : (
+              <Save size={14} />
+            )}
+            {isSavingAI ? 'Saving…' : justSaved ? 'Saved' : 'Save'}
+          </button>
           {activeTab === 'image' && (
             <>
-              <div className="w-px h-6 bg-slate-200 dark:bg-white/10 mx-1" />
-              <button
-                onClick={() => void handleSaveAI()}
-                disabled={isSavingAI || (!hasUnsavedChanges && !justSaved)}
-                title="Save to this project"
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium ${
-                  justSaved
-                    ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300'
-                    : primaryBtn
-                }`}
-              >
-                {isSavingAI ? (
-                  <Loader2 size={14} className="animate-spin" />
-                ) : justSaved ? (
-                  <Check size={14} />
-                ) : (
-                  <Save size={14} />
-                )}
-                {isSavingAI ? 'Saving…' : justSaved ? 'Saved' : 'Save'}
-              </button>
               <button
                 onClick={() => importZipRef.current?.click()}
                 disabled={isImporting}

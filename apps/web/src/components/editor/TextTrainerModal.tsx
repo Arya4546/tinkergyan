@@ -13,10 +13,14 @@ import { textAIEngine } from '../../lib/text-ai-engine';
 import { useAIStore } from '../../stores/ai.store';
 
 export function TextTrainerModal() {
-  const [classes, setClasses] = useState<{ name: string; sentences: string[] }[]>([
-    { name: 'Class 1', sentences: [] },
-    { name: 'Class 2', sentences: [] },
-  ]);
+  const [classes, setClasses] = useState<{ name: string; sentences: string[] }[]>(() => {
+    const saved = useAIStore.getState().savedTextData;
+    if (saved?.classes && saved.classes.length > 0) return saved.classes;
+    return [
+      { name: 'Class 1', sentences: [] },
+      { name: 'Class 2', sentences: [] },
+    ];
+  });
   const [newClassName, setNewClassName] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isTrained, setIsTrained] = useState(false);
@@ -25,15 +29,27 @@ export function TextTrainerModal() {
   const [testLoading, setTestLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const { updateTrainingState } = useAIStore();
+  const { updateTrainingState, savedTextData, setSavedProjectAI } = useAIStore();
 
-  // Sync class names into AI store so blocks can see them
+  // Restore saved text classes if project had them
+  useEffect(() => {
+    if (savedTextData?.classes && savedTextData.classes.length > 0) {
+      setClasses(savedTextData.classes);
+      const valid = savedTextData.classes.filter((c) => c.sentences.length > 0);
+      if (valid.length >= 2) {
+        setIsTrained(true);
+      }
+    }
+  }, [savedTextData]);
+
+  // Sync class names into AI store so blocks and saveProject can see them
   useEffect(() => {
     const labels = classes.map((c) => `text:${c.name}`);
     const counts: Record<string, number> = {};
     for (const cls of classes) counts[`text:${cls.name}`] = cls.sentences.length;
     updateTrainingState(labels, counts);
-  }, [classes, updateTrainingState]);
+    setSavedProjectAI({ textData: { classes } });
+  }, [classes, updateTrainingState, setSavedProjectAI]);
 
   const handleAddClass = useCallback(() => {
     const name = newClassName.trim() || `Class ${classes.length + 1}`;

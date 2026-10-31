@@ -9,12 +9,15 @@ import { useState, useRef, useCallback, useEffect } from 'react';
 import confetti from 'canvas-confetti';
 import { Mic, MoreVertical, Pencil, ChevronDown, Info, Plus, Play, Square } from 'lucide-react';
 import { audioTrainerEngine } from '../../lib/audio-trainer-engine';
+import { useAIStore } from '../../stores/ai.store';
 import { RobotMascot } from '../illustrations/RobotMascot';
 
 const COLOR = '#FF6F61';
 
 export function AudioTrainerTab() {
   const [classes, setClasses] = useState<string[]>(() => {
+    const saved = useAIStore.getState().savedClasses;
+    if (saved && saved.length > 0) return saved;
     const existing = audioTrainerEngine.isInitialised
       ? Object.keys(audioTrainerEngine.getExampleCounts())
       : [];
@@ -80,10 +83,37 @@ export function AudioTrainerTab() {
     }
   }, []);
 
-  // Sync counts on mount
+  const audioModelLoaded = useAIStore((s) => s.audioModelLoaded);
+  const savedTab = useAIStore((s) => s.savedTab);
+  const savedClasses = useAIStore((s) => s.savedClasses);
+  const setSavedProjectAI = useAIStore((s) => s.setSavedProjectAI);
+
+  const isInitialMount = useRef(true);
+  // Keep savedClasses in sync for saving
+  useEffect(() => {
+    if (isInitialMount.current) {
+      isInitialMount.current = false;
+      return;
+    }
+    setSavedProjectAI({ classes });
+  }, [classes, setSavedProjectAI]);
+
+  // Sync counts and classes on mount and when restored
   useEffect(() => {
     syncCounts();
-  }, [syncCounts]);
+    const isAudioTab = !savedTab || savedTab === 'audio';
+    const counts = audioTrainerEngine.isInitialised ? audioTrainerEngine.getExampleCounts() : {};
+    const keys = Object.keys(counts);
+    const toUse = isAudioTab && savedClasses && savedClasses.length > 0 ? savedClasses : keys;
+    if (toUse.length > 0) {
+      setClasses(toUse);
+      setExampleCounts({ ...counts });
+      const trainedCount = toUse.filter((c) => (counts[c] ?? 0) > 0).length;
+      if (trainedCount >= 2) {
+        setIsTrained(true);
+      }
+    }
+  }, [syncCounts, audioModelLoaded, savedTab, savedClasses]);
 
   const handleStartMic = useCallback(async () => {
     setIsIniting(true);
