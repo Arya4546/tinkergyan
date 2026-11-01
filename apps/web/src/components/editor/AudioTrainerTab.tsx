@@ -7,7 +7,17 @@
  */
 import { useState, useRef, useCallback, useEffect } from 'react';
 import confetti from 'canvas-confetti';
-import { Mic, MoreVertical, Pencil, ChevronDown, Info, Plus, Play, Square } from 'lucide-react';
+import {
+  Mic,
+  MoreVertical,
+  Pencil,
+  ChevronDown,
+  Info,
+  Plus,
+  Play,
+  Square,
+  Check,
+} from 'lucide-react';
 import { audioTrainerEngine } from '../../lib/audio-trainer-engine';
 import { useAIStore } from '../../stores/ai.store';
 import { RobotMascot } from '../illustrations/RobotMascot';
@@ -16,14 +26,16 @@ const COLOR = '#FF6F61';
 
 export function AudioTrainerTab() {
   const [classes, setClasses] = useState<string[]>(() => {
-    const saved = useAIStore.getState().savedClasses;
+    const savedTab = useAIStore.getState().savedTab;
+    const saved = savedTab === 'audio' ? useAIStore.getState().savedClasses : null;
     if (saved && saved.length > 0) return saved;
     const existing = audioTrainerEngine.isInitialised
       ? Object.keys(audioTrainerEngine.getExampleCounts())
       : [];
-    return existing.length > 0 ? existing : ['Background Noise', 'Class 2'];
+    return existing.length > 0 ? existing : ['Class 1', 'Class 2'];
   });
-  const [newClassName, setNewClassName] = useState('');
+  const [editingClass, setEditingClass] = useState<string | null>(null);
+  const [editingValue, setEditingValue] = useState('');
   const [isIniting, setIsIniting] = useState(false);
   const [isMicOn, setIsMicOn] = useState(false);
   const [isRecording, setIsRecording] = useState<string | null>(null);
@@ -38,7 +50,6 @@ export function AudioTrainerTab() {
   const [showHood, setShowHood] = useState(false);
   const [exampleCounts, setExampleCounts] = useState<Record<string, number>>({});
 
-  const inputRefs = useRef<Record<string, HTMLInputElement | null>>({});
   const captureIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const animFrameRef = useRef<number | null>(null);
@@ -95,20 +106,16 @@ export function AudioTrainerTab() {
       isInitialMount.current = false;
       return;
     }
-    setSavedProjectAI({ classes });
+    setSavedProjectAI({ tab: 'audio', classes });
   }, [classes, setSavedProjectAI]);
 
   // Sync counts and classes on mount and when restored
   useEffect(() => {
     syncCounts();
-    const isAudioTab = !savedTab || savedTab === 'audio';
-    const counts = audioTrainerEngine.isInitialised ? audioTrainerEngine.getExampleCounts() : {};
-    const keys = Object.keys(counts);
-    const toUse = isAudioTab && savedClasses && savedClasses.length > 0 ? savedClasses : keys;
-    if (toUse.length > 0) {
-      setClasses(toUse);
-      setExampleCounts({ ...counts });
-      const trainedCount = toUse.filter((c) => (counts[c] ?? 0) > 0).length;
+    if (savedTab === 'audio' && savedClasses && savedClasses.length > 0) {
+      setClasses(savedClasses);
+      const counts = audioTrainerEngine.isInitialised ? audioTrainerEngine.getExampleCounts() : {};
+      const trainedCount = savedClasses.filter((c) => (counts[c] ?? 0) > 0).length;
       if (trainedCount >= 2) {
         setIsTrained(true);
       }
@@ -137,6 +144,11 @@ export function AudioTrainerTab() {
     setPrediction(null);
   }, []);
 
+  // Attempt to auto-start microphone on mount so students can record sounds immediately
+  useEffect(() => {
+    void handleStartMic();
+  }, [handleStartMic]);
+
   // Cleanup on unmount
   useEffect(() => {
     return () => {
@@ -145,9 +157,46 @@ export function AudioTrainerTab() {
     };
   }, []);
 
+  const startListening = useCallback(() => {
+    if (!audioTrainerEngine.isInitialised) return;
+    audioTrainerEngine.stopPredicting();
+    audioTrainerEngine.startPredicting((result) => {
+      setPrediction({ label: result.label, confs: result.allConfidences });
+    });
+    setIsTesting(true);
+  }, []);
+
+  const stopListening = useCallback(() => {
+    audioTrainerEngine.stopPredicting();
+    setIsTesting(false);
+    setPrediction(null);
+  }, []);
+
+  const canTest = classes.filter((c) => (exampleCounts[c] ?? 0) > 0).length >= 2;
+
+  // When model is trained and microphone is on, automatically keep listening active
+  useEffect(() => {
+    if (isTrained && isMicOn && !isRecording && !isTesting) {
+      startListening();
+    }
+  }, [isTrained, isMicOn, isRecording, isTesting, startListening]);
+
+  // If samples are deleted such that there are fewer than 2 classes with data, invalidate trained state
+  useEffect(() => {
+    if (isTrained && !canTest) {
+      setIsTrained(false);
+      stopListening();
+    }
+  }, [isTrained, canTest, stopListening]);
+
   const handleCaptureStart = useCallback(
-    (className: string) => {
-      if (!isMicOn) return;
+    async (className: string) => {
+      if (!isMicOn) {
+        await handleStartMic();
+      }
+      if (audioTrainerEngine.isPredicting) {
+        audioTrainerEngine.stopPredicting();
+      }
       setIsRecording(className);
       const capture = () => {
         audioTrainerEngine.captureExample(className);
@@ -156,7 +205,7 @@ export function AudioTrainerTab() {
       capture();
       captureIntervalRef.current = setInterval(capture, 200);
     },
-    [isMicOn, syncCounts],
+    [isMicOn, handleStartMic, syncCounts],
   );
 
   const handleCaptureStop = useCallback(() => {
@@ -165,24 +214,21 @@ export function AudioTrainerTab() {
       clearInterval(captureIntervalRef.current);
       captureIntervalRef.current = null;
     }
-  }, []);
+    if (isTrained && isMicOn) {
+      startListening();
+    }
+  }, [isTrained, isMicOn, startListening]);
 
   const handleToggleTest = useCallback(() => {
     if (!isMicOn) return;
     if (isTesting) {
-      audioTrainerEngine.stopPredicting();
-      setIsTesting(false);
-      setPrediction(null);
+      stopListening();
     } else {
-      audioTrainerEngine.startPredicting((result) => {
-        setPrediction({ label: result.label, confs: result.allConfidences });
-      });
-      setIsTesting(true);
+      startListening();
     }
-  }, [isMicOn, isTesting]);
+  }, [isMicOn, isTesting, stopListening, startListening]);
 
   const CLASS_COLORS = ['#f59e0b', '#e11d48', '#10b981', '#6366f1', '#0ea5e9', '#a855f7'];
-  const canTest = classes.filter((c) => (exampleCounts[c] ?? 0) > 0).length >= 2;
   const totalSamples = classes.reduce((sum, c) => sum + (exampleCounts[c] ?? 0), 0);
   // Progressive reveal — don't show Training until there is something to train
   // on. Preview can't be hidden the same way: it's not just a test panel here,
@@ -204,35 +250,27 @@ export function AudioTrainerTab() {
   const grayBtn =
     'bg-slate-100 text-slate-700 hover:bg-slate-200 dark:bg-white/10 dark:text-white/80 transition-colors';
 
-  // Background noise is a normal class in Teachable Machine: it needs 20 samples, other classes 8.
-  const minSamples = (name: string, index = 0) =>
-    index === 0 || name.toLowerCase().includes('background') ? 20 : 8;
+  // If a class is named background noise, it needs 20 samples; otherwise standard 8.
+  const minSamples = (name: string) => (name.toLowerCase().includes('background') ? 20 : 8);
 
   const handleRenameClass = useCallback(
     (oldName: string, newName: string) => {
       const trimmed = newName.trim();
-      if (!trimmed || trimmed === oldName) {
-        if (inputRefs.current[oldName]) {
-          inputRefs.current[oldName].value = oldName;
-        }
-        return;
-      }
-      if (classes.includes(trimmed)) {
-        if (inputRefs.current[oldName]) {
-          inputRefs.current[oldName].value = oldName;
-        }
-        return;
-      }
+      if (!trimmed || trimmed === oldName) return;
+      if (classes.includes(trimmed)) return;
       audioTrainerEngine.renameClass(oldName, trimmed);
-      setClasses((prev) => prev.map((c) => (c === oldName ? trimmed : c)));
+      const nextClasses = classes.map((c) => (c === oldName ? trimmed : c));
+      setClasses(nextClasses);
+      setSavedProjectAI({ tab: 'audio', classes: nextClasses });
       if (isRecording === oldName) setIsRecording(trimmed);
       syncCounts();
     },
-    [classes, isRecording, syncCounts],
+    [classes, isRecording, setSavedProjectAI, syncCounts],
   );
 
-  const handleTrain = () => {
-    // The audio model learns as you record, so training only confirms there is enough data.
+  const handleTrain = async () => {
+    // The audio model learns as you record, so training confirms there is enough data
+    // and automatically starts live listening in the Preview panel.
     if (canTest) {
       setIsTrained(true);
       void confetti({
@@ -241,6 +279,10 @@ export function AudioTrainerTab() {
         origin: { y: 0.6 },
         colors: ['#FF6F61', '#E8584A', '#FFAB9E', '#ffffff'],
       });
+      if (!isMicOn) {
+        await handleStartMic();
+      }
+      startListening();
     }
   };
 
@@ -251,7 +293,7 @@ export function AudioTrainerTab() {
         <section className="min-w-0 flex flex-col gap-5">
           {classes.map((className, classIdx) => {
             const count = exampleCounts[className] ?? 0;
-            const needed = minSamples(className, classIdx);
+            const needed = minSamples(className);
             const classColor = CLASS_COLORS[classIdx % CLASS_COLORS.length];
             return (
               <div
@@ -265,36 +307,65 @@ export function AudioTrainerTab() {
                       className="w-2.5 h-2.5 rounded-full shrink-0"
                       style={{ backgroundColor: classColor }}
                     />
-                    <input
-                      ref={(el) => {
-                        inputRefs.current[className] = el;
-                      }}
-                      defaultValue={className}
-                      onBlur={(e) => handleRenameClass(className, e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') e.currentTarget.blur();
-                        if (e.key === 'Escape') {
-                          e.currentTarget.value = className;
-                          e.currentTarget.blur();
-                        }
-                      }}
-                      title="Click to rename"
-                      className="font-heading font-semibold text-xl bg-transparent outline-none min-w-0 rounded px-1 -ml-1 border border-transparent focus:border-[#FF6F61]/60 hover:border-slate-200 dark:hover:border-white/20 transition-colors"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const el = inputRefs.current[className];
-                        if (el) {
-                          el.focus();
-                          el.select();
-                        }
-                      }}
-                      title="Rename class"
-                      className="p-1 rounded text-slate-400 hover:text-slate-600 dark:hover:text-white transition-colors shrink-0"
-                    >
-                      <Pencil size={14} />
-                    </button>
+                    {editingClass === className ? (
+                      <form
+                        onSubmit={(e) => {
+                          e.preventDefault();
+                          handleRenameClass(className, editingValue);
+                          setEditingClass(null);
+                        }}
+                        className="flex items-center gap-1.5 min-w-0"
+                      >
+                        <input
+                          autoFocus
+                          type="text"
+                          value={editingValue}
+                          onChange={(e) => setEditingValue(e.target.value)}
+                          onBlur={() => {
+                            handleRenameClass(className, editingValue);
+                            setEditingClass(null);
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Escape') {
+                              setEditingClass(null);
+                            }
+                          }}
+                          className="font-heading font-semibold text-lg md:text-xl bg-white dark:bg-[#1b1b33] px-2 py-0.5 rounded border border-[#FF6F61] outline-none text-slate-800 dark:text-white min-w-0"
+                        />
+                        <button
+                          type="submit"
+                          className="p-1 rounded text-emerald-500 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-500/10 shrink-0"
+                          title="Save name"
+                        >
+                          <Check size={16} />
+                        </button>
+                      </form>
+                    ) : (
+                      <div
+                        className="flex items-center gap-2 min-w-0 cursor-pointer group/title"
+                        onClick={() => {
+                          setEditingClass(className);
+                          setEditingValue(className);
+                        }}
+                        title="Click to rename"
+                      >
+                        <span className="font-heading font-semibold text-xl text-slate-800 dark:text-white truncate">
+                          {className}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setEditingClass(className);
+                            setEditingValue(className);
+                          }}
+                          title="Rename class"
+                          className="p-1 rounded text-slate-400 group-hover/title:text-slate-700 dark:group-hover/title:text-white hover:text-slate-600 transition-colors shrink-0"
+                        >
+                          <Pencil size={14} />
+                        </button>
+                      </div>
+                    )}
                   </div>
                   <div className="relative">
                     <button
@@ -311,13 +382,8 @@ export function AudioTrainerTab() {
                           <button
                             onClick={() => {
                               setMenuClass(null);
-                              setTimeout(() => {
-                                const el = inputRefs.current[className];
-                                if (el) {
-                                  el.focus();
-                                  el.select();
-                                }
-                              }, 50);
+                              setEditingClass(className);
+                              setEditingValue(className);
                             }}
                             className="w-full px-3 py-2 text-sm text-left hover:bg-slate-50 dark:hover:bg-white/5 flex items-center gap-2 text-slate-700 dark:text-white/80"
                           >
@@ -366,26 +432,37 @@ export function AudioTrainerTab() {
                   </p>
                   <div className="flex items-center gap-2">
                     <button
-                      onMouseDown={() => handleCaptureStart(className)}
+                      onClick={async () => {
+                        if (!isMicOn) await handleStartMic();
+                      }}
+                      onMouseDown={() => void handleCaptureStart(className)}
                       onMouseUp={handleCaptureStop}
                       onMouseLeave={handleCaptureStop}
-                      onTouchStart={() => handleCaptureStart(className)}
+                      onTouchStart={() => void handleCaptureStart(className)}
                       onTouchEnd={handleCaptureStop}
-                      disabled={!isMicOn}
-                      title={isMicOn ? 'Hold to record' : 'Turn on the microphone first'}
+                      disabled={isIniting}
+                      title={isMicOn ? 'Hold to record' : 'Click to enable microphone'}
                       className={`${tile} select-none ${isRecording === className ? '!bg-red-500 !text-white' : ''}`}
                     >
                       <Mic size={20} />
                       <span className="text-[11px] font-medium">
-                        {isRecording === className ? 'Recording…' : 'Mic'}
+                        {isRecording === className
+                          ? 'Recording…'
+                          : isIniting
+                            ? 'Starting…'
+                            : isMicOn
+                              ? 'Mic'
+                              : 'Enable Mic'}
                       </span>
                     </button>
                     <div className="flex-1 min-w-0 text-xs text-slate-500 dark:text-white/50">
                       {isRecording === className
                         ? 'Keep holding while you make the sound.'
-                        : isMicOn
-                          ? 'Hold the Mic button and make the sound.'
-                          : 'Turn on the microphone in the Preview panel.'}
+                        : isIniting
+                          ? 'Starting microphone…'
+                          : isMicOn
+                            ? 'Hold the Mic button and make the sound.'
+                            : 'Click Enable Mic to turn on your microphone.'}
                       {count > 0 && count < needed && (
                         <p className="mt-1 text-amber-600 dark:text-amber-400">
                           Record {needed - count} more to reach the minimum.
@@ -400,37 +477,29 @@ export function AudioTrainerTab() {
 
           <button
             onClick={() => {
-              const name = newClassName.trim() || `Sound ${classes.length + 1}`;
-              if (classes.includes(name)) return;
-              setClasses((p) => [...p, name]);
-              setNewClassName('');
+              let nextNum = classes.length + 1;
+              let nextName = `Class ${nextNum}`;
+              while (classes.includes(nextName)) {
+                nextNum++;
+                nextName = `Class ${nextNum}`;
+              }
+              const next = [...classes, nextName];
+              setClasses(next);
+              setSavedProjectAI({ tab: 'audio', classes: next });
             }}
-            className="w-full py-5 rounded-lg border-2 border-dashed border-slate-300 dark:border-white/15 text-slate-500 dark:text-white/50 text-base flex items-center justify-center gap-2 hover:border-[#FF6F61] hover:text-[#FF6F61]"
+            className="w-full py-5 rounded-xl border-2 border-dashed border-slate-300 dark:border-white/15 text-slate-500 dark:text-white/50 text-base flex items-center justify-center gap-2 hover:border-[#FF6F61] hover:text-[#FF6F61] hover:bg-[#FFEDEA]/50 dark:hover:bg-[#FF6F61]/10 hover:scale-[1.01] active:scale-[0.99] transition-all"
           >
             <Plus size={18} /> Add a class
           </button>
-          <div className="flex gap-2">
-            <input
-              type="text"
-              value={newClassName}
-              onChange={(e) => setNewClassName(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  const name = newClassName.trim();
-                  if (name && !classes.includes(name)) setClasses((p) => [...p, name]);
-                  setNewClassName('');
-                }
-              }}
-              placeholder={`Sound ${classes.length + 1} name`}
-              className="flex-1 min-w-0 px-3 py-2 rounded-md bg-white dark:bg-[#1b1b33] border border-slate-200 dark:border-white/10 text-sm outline-none focus:border-[#FF6F61]"
-            />
+          <div className="flex justify-end pt-1">
             <button
               onClick={() => {
                 audioTrainerEngine.clearAll();
+                stopListening();
                 setIsTrained(false);
                 syncCounts();
               }}
-              className={`text-xs font-medium px-3 rounded-md hover:text-red-500 ${muted}`}
+              className={`text-xs font-medium px-3 py-1.5 rounded-md hover:text-red-500 hover:bg-red-500/10 transition-colors ${muted}`}
             >
               Start over
             </button>
@@ -440,8 +509,8 @@ export function AudioTrainerTab() {
             <div className="flex flex-col items-center gap-2 py-6 text-center">
               <RobotMascot className="w-24 opacity-90" />
               <p className={`text-sm max-w-xs ${muted}`}>
-                Turn on the microphone in Preview, then record a few sounds for each class. Once you
-                have some, I&apos;ll help you train it! 🎉
+                Record a few sounds for each class. Once you have some, I&apos;ll help you train it!
+                🎉
               </p>
             </div>
           )}
@@ -548,7 +617,9 @@ export function AudioTrainerTab() {
               {!isTesting || !prediction ? (
                 <p className={`text-xs ${muted}`}>
                   {isTrained
-                    ? 'Start listening to see what it hears.'
+                    ? isMicOn
+                      ? 'Listening to microphone…'
+                      : 'Turn on the microphone in Preview to see what it hears.'
                     : 'You must train a model before you can preview it here.'}
                 </p>
               ) : (

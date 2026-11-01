@@ -124,6 +124,8 @@ export default function AITrainer() {
   const [newClassName, setNewClassName] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [loadingMessage, setLoadingMessage] = useState('');
+  const [editingClass, setEditingClass] = useState<string | null>(null);
+  const [editingValue, setEditingValue] = useState('');
   const [isCapturing, setIsCapturing] = useState<string | null>(null);
   const [isTesting, setIsTesting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -200,7 +202,6 @@ export default function AITrainer() {
     name: string;
   } | null>(null);
   const captureIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const classNameInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
   const fileInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
   const importZipRef = useRef<HTMLInputElement | null>(null);
   const testFileRef = useRef<HTMLInputElement | null>(null);
@@ -529,20 +530,12 @@ export default function AITrainer() {
   const handleRenameClass = useCallback(
     (oldName: string, newName: string) => {
       const trimmed = newName.trim();
-      if (!trimmed || trimmed === oldName) {
-        if (classNameInputRefs.current[oldName]) {
-          classNameInputRefs.current[oldName].value = oldName;
-        }
-        return;
-      }
-      if (classes.includes(trimmed)) {
-        if (classNameInputRefs.current[oldName]) {
-          classNameInputRefs.current[oldName].value = oldName;
-        }
-        return;
-      }
+      if (!trimmed || trimmed === oldName) return;
+      if (classes.includes(trimmed)) return;
       aiEngine.renameClass(oldName, trimmed);
-      setClasses((prev) => prev.map((c) => (c === oldName ? trimmed : c)));
+      const nextClasses = classes.map((c) => (c === oldName ? trimmed : c));
+      setClasses(nextClasses);
+      useAIStore.getState().setSavedProjectAI({ tab: 'image', classes: nextClasses });
       setSampleThumbnails((prev) => {
         const n = { ...prev };
         if (n[oldName]) {
@@ -626,6 +619,17 @@ export default function AITrainer() {
         origin: { y: 0.6 },
         colors: ['#FF6F61', '#E8584A', '#FFAB9E', '#ffffff'],
       });
+      if (videoRef.current) {
+        aiEngine.startPredicting(
+          videoRef.current,
+          (result) => updatePrediction(result.label, result.allConfidences),
+          true,
+          false,
+          trainingConfig,
+        );
+        setPredicting(true);
+        setIsTesting(true);
+      }
     } catch (err) {
       setError(`Training failed: ${err instanceof Error ? err.message : String(err)}`);
     } finally {
@@ -947,7 +951,10 @@ export default function AITrainer() {
           {TABS.map(({ id, label }) => (
             <button
               key={id}
-              onClick={() => setActiveTab(id)}
+              onClick={() => {
+                setActiveTab(id);
+                useAIStore.getState().setSavedProjectAI({ tab: id });
+              }}
               className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
                 activeTab === id
                   ? 'bg-[#FF6F61] text-white shadow-[0_2px_8px_-1px_rgba(255,111,97,0.5)]'
@@ -1076,36 +1083,65 @@ export default function AITrainer() {
                                 className="w-2.5 h-2.5 rounded-full shrink-0"
                                 style={{ backgroundColor: classColor }}
                               />
-                              <input
-                                ref={(el) => {
-                                  classNameInputRefs.current[className] = el;
-                                }}
-                                defaultValue={className}
-                                onBlur={(e) => handleRenameClass(className, e.target.value)}
-                                onKeyDown={(e) => {
-                                  if (e.key === 'Enter') e.currentTarget.blur();
-                                  if (e.key === 'Escape') {
-                                    e.currentTarget.value = className;
-                                    e.currentTarget.blur();
-                                  }
-                                }}
-                                title="Click to rename"
-                                className="font-heading font-semibold text-xl bg-transparent outline-none min-w-0 rounded px-1 -ml-1 border border-transparent focus:border-[#FF6F61]/60 hover:border-slate-200 dark:hover:border-white/20 transition-colors"
-                              />
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  const el = classNameInputRefs.current[className];
-                                  if (el) {
-                                    el.focus();
-                                    el.select();
-                                  }
-                                }}
-                                title="Rename class"
-                                className="p-1 rounded text-slate-400 hover:text-slate-600 dark:hover:text-white transition-colors shrink-0"
-                              >
-                                <Pencil size={14} />
-                              </button>
+                              {editingClass === className ? (
+                                <form
+                                  onSubmit={(e) => {
+                                    e.preventDefault();
+                                    handleRenameClass(className, editingValue);
+                                    setEditingClass(null);
+                                  }}
+                                  className="flex items-center gap-1.5 min-w-0"
+                                >
+                                  <input
+                                    autoFocus
+                                    type="text"
+                                    value={editingValue}
+                                    onChange={(e) => setEditingValue(e.target.value)}
+                                    onBlur={() => {
+                                      handleRenameClass(className, editingValue);
+                                      setEditingClass(null);
+                                    }}
+                                    onKeyDown={(e) => {
+                                      if (e.key === 'Escape') {
+                                        setEditingClass(null);
+                                      }
+                                    }}
+                                    className="font-heading font-semibold text-lg md:text-xl bg-white dark:bg-[#1b1b33] px-2 py-0.5 rounded border border-[#FF6F61] outline-none text-slate-800 dark:text-white min-w-0"
+                                  />
+                                  <button
+                                    type="submit"
+                                    className="p-1 rounded text-emerald-500 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-500/10 shrink-0"
+                                    title="Save name"
+                                  >
+                                    <Check size={16} />
+                                  </button>
+                                </form>
+                              ) : (
+                                <div
+                                  className="flex items-center gap-2 min-w-0 cursor-pointer group/title"
+                                  onClick={() => {
+                                    setEditingClass(className);
+                                    setEditingValue(className);
+                                  }}
+                                  title="Click to rename"
+                                >
+                                  <span className="font-heading font-semibold text-xl text-slate-800 dark:text-white truncate">
+                                    {className}
+                                  </span>
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setEditingClass(className);
+                                      setEditingValue(className);
+                                    }}
+                                    title="Rename class"
+                                    className="p-1 rounded text-slate-400 group-hover/title:text-slate-700 dark:group-hover/title:text-white hover:text-slate-600 transition-colors shrink-0"
+                                  >
+                                    <Pencil size={14} />
+                                  </button>
+                                </div>
+                              )}
                             </div>
                             <div className="relative">
                               <button
@@ -1127,13 +1163,8 @@ export default function AITrainer() {
                                     <button
                                       onClick={() => {
                                         setMenuClass(null);
-                                        setTimeout(() => {
-                                          const el = classNameInputRefs.current[className];
-                                          if (el) {
-                                            el.focus();
-                                            el.select();
-                                          }
-                                        }, 50);
+                                        setEditingClass(className);
+                                        setEditingValue(className);
                                       }}
                                       className="w-full px-3 py-2 text-sm text-left hover:bg-slate-50 dark:hover:bg-white/5 flex items-center gap-2 text-slate-700 dark:text-white/80"
                                     >
@@ -1324,18 +1355,10 @@ export default function AITrainer() {
                     >
                       <Plus size={18} /> Add a class
                     </button>
-                    <div className="flex gap-2">
-                      <input
-                        type="text"
-                        value={newClassName}
-                        onChange={(e) => setNewClassName(e.target.value)}
-                        onKeyDown={(e) => e.key === 'Enter' && handleAddClass()}
-                        placeholder={`Class ${classes.length + 1} name`}
-                        className="flex-1 min-w-0 px-3 py-2 rounded-md bg-white dark:bg-[#1b1b33] border border-slate-200 dark:border-white/10 text-sm outline-none focus:border-[#FF6F61]"
-                      />
+                    <div className="flex justify-end pt-1">
                       <button
                         onClick={handleResetAll}
-                        className={`text-xs font-medium px-3 rounded-md hover:text-red-500 ${muted}`}
+                        className={`text-xs font-medium px-3 py-1.5 rounded-md hover:text-red-500 hover:bg-red-500/10 transition-colors ${muted}`}
                       >
                         Start over
                       </button>

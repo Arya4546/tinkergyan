@@ -57,6 +57,67 @@ arduinoGenerator.addReservedWords(RESERVED_WORDS);
 };
 
 /**
+ * Detects Servo instance names referenced in the generated code or definitions.
+ * Filters out standard non-servo Arduino objects.
+ */
+export function detectServoObjects(code: string, definitions?: Record<string, string>): string[] {
+  const NON_SERVO = new Set([
+    'Serial',
+    'Serial1',
+    'Serial2',
+    'Serial3',
+    'SerialUSB',
+    'Wire',
+    'SPI',
+    'WiFi',
+    'Server',
+    'Client',
+    'EEPROM',
+    'SD',
+    'File',
+    'api',
+    'console',
+    'Math',
+  ]);
+
+  const servos = new Set<string>();
+
+  // 1. Any object with .attach(...) call: <obj>.attach(...)
+  const attachMatches = code.matchAll(/\b([a-zA-Z_][a-zA-Z0-9_]*)\.attach\s*\(/g);
+  for (const match of attachMatches) {
+    const name = match[1];
+    if (name && !NON_SERVO.has(name)) {
+      servos.add(name);
+    }
+  }
+
+  // 2. Any object with .write(...), .writeMicroseconds(...), .read(), .attached(), .detach()
+  const methodMatches = code.matchAll(
+    /\b([a-zA-Z_][a-zA-Z0-9_]*)\.(write|writeMicroseconds|read|attached|detach)\s*\(/g,
+  );
+  for (const match of methodMatches) {
+    const name = match[1];
+    if (name && !NON_SERVO.has(name)) {
+      if (/servo/i.test(name) || servos.has(name)) {
+        servos.add(name);
+      }
+    }
+  }
+
+  // 3. Definitions or variable declarations containing Servo
+  if (definitions) {
+    for (const val of Object.values(definitions)) {
+      if (typeof val === 'string' && /\bServo\s+([a-zA-Z_][a-zA-Z0-9_]*)/.test(val)) {
+        const match = val.match(/\bServo\s+([a-zA-Z_][a-zA-Z0-9_]*)/);
+        if (match && match[1]) servos.add(match[1]);
+      }
+    }
+  }
+
+  return Array.from(servos);
+}
+
+/**
  * Called after all blocks are processed. Prepends global variable declarations
  * collected during generation, then wraps with the Arduino boilerplate header.
  */
@@ -105,7 +166,27 @@ arduinoGenerator.addReservedWords(RESERVED_WORDS);
     const builtinLed = getBoardDefinition(board).builtinLed;
     header += `\n#ifndef LED_BUILTIN\n#define LED_BUILTIN ${builtinLed}\n#endif\n`;
   }
-  return [header, varDecls ? varDecls + '\n' : '', processedCode].filter(Boolean).join('\n');
+
+  // Detect any Servo objects referenced in the sketch
+  const servoObjects = detectServoObjects(processedCode, this.definitions_);
+  const servoDeclarations: string[] = [];
+  if (servoObjects.length > 0) {
+    if (!header.includes('<Servo.h>') && !processedCode.includes('<Servo.h>')) {
+      header += '#include <Servo.h>\n';
+    }
+    for (const servo of servoObjects) {
+      delete this.definitions_[`var_${servo}`];
+      const declPattern = new RegExp(`\\bServo\\s+${servo}\\b`);
+      if (!declPattern.test(varDecls) && !declPattern.test(processedCode)) {
+        servoDeclarations.push(`Servo ${servo};`);
+      }
+    }
+  }
+
+  const cleanVarDecls = Object.values(this.definitions_).join('\n');
+  const allDecls = [...servoDeclarations, cleanVarDecls].filter(Boolean).join('\n');
+
+  return [header, allDecls ? allDecls + '\n' : '', processedCode].filter(Boolean).join('\n');
 };
 
 /** Handle statement blocks that generate naked values (e.g. millis() as statement). */

@@ -169,11 +169,16 @@ class PoseTrainerEngine {
   renameClass(oldLabel: string, newLabel: string): void {
     if (!this.classifier || oldLabel === newLabel) return;
     const dataset = this.classifier.getClassifierDataset();
-    if (dataset[oldLabel]) {
+    if (dataset && dataset[oldLabel]) {
       dataset[newLabel] = dataset[oldLabel];
       delete dataset[oldLabel];
       this.classifier.setClassifierDataset(dataset);
     }
+    // Delete old label from internal KNN classifier counts so getExampleCounts() won't retain it
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    delete (this.classifier as any).classExampleCount?.[oldLabel];
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    delete (this.classifier as any).classDatasetMatrices?.[oldLabel];
   }
 
   clearAll(): void {

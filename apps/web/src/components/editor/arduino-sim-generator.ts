@@ -23,6 +23,7 @@ import {
   installAsyncProcedureCalls,
   markProcedureDefinitionsAsync,
 } from './blockly-async-procedures';
+import { detectServoObjects } from './arduino-generator';
 
 installAsyncProcedureCalls();
 
@@ -161,5 +162,47 @@ export function workspaceToArduinoSimCode(workspace: Workspace): string {
 
   markProcedureDefinitionsAsync();
 
-  return javascriptGenerator.finish(code);
+  const rawCode = javascriptGenerator.finish(code);
+  const servoObjects = detectServoObjects(rawCode);
+  if (servoObjects.length === 0) {
+    return rawCode;
+  }
+
+  const simServoPreamble = `
+class SimServo {
+  constructor(api, name) {
+    this.api = api;
+    this.name = name;
+    this.pin = null;
+    this.angle = 0;
+  }
+  async attach(pin) {
+    this.pin = String(pin);
+    await this.api.pinMode(this.pin, 'OUTPUT');
+    await this.api.tick();
+    return 1;
+  }
+  async write(angle) {
+    this.angle = Math.max(0, Math.min(180, Number(angle) || 0));
+    if (this.pin !== null) {
+      const duty = Math.round((this.angle / 180) * 255);
+      await this.api.analogWrite(this.pin, duty);
+    }
+    await this.api.tick();
+  }
+  async writeMicroseconds(us) {
+    const angle = Math.round(((Number(us) - 544) / (2400 - 544)) * 180);
+    await this.write(angle);
+  }
+  read() { return this.angle; }
+  attached() { return this.pin !== null; }
+  async detach() {
+    this.pin = null;
+    await this.api.tick();
+  }
+}
+${servoObjects.map((s) => `const ${s} = new SimServo(api, ${JSON.stringify(s)});`).join('\n')}
+`;
+
+  return simServoPreamble + rawCode;
 }

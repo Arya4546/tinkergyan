@@ -83,9 +83,17 @@ class AudioTrainerEngine {
   // ── Mic ───────────────────────────────────────────────────────────────────
 
   async startMic(): Promise<void> {
-    if (this.micStream) return;
+    if (this.micStream) {
+      if (this.audioCtx && this.audioCtx.state === 'suspended') {
+        await this.audioCtx.resume();
+      }
+      return;
+    }
     this.micStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
     this.audioCtx = new AudioContext();
+    if (this.audioCtx.state === 'suspended') {
+      await this.audioCtx.resume();
+    }
     const source = this.audioCtx.createMediaStreamSource(this.micStream);
     this.analyser = this.audioCtx.createAnalyser();
     this.analyser.fftSize = this.FFT_SIZE;
@@ -94,11 +102,12 @@ class AudioTrainerEngine {
   }
 
   stopMic(): void {
+    this.stopPredicting();
     this.micStream?.getTracks().forEach((t) => t.stop());
     this.micStream = null;
     this.analyser = null;
     if (this.audioCtx) {
-      this.audioCtx.close();
+      this.audioCtx.close().catch(() => {});
       this.audioCtx = null;
     }
   }
@@ -110,6 +119,9 @@ class AudioTrainerEngine {
   /** Returns a live waveform buffer (Uint8Array) for drawing the visualizer. */
   getWaveform(): Uint8Array {
     if (!this.analyser) return new Uint8Array(128);
+    if (this.audioCtx && this.audioCtx.state === 'suspended') {
+      void this.audioCtx.resume();
+    }
     const buf = new Uint8Array(this.analyser.frequencyBinCount);
     this.analyser.getByteTimeDomainData(buf);
     return buf;
@@ -119,6 +131,9 @@ class AudioTrainerEngine {
 
   private extractFeatures(): any {
     if (!this.analyser || !tfRef) return null;
+    if (this.audioCtx && this.audioCtx.state === 'suspended') {
+      void this.audioCtx.resume();
+    }
     const freqData = new Float32Array(this.analyser.frequencyBinCount);
     this.analyser.getFloatFrequencyData(freqData);
     // Normalise dB values (typically −160 to 0) to 0–1 range.
@@ -151,11 +166,16 @@ class AudioTrainerEngine {
   renameClass(oldLabel: string, newLabel: string): void {
     if (!this.classifier || oldLabel === newLabel) return;
     const dataset = this.classifier.getClassifierDataset();
-    if (dataset[oldLabel]) {
+    if (dataset && dataset[oldLabel]) {
       dataset[newLabel] = dataset[oldLabel];
       delete dataset[oldLabel];
       this.classifier.setClassifierDataset(dataset);
     }
+    // Delete old label from internal KNN classifier counts so getExampleCounts() won't retain it
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    delete (this.classifier as any).classExampleCount?.[oldLabel];
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    delete (this.classifier as any).classDatasetMatrices?.[oldLabel];
   }
 
   clearAll(): void {

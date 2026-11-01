@@ -158,6 +158,60 @@ public:
 
 SerialClass Serial;
 
+// ── Servo emulation ─────────────────────────────────────────────────────
+class Servo {
+private:
+  int _pin;
+  int _angle;
+  int _min;
+  int _max;
+  bool _attached;
+public:
+  Servo() : _pin(-1), _angle(0), _min(544), _max(2400), _attached(false) {}
+
+  uint8_t attach(int pin) {
+    return attach(pin, 544, 2400);
+  }
+
+  uint8_t attach(int pin, int min, int max) {
+    _pin = pin;
+    _min = min;
+    _max = max;
+    _attached = true;
+    std::cout << "[SIM] Servo.attach(" << pin << ")" << std::endl;
+    return 1;
+  }
+
+  void detach() {
+    if (_attached) {
+      std::cout << "[SIM] Servo.detach(" << _pin << ")" << std::endl;
+      _attached = false;
+      _pin = -1;
+    }
+  }
+
+  void write(int angle) {
+    _angle = angle < 0 ? 0 : (angle > 180 ? 180 : angle);
+    std::cout << "[SIM] Servo.write(" << _angle << " deg on pin " << _pin << ")" << std::endl;
+  }
+
+  void writeMicroseconds(int us) {
+    std::cout << "[SIM] Servo.writeMicroseconds(" << us << " us on pin " << _pin << ")" << std::endl;
+  }
+
+  int read() {
+    return _angle;
+  }
+
+  int readMicroseconds() {
+    return _min + (_angle * (_max - _min) / 180);
+  }
+
+  bool attached() {
+    return _attached;
+  }
+};
+
 // ── Math helpers ────────────────────────────────────────────────────────
 long map(long x, long in_min, long in_max, long out_min, long out_max) {
   return (x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min;
@@ -220,8 +274,9 @@ export function isArduinoSketch(code: string): boolean {
   const hasMain = /int\s+main\s*\(/.test(stripped);
   const hasArduinoH = /#include\s*<Arduino\.h>/.test(stripped);
   const hasEsp8266H = /#include\s*<ESP8266WiFi\.h>/.test(stripped);
+  const hasServoH = /#include\s*<(?:Servo|ESP32Servo)\.h>/.test(stripped);
 
-  if (hasArduinoH || hasEsp8266H) return true;
+  if (hasArduinoH || hasEsp8266H || hasServoH) return true;
   if (hasMain && !hasSetup) return false;
   if (hasSetup || hasLoop) return true;
   return false;
@@ -239,9 +294,10 @@ export function prepareForWandbox(code: string): { code: string; isArduino: bool
     return { code, isArduino: false };
   }
 
-  // Strip #include <Arduino.h> and #include <ESP8266WiFi.h> since the shim provides everything
+  // Strip headers provided by the shim
   let cleaned = code.replace(/^\s*#include\s*<Arduino\.h>\s*$/gm, '');
   cleaned = cleaned.replace(/^\s*#include\s*<ESP8266WiFi\.h>\s*$/gm, '');
+  cleaned = cleaned.replace(/^\s*#include\s*<(?:Servo|ESP32Servo)\.h>\s*$/gm, '');
   // Strip any duplicate main() that might conflict
   // (the shim already provides main)
 

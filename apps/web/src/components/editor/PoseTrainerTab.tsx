@@ -17,6 +17,7 @@ import {
   Play,
   Square,
   Camera,
+  Check,
 } from 'lucide-react';
 import { poseTrainerEngine } from '../../lib/pose-trainer-engine';
 import { useAIStore } from '../../stores/ai.store';
@@ -47,14 +48,16 @@ const SKELETON_PAIRS = [
 
 export function PoseTrainerTab() {
   const [classes, setClasses] = useState<string[]>(() => {
-    const saved = useAIStore.getState().savedClasses;
+    const savedTab = useAIStore.getState().savedTab;
+    const saved = savedTab === 'pose' ? useAIStore.getState().savedClasses : null;
     if (saved && saved.length > 0) return saved;
     const existing = poseTrainerEngine.isInitialised
       ? Object.keys(poseTrainerEngine.getExampleCounts())
       : [];
     return existing.length > 0 ? existing : ['Class 1', 'Class 2'];
   });
-  const [newClassName, setNewClassName] = useState('');
+  const [editingClass, setEditingClass] = useState<string | null>(null);
+  const [editingValue, setEditingValue] = useState('');
   const [isIniting, setIsIniting] = useState(false);
   const [isWebcamOn, setIsWebcamOn] = useState(false);
   const [isCapturing, setIsCapturing] = useState<string | null>(null);
@@ -73,7 +76,6 @@ export function PoseTrainerTab() {
     Array<{ x: number; y: number; score: number }>
   >([]);
 
-  const inputRefs = useRef<Record<string, HTMLInputElement | null>>({});
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const captureIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -97,20 +99,16 @@ export function PoseTrainerTab() {
       isInitialMount.current = false;
       return;
     }
-    setSavedProjectAI({ classes });
+    setSavedProjectAI({ tab: 'pose', classes });
   }, [classes, setSavedProjectAI]);
 
   // Sync counts and classes on mount and when restored
   useEffect(() => {
     syncCounts();
-    const isPoseTab = !savedTab || savedTab === 'pose';
-    const counts = poseTrainerEngine.isInitialised ? poseTrainerEngine.getExampleCounts() : {};
-    const keys = Object.keys(counts);
-    const toUse = isPoseTab && savedClasses && savedClasses.length > 0 ? savedClasses : keys;
-    if (toUse.length > 0) {
-      setClasses(toUse);
-      setExampleCounts({ ...counts });
-      const trainedCount = toUse.filter((c) => (counts[c] ?? 0) > 0).length;
+    if (savedTab === 'pose' && savedClasses && savedClasses.length > 0) {
+      setClasses(savedClasses);
+      const counts = poseTrainerEngine.isInitialised ? poseTrainerEngine.getExampleCounts() : {};
+      const trainedCount = savedClasses.filter((c) => (counts[c] ?? 0) > 0).length;
       if (trainedCount >= 2) {
         setIsTrained(true);
       }
@@ -228,22 +226,47 @@ export function PoseTrainerTab() {
     }
   }, []);
 
+  const startTesting = useCallback(() => {
+    if (!videoRef.current || !isWebcamOn) return;
+    poseTrainerEngine.startPredicting(videoRef.current, (result) => {
+      setPrediction({ label: result.label, confs: result.allConfidences });
+    });
+    setIsTesting(true);
+  }, [isWebcamOn]);
+
+  const stopTesting = useCallback(() => {
+    poseTrainerEngine.stopPredicting();
+    setIsTesting(false);
+    setPrediction(null);
+  }, []);
+
   const handleToggleTest = useCallback(() => {
     if (!isWebcamOn || !videoRef.current) return;
     if (isTesting) {
-      poseTrainerEngine.stopPredicting();
-      setIsTesting(false);
-      setPrediction(null);
+      stopTesting();
     } else {
-      poseTrainerEngine.startPredicting(videoRef.current, (result) => {
-        setPrediction({ label: result.label, confs: result.allConfidences });
-      });
-      setIsTesting(true);
+      startTesting();
     }
-  }, [isWebcamOn, isTesting]);
+  }, [isWebcamOn, isTesting, stopTesting, startTesting]);
+
+  const canTest = classes.filter((c) => (exampleCounts[c] ?? 0) > 0).length >= 2;
+
+  // When model is trained and webcam is on, keep preview prediction active
+  useEffect(() => {
+    if (isTrained && isWebcamOn && !isCapturing && !isTesting) {
+      startTesting();
+    }
+  }, [isTrained, isWebcamOn, isCapturing, isTesting, startTesting]);
+
+  // If poses are deleted such that there are fewer than 2 classes with data, invalidate trained state
+  useEffect(() => {
+    if (isTrained && !canTest) {
+      setIsTrained(false);
+      stopTesting();
+    }
+  }, [isTrained, canTest, stopTesting]);
 
   const CLASS_COLORS = ['#f59e0b', '#e11d48', '#10b981', '#6366f1', '#0ea5e9', '#a855f7'];
-  const canTest = classes.filter((c) => (exampleCounts[c] ?? 0) > 0).length >= 2;
   const totalSamples = classes.reduce((sum, c) => sum + (exampleCounts[c] ?? 0), 0);
   // Progressive reveal — don't show Training until there is something to train
   // on. Preview stays visible even with zero samples: its camera picker and
@@ -267,29 +290,22 @@ export function PoseTrainerTab() {
   const handleRenameClass = useCallback(
     (oldName: string, newName: string) => {
       const trimmed = newName.trim();
-      if (!trimmed || trimmed === oldName) {
-        if (inputRefs.current[oldName]) {
-          inputRefs.current[oldName].value = oldName;
-        }
-        return;
-      }
-      if (classes.includes(trimmed)) {
-        if (inputRefs.current[oldName]) {
-          inputRefs.current[oldName].value = oldName;
-        }
-        return;
-      }
+      if (!trimmed || trimmed === oldName) return;
+      if (classes.includes(trimmed)) return;
       poseTrainerEngine.renameClass(oldName, trimmed);
-      setClasses((prev) => prev.map((c) => (c === oldName ? trimmed : c)));
+      const nextClasses = classes.map((c) => (c === oldName ? trimmed : c));
+      setClasses(nextClasses);
+      setSavedProjectAI({ tab: 'pose', classes: nextClasses });
       if (openClass === oldName) setOpenClass(trimmed);
       if (isCapturing === oldName) setIsCapturing(trimmed);
       syncCounts();
     },
-    [classes, openClass, isCapturing, syncCounts],
+    [classes, openClass, isCapturing, setSavedProjectAI, syncCounts],
   );
 
-  const handleTrain = () => {
-    // The pose model learns as you record, so training only confirms there is enough data.
+  const handleTrain = async () => {
+    // The pose model learns as you record, so training confirms there is enough data
+    // and automatically starts live guessing in the Preview panel.
     if (canTest) {
       setIsTrained(true);
       void confetti({
@@ -298,6 +314,10 @@ export function PoseTrainerTab() {
         origin: { y: 0.6 },
         colors: ['#FF6F61', '#E8584A', '#FFAB9E', '#ffffff'],
       });
+      if (!isWebcamOn) {
+        await handleStartWebcam();
+      }
+      startTesting();
     }
   };
 
@@ -322,36 +342,65 @@ export function PoseTrainerTab() {
                       className="w-2.5 h-2.5 rounded-full shrink-0"
                       style={{ backgroundColor: classColor }}
                     />
-                    <input
-                      ref={(el) => {
-                        inputRefs.current[className] = el;
-                      }}
-                      defaultValue={className}
-                      onBlur={(e) => handleRenameClass(className, e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') e.currentTarget.blur();
-                        if (e.key === 'Escape') {
-                          e.currentTarget.value = className;
-                          e.currentTarget.blur();
-                        }
-                      }}
-                      title="Click to rename"
-                      className="font-heading font-semibold text-xl bg-transparent outline-none min-w-0 rounded px-1 -ml-1 border border-transparent focus:border-[#FF6F61]/60 hover:border-slate-200 dark:hover:border-white/20 transition-colors"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const el = inputRefs.current[className];
-                        if (el) {
-                          el.focus();
-                          el.select();
-                        }
-                      }}
-                      title="Rename class"
-                      className="p-1 rounded text-slate-400 hover:text-slate-600 dark:hover:text-white transition-colors shrink-0"
-                    >
-                      <Pencil size={14} />
-                    </button>
+                    {editingClass === className ? (
+                      <form
+                        onSubmit={(e) => {
+                          e.preventDefault();
+                          handleRenameClass(className, editingValue);
+                          setEditingClass(null);
+                        }}
+                        className="flex items-center gap-1.5 min-w-0"
+                      >
+                        <input
+                          autoFocus
+                          type="text"
+                          value={editingValue}
+                          onChange={(e) => setEditingValue(e.target.value)}
+                          onBlur={() => {
+                            handleRenameClass(className, editingValue);
+                            setEditingClass(null);
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Escape') {
+                              setEditingClass(null);
+                            }
+                          }}
+                          className="font-heading font-semibold text-lg md:text-xl bg-white dark:bg-[#1b1b33] px-2 py-0.5 rounded border border-[#FF6F61] outline-none text-slate-800 dark:text-white min-w-0"
+                        />
+                        <button
+                          type="submit"
+                          className="p-1 rounded text-emerald-500 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-500/10 shrink-0"
+                          title="Save name"
+                        >
+                          <Check size={16} />
+                        </button>
+                      </form>
+                    ) : (
+                      <div
+                        className="flex items-center gap-2 min-w-0 cursor-pointer group/title"
+                        onClick={() => {
+                          setEditingClass(className);
+                          setEditingValue(className);
+                        }}
+                        title="Click to rename"
+                      >
+                        <span className="font-heading font-semibold text-xl text-slate-800 dark:text-white truncate">
+                          {className}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setEditingClass(className);
+                            setEditingValue(className);
+                          }}
+                          title="Rename class"
+                          className="p-1 rounded text-slate-400 group-hover/title:text-slate-700 dark:group-hover/title:text-white hover:text-slate-600 transition-colors shrink-0"
+                        >
+                          <Pencil size={14} />
+                        </button>
+                      </div>
+                    )}
                   </div>
                   <div className="relative">
                     <button
@@ -368,13 +417,8 @@ export function PoseTrainerTab() {
                           <button
                             onClick={() => {
                               setMenuClass(null);
-                              setTimeout(() => {
-                                const el = inputRefs.current[className];
-                                if (el) {
-                                  el.focus();
-                                  el.select();
-                                }
-                              }, 50);
+                              setEditingClass(className);
+                              setEditingValue(className);
                             }}
                             className="w-full px-3 py-2 text-sm text-left hover:bg-slate-50 dark:hover:bg-white/5 flex items-center gap-2 text-slate-700 dark:text-white/80"
                           >
@@ -472,30 +516,29 @@ export function PoseTrainerTab() {
 
           <button
             onClick={() => {
-              const name = newClassName.trim() || `Class ${classes.length + 1}`;
-              if (classes.includes(name)) return;
-              setClasses((p) => [...p, name]);
-              setNewClassName('');
+              let nextNum = classes.length + 1;
+              let nextName = `Class ${nextNum}`;
+              while (classes.includes(nextName)) {
+                nextNum++;
+                nextName = `Class ${nextNum}`;
+              }
+              const next = [...classes, nextName];
+              setClasses(next);
+              setSavedProjectAI({ tab: 'pose', classes: next });
             }}
-            className="w-full py-5 rounded-lg border-2 border-dashed border-slate-300 dark:border-white/15 text-slate-500 dark:text-white/50 text-base flex items-center justify-center gap-2 hover:border-[#FF6F61] hover:text-[#FF6F61]"
+            className="w-full py-5 rounded-xl border-2 border-dashed border-slate-300 dark:border-white/15 text-slate-500 dark:text-white/50 text-base flex items-center justify-center gap-2 hover:border-[#FF6F61] hover:text-[#FF6F61] hover:bg-[#FFEDEA]/50 dark:hover:bg-[#FF6F61]/10 hover:scale-[1.01] active:scale-[0.99] transition-all"
           >
             <Plus size={18} /> Add a class
           </button>
-          <div className="flex gap-2">
-            <input
-              type="text"
-              value={newClassName}
-              onChange={(e) => setNewClassName(e.target.value)}
-              placeholder={`Class ${classes.length + 1} name`}
-              className="flex-1 min-w-0 px-3 py-2 rounded-md bg-white dark:bg-[#1b1b33] border border-slate-200 dark:border-white/10 text-sm outline-none focus:border-[#FF6F61]"
-            />
+          <div className="flex justify-end pt-1">
             <button
               onClick={() => {
                 poseTrainerEngine.clearAll();
+                stopTesting();
                 setIsTrained(false);
                 syncCounts();
               }}
-              className={`text-xs font-medium px-3 rounded-md hover:text-red-500 ${muted}`}
+              className={`text-xs font-medium px-3 py-1.5 rounded-md hover:text-red-500 hover:bg-red-500/10 transition-colors ${muted}`}
             >
               Start over
             </button>

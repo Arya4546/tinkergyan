@@ -738,8 +738,9 @@ export default function Editor() {
           });
           return;
         }
-        setGeneratedCode(code);
-        setManualCode(code);
+        const canonicalCode = blocklyRef.current?.getCode() || code;
+        setGeneratedCode(canonicalCode);
+        setManualCode(canonicalCode);
         setMode('block');
         confetti({
           particleCount: 80,
