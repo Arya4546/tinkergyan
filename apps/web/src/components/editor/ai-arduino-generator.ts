@@ -8,103 +8,106 @@
  */
 import { arduinoGenerator, Order } from './arduino-generator';
 
+type GenDefs = Record<string, string>;
+
+function defs(): GenDefs {
+  return (arduinoGenerator as any).definitions_ as GenDefs;
+}
+
+/** Escape a label so it is safe inside a C++ double-quoted string literal. */
+function escapeCString(value: string): string {
+  return value.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+}
+
+/**
+ * Ensure a single shared updateAISerial() reader exists and covers every AI
+ * serial protocol we emit (PRED / AUDIO / EMOTION / HAND). Uses `(char)10`
+ * instead of a `'\n'` char literal so template-literal escaping can never
+ * split the line into an unterminated quote (the "missing terminating '
+ * character" build error students hit on ESP32/Uno with AI blocks).
+ */
+function ensureUpdateAISerial(options?: { emotion?: boolean; hand?: boolean }): void {
+  const d = defs();
+  if (!d['ai_serial_var_pred']) d['ai_serial_var_pred'] = 'String __ai_current_prediction = "";';
+  if (!d['ai_serial_var_audio']) d['ai_serial_var_audio'] = 'String __ai_latest_word = "";';
+  if (options?.emotion && !d['ai_emotion_var']) d['ai_emotion_var'] = 'String __ai_emotion = "";';
+  if (options?.hand && !d['ai_hand_vars']) {
+    d['ai_hand_vars'] =
+      'String __ai_hand_gesture = "";\nfloat __ai_hand_x = 0.0;\nfloat __ai_hand_y = 0.0;';
+  }
+
+  // Rebuild every time so later emotion/hand blocks merge into the same reader
+  // instead of silently no-op'ing when a vision block already defined it.
+  const wantsEmotion = !!d['ai_emotion_var'];
+  const wantsHand = !!d['ai_hand_vars'];
+
+  const emotionBranch = wantsEmotion
+    ? `\n    else if (msg.startsWith("AI_EMOTION:")) { __ai_emotion = msg.substring(11); }`
+    : '';
+  const handBranch = wantsHand
+    ? `
+    else if (msg.startsWith("AI_HAND:")) {
+      String payload = msg.substring(8);
+      int c1 = payload.indexOf(',');
+      int c2 = payload.indexOf(',', c1 + 1);
+      if (c1 > 0 && c2 > c1) {
+        __ai_hand_gesture = payload.substring(0, c1);
+        __ai_hand_x = payload.substring(c1 + 1, c2).toFloat();
+        __ai_hand_y = payload.substring(c2 + 1).toFloat();
+      }
+    }`
+    : '';
+
+  // Delete before reassign so the rebuilt function is inserted *after* any
+  // newly added globals (emotion/hand). Object.values() preserves insertion
+  // order — overwriting in place can emit updateAISerial() before the vars
+  // it references, which fails to compile on ESP32/Uno.
+  delete d['ai_serial_reader'];
+  d['ai_serial_reader'] = `
+void updateAISerial() {
+  while (Serial.available() > 0) {
+    String msg = Serial.readStringUntil((char)10);
+    msg.trim();
+    if (msg.startsWith("AI_PRED:")) {
+      __ai_current_prediction = msg.substring(8);
+    } else if (msg.startsWith("AI_AUDIO:")) {
+      __ai_latest_word = msg.substring(9);
+    }${emotionBranch}${handBranch}
+  }
+}
+`.trim();
+}
+
 // ── AI Vision Control ───────────────────────────────────────────────────────
-// In hardware mode, starting/stopping vision doesn't run on the Arduino itself.
-// The browser handles it. But if the student includes the block, we can send a
-// serial command back to the browser to trigger it, or just ignore it.
-// For simplicity, we can ignore it or just add a comment.
 arduinoGenerator.forBlock['ai_turn_vision'] = function (block) {
   const state = block.getFieldValue('STATE') as string;
-  // We just add a comment, the actual vision control should be done from the UI
-  // or we could send a command like Serial.println("AI:START");
   return `// AI Vision ${state} (handled by browser)\nSerial.println("AI_VISION:${state}");\n`;
 };
 
 // ── AI Event (Hat) Block ────────────────────────────────────────────────────
-// Arduino doesn't have event listeners. We convert this into a polling check
-// that we inject into the global definitions, and the student needs to call
-// a generated check function in loop(), OR we can just generate a standalone
-// function. However, the standard Tinkergyan way for hardware is polling in loop.
-// Since it's a hat block, it generates a standalone function.
 arduinoGenerator.forBlock['ai_when_predicted'] = function (block, generator) {
-  const label = block.getFieldValue('LABEL') as string;
+  const label = escapeCString(block.getFieldValue('LABEL') as string);
   const body = generator.statementToCode(block, 'DO');
-
-  if (!(arduinoGenerator as any).definitions_['ai_serial_reader']) {
-    (arduinoGenerator as any).definitions_['ai_serial_var_pred'] =
-      'String __ai_current_prediction = "";';
-    (arduinoGenerator as any).definitions_['ai_serial_var_audio'] = 'String __ai_latest_word = "";';
-
-    (arduinoGenerator as any).definitions_['ai_serial_reader'] = `
-void updateAISerial() {
-  while (Serial.available() > 0) {
-    String msg = Serial.readStringUntil('\\n');
-    msg.trim();
-    if (msg.startsWith("AI_PRED:")) {
-      __ai_current_prediction = msg.substring(8);
-    } else if (msg.startsWith("AI_AUDIO:")) {
-      __ai_latest_word = msg.substring(9);
-    }
-  }
-}
-`.trim();
-  }
-
+  ensureUpdateAISerial();
   return `updateAISerial();\nif (__ai_current_prediction == "${label}") {\n${body}}\n`;
 };
 
 arduinoGenerator.forBlock['ai_latest_word'] = function () {
-  if (!(arduinoGenerator as any).definitions_['ai_serial_reader']) {
-    (arduinoGenerator as any).definitions_['ai_serial_var_pred'] =
-      `String __ai_current_prediction = "";`;
-    (arduinoGenerator as any).definitions_['ai_serial_var_audio'] = `String __ai_latest_word = "";`;
-    (arduinoGenerator as any).definitions_['ai_serial_reader'] = `
-void updateAISerial() {
-  while (Serial.available() > 0) {
-    String msg = Serial.readStringUntil('\\n');
-    msg.trim();
-    if (msg.startsWith("AI_PRED:")) {
-      __ai_current_prediction = msg.substring(8);
-    } else if (msg.startsWith("AI_AUDIO:")) {
-      __ai_latest_word = msg.substring(9);
-    }
-  }
+  ensureUpdateAISerial();
+  const d = defs();
+  if (!d['ai_latest_word_fn']) {
+    d['ai_latest_word_fn'] = `
+String aiLatestWord() {
+  updateAISerial();
+  return __ai_latest_word;
 }
 `.trim();
   }
-  const code = `
-([]() -> String {
-  updateAISerial();
-  return __ai_latest_word;
-})()
-`.trim();
-  return [code, Order.ATOMIC];
+  return [`aiLatestWord()`, Order.ATOMIC];
 };
 
 // ── Emotion Detection ────────────────────────────────────────────────────────
-// Browser sends: AI_EMOTION:<label>\n over Serial
-
-const ensureEmotionSerial = () => {
-  if ((arduinoGenerator as any).definitions_['ai_emotion_var']) return;
-  (arduinoGenerator as any).definitions_['ai_emotion_var'] = `String __ai_emotion = "";`;
-  // Merge into existing updateAISerial or create new one
-  if (!(arduinoGenerator as any).definitions_['ai_serial_reader']) {
-    (arduinoGenerator as any).definitions_['ai_serial_var_pred'] =
-      `String __ai_current_prediction = "";`;
-    (arduinoGenerator as any).definitions_['ai_serial_var_audio'] = `String __ai_latest_word = "";`;
-    (arduinoGenerator as any).definitions_['ai_serial_reader'] = `
-void updateAISerial() {
-  while (Serial.available() > 0) {
-    String msg = Serial.readStringUntil('\\n');
-    msg.trim();
-    if (msg.startsWith("AI_PRED:")) { __ai_current_prediction = msg.substring(8); }
-    else if (msg.startsWith("AI_AUDIO:")) { __ai_latest_word = msg.substring(9); }
-    else if (msg.startsWith("AI_EMOTION:")) { __ai_emotion = msg.substring(11); }
-  }
-}
-`.trim();
-  }
-};
+const ensureEmotionSerial = () => ensureUpdateAISerial({ emotion: true });
 
 arduinoGenerator.forBlock['ai_turn_emotion'] = function (block) {
   const state = block.getFieldValue('STATE') as string;
@@ -112,7 +115,7 @@ arduinoGenerator.forBlock['ai_turn_emotion'] = function (block) {
 };
 
 arduinoGenerator.forBlock['ai_when_emotion'] = function (block, generator) {
-  const emotion = block.getFieldValue('EMOTION') as string;
+  const emotion = escapeCString(block.getFieldValue('EMOTION') as string);
   const body = generator.statementToCode(block, 'DO');
   ensureEmotionSerial();
   return `updateAISerial();\nif (__ai_emotion == "${emotion}") {\n${body}}\n`;
@@ -137,13 +140,7 @@ arduinoGenerator.forBlock['ai_face_position'] = function () {
 };
 
 // ── Hand Tracking ────────────────────────────────────────────────────────────
-// Browser sends: AI_HAND:<gesture>,<x>,<y>\n
-
-const ensureHandSerial = () => {
-  if ((arduinoGenerator as any).definitions_['ai_hand_vars']) return;
-  (arduinoGenerator as any).definitions_['ai_hand_vars'] =
-    `String __ai_hand_gesture = "";\nfloat __ai_hand_x = 0.0;\nfloat __ai_hand_y = 0.0;`;
-};
+const ensureHandSerial = () => ensureUpdateAISerial({ hand: true });
 
 arduinoGenerator.forBlock['ai_turn_hand_tracking'] = function (block) {
   const state = block.getFieldValue('STATE') as string;
@@ -171,10 +168,10 @@ arduinoGenerator.forBlock['ai_hand_detected'] = function () {
 };
 
 arduinoGenerator.forBlock['ai_when_hand_gesture'] = function (block, generator) {
-  const gesture = block.getFieldValue('GESTURE') as string;
+  const gesture = escapeCString(block.getFieldValue('GESTURE') as string);
   const body = generator.statementToCode(block, 'DO');
   ensureHandSerial();
-  return `if (__ai_hand_gesture == "${gesture}") {\n${body}}\n`;
+  return `updateAISerial();\nif (__ai_hand_gesture == "${gesture}") {\n${body}}\n`;
 };
 
 // ── Speech-to-Text ───────────────────────────────────────────────────────────
@@ -196,7 +193,6 @@ arduinoGenerator.forBlock['ai_when_speech_contains'] = function () {
 };
 
 // ── Text-to-Speech ───────────────────────────────────────────────────────────
-// Sends AI_SAY:<text>\n to browser, which speaks it aloud
 
 arduinoGenerator.forBlock['ai_speak'] = function (block, generator) {
   const text = generator.valueToCode(block, 'TEXT', Order.NONE) || '""';

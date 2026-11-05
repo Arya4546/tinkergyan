@@ -255,6 +255,26 @@ Blockly.Blocks['arduino_serial_println'] = {
   },
 };
 
+/** Serial.available() — bytes waiting in the serial buffer */
+Blockly.Blocks['arduino_serial_available'] = {
+  init(this: Blockly.Block): void {
+    this.appendDummyInput().appendField('Serial.available');
+    this.setOutput(true, 'Number');
+    this.setColour(COLOR_SERIAL);
+    this.setTooltip('Number of bytes available to read from the serial port.');
+  },
+};
+
+/** Serial.read() — next byte (or -1 if none) */
+Blockly.Blocks['arduino_serial_read'] = {
+  init(this: Blockly.Block): void {
+    this.appendDummyInput().appendField('Serial.read');
+    this.setOutput(true, 'Number');
+    this.setColour(COLOR_SERIAL);
+    this.setTooltip('Read the next byte from the serial port (returns -1 if none).');
+  },
+};
+
 // Enable is_global_init mutation support on variables_set block
 const varSetBlock = Blockly.Blocks['variables_set'] as Record<string, unknown> | undefined;
 if (varSetBlock) {

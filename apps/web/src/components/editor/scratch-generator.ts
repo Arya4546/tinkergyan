@@ -112,6 +112,10 @@ javascriptGenerator.forBlock['scratch_motion_goto'] = function (block, generator
   return `await api.goTo(${x}, ${y});\n`;
 };
 
+javascriptGenerator.forBlock['scratch_motion_goto_random'] = function () {
+  return `await api.goToRandom();\n`;
+};
+
 javascriptGenerator.forBlock['scratch_motion_turn_left'] = function (block, generator) {
   const degrees = generator.valueToCode(block, 'DEGREES', Order.NONE) || '0';
   return `await api.turn(-(${degrees}));\n`;

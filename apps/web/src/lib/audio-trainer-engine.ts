@@ -47,10 +47,13 @@ class AudioTrainerEngine {
   private predictionInterval: ReturnType<typeof setInterval> | null = null;
   private _isInitialised = false;
 
-  /** FFT size — 256 bins, 128 usable magnitudes. */
+  /** FFT size — 256 bins (128 magnitudes). Kept for saved-model compatibility. */
   private readonly FFT_SIZE = 256;
-  /** Prediction poll rate ms (~5 FPS). */
-  private readonly POLL_MS = 200;
+  /** Prediction poll rate ms (~8 FPS). */
+  private readonly POLL_MS = 120;
+  /** Rolling confidences for temporal smoothing. */
+  private recentConfidences: Array<Record<string, number>> = [];
+  private readonly SMOOTH_WINDOW = 4;
 
   // ── Lifecycle ─────────────────────────────────────────────────────────────
 
@@ -136,9 +139,46 @@ class AudioTrainerEngine {
     }
     const freqData = new Float32Array(this.analyser.frequencyBinCount);
     this.analyser.getFloatFrequencyData(freqData);
-    // Normalise dB values (typically −160 to 0) to 0–1 range.
-    const normalised = Array.from(freqData).map((v) => Math.max(0, (v + 160) / 160));
-    return tfRef.tensor1d(normalised);
+    // Map dB → 0–1, then log-compress so quiet/loud samples sit closer together
+    // and mid-band speech cues are not drowned by absolute volume.
+    const features = Array.from(freqData).map((v) => {
+      const linear = Math.max(0, (v + 160) / 160);
+      return Math.log1p(linear * 12) / Math.log1p(12);
+    });
+    const tensor = tfRef.tensor1d(features);
+    const norm = tensor.norm();
+    const normalised = tensor.div(norm.add(1e-6));
+    tensor.dispose();
+    norm.dispose();
+    return normalised;
+  }
+
+  private smoothPrediction(confidences: Record<string, number>): {
+    label: string;
+    confidence: number;
+    allConfidences: Record<string, number>;
+  } {
+    this.recentConfidences.push(confidences);
+    if (this.recentConfidences.length > this.SMOOTH_WINDOW) this.recentConfidences.shift();
+    const averaged: Record<string, number> = {};
+    for (const frame of this.recentConfidences) {
+      for (const [label, conf] of Object.entries(frame)) {
+        averaged[label] = (averaged[label] ?? 0) + conf;
+      }
+    }
+    const n = this.recentConfidences.length;
+    for (const label of Object.keys(averaged)) {
+      averaged[label] = Math.round(averaged[label]! / n);
+    }
+    let bestLabel = Object.keys(averaged)[0] ?? '';
+    let bestConf = -1;
+    for (const [label, conf] of Object.entries(averaged)) {
+      if (conf > bestConf) {
+        bestConf = conf;
+        bestLabel = label;
+      }
+    }
+    return { label: bestLabel, confidence: bestConf, allConfidences: averaged };
   }
 
   // ── Training ──────────────────────────────────────────────────────────────
@@ -164,18 +204,52 @@ class AudioTrainerEngine {
 
   /** Rename a trained class by updating the underlying dataset */
   renameClass(oldLabel: string, newLabel: string): void {
-    if (!this.classifier || oldLabel === newLabel) return;
-    const dataset = this.classifier.getClassifierDataset();
-    if (dataset && dataset[oldLabel]) {
+    if (!this.classifier || oldLabel === newLabel || !newLabel.trim()) return;
+    const dataset = this.classifier.getClassifierDataset() ?? {};
+    // Move samples when present. Empty classes only live in React state — the
+    // count bookkeeping below still keeps getExampleCounts() consistent.
+    if (dataset[oldLabel]) {
       dataset[newLabel] = dataset[oldLabel];
       delete dataset[oldLabel];
-      this.classifier.setClassifierDataset(dataset);
     }
-    // Delete old label from internal KNN classifier counts so getExampleCounts() won't retain it
+    this.classifier.setClassifierDataset(dataset);
+
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    delete (this.classifier as any).classExampleCount?.[oldLabel];
+    const counts = (this.classifier as any).classExampleCount as Record<string, number> | undefined;
+    if (counts) {
+      if (counts[oldLabel] !== undefined) {
+        counts[newLabel] = counts[oldLabel]!;
+        delete counts[oldLabel];
+      }
+      // Do not inject a 0-count key for empty renames — that inflates
+      // getNumClasses() and can make predictClass run on a broken set.
+    }
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    delete (this.classifier as any).classDatasetMatrices?.[oldLabel];
+    const matrices = (this.classifier as any).classDatasetMatrices as
+      | Record<string, unknown>
+      | undefined;
+    if (matrices && matrices[oldLabel] !== undefined) {
+      matrices[newLabel] = matrices[oldLabel];
+      delete matrices[oldLabel];
+    }
+  }
+
+  async forceResumeMic(): Promise<void> {
+    if (this.micStream && this.audioCtx) {
+      const before = this.audioCtx.state as string;
+      if (before === 'running') return;
+      if (before === 'suspended') {
+        try {
+          await this.audioCtx.resume();
+        } catch {
+          // Fall through and recreate the stream under a fresh user gesture.
+        }
+      }
+      const after = this.audioCtx.state as string;
+      if (after === 'running') return;
+      this.stopMic();
+    }
+    await this.startMic();
   }
 
   clearAll(): void {
@@ -189,8 +263,9 @@ class AudioTrainerEngine {
 
   // ── Inference ─────────────────────────────────────────────────────────────
 
-  startPredicting(callback: AudioPredictionCallback, k = 3): void {
+  startPredicting(callback: AudioPredictionCallback, k = 5): void {
     if (this.predictionInterval !== null) return;
+    this.recentConfidences = [];
     this.predictionInterval = setInterval(async () => {
       if (!this.classifier || this.classifier.getNumClasses() < 2) return;
       const feat = this.extractFeatures();
@@ -198,16 +273,18 @@ class AudioTrainerEngine {
       try {
         const counts = this.classifier.getClassExampleCount();
         const minSamples = Math.min(...Object.values(counts));
-        const kClamped = Math.min(k, Math.max(1, minSamples));
+        let kClamped = Math.min(k, Math.max(1, minSamples));
+        if (kClamped > 1 && kClamped % 2 === 0) kClamped -= 1;
         const result = await this.classifier.predictClass(feat, kClamped);
-        const allConfidences: Record<string, number> = {};
+        const frameConfs: Record<string, number> = {};
         for (const [label, conf] of Object.entries(result.confidences)) {
-          allConfidences[label] = Math.round(conf * 100);
+          frameConfs[label] = Math.round(conf * 100);
         }
+        const smoothed = this.smoothPrediction(frameConfs);
         callback({
-          label: result.label,
-          confidence: allConfidences[result.label] ?? 0,
-          allConfidences,
+          label: smoothed.label,
+          confidence: smoothed.confidence,
+          allConfidences: smoothed.allConfidences,
         });
       } catch {
         /* ignore */
@@ -222,6 +299,7 @@ class AudioTrainerEngine {
       clearInterval(this.predictionInterval);
       this.predictionInterval = null;
     }
+    this.recentConfidences = [];
   }
 
   get isPredicting(): boolean {

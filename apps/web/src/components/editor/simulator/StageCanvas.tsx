@@ -306,7 +306,19 @@ export function StageCanvas() {
     startSpriteY: number;
   } | null>(null);
   const [mouseCoords, setMouseCoords] = useState<{ x: number; y: number } | null>(null);
+  const [stageWidth, setStageWidth] = useState(480);
   const answerInputRef = useRef<HTMLInputElement>(null);
+
+  // Track stage pixel width so speech bubbles stay readable on large/fullscreen stages.
+  useEffect(() => {
+    const el = stageRef.current;
+    if (!el) return;
+    const update = () => setStageWidth(el.getBoundingClientRect().width || 480);
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
 
   // Global keyboard tracking for "key pressed?" sensing + "when key pressed" events.
   useEffect(() => {
@@ -515,9 +527,7 @@ export function StageCanvas() {
       }}
       onClick={handleStageClick}
     >
-      {/* Sprites render inside their own zoomable layer so the overlay UI
-          (zoom rail, coord hint, variable monitors) stays fixed-size and
-          correctly positioned no matter the zoom level. */}
+      {/* Zoom scales stage content (sprites). Overlay chrome stays fixed. */}
       <div
         style={{
           position: 'absolute',
@@ -525,6 +535,7 @@ export function StageCanvas() {
           transform: `scale(${stageZoom})`,
           transformOrigin: 'center center',
           pointerEvents: 'none',
+          transition: 'transform 120ms ease-out',
         }}
       >
         {sprites
@@ -561,9 +572,11 @@ export function StageCanvas() {
                       backgroundColor: 'white',
                       border: '2px solid #D9D9D9',
                       borderRadius: sprite.speechIsThought ? '24px' : '16px',
-                      padding: '10px 16px',
-                      fontSize: '20px',
-                      fontWeight: 600,
+                      padding: `${Math.max(8, stageWidth * 0.018)}px ${Math.max(12, stageWidth * 0.03)}px`,
+                      // ~4% of stage width so "say Hello" stays readable in
+                      // large / fullscreen views instead of a fixed 20px.
+                      fontSize: `${Math.max(18, Math.min(42, stageWidth * 0.042))}px`,
+                      fontWeight: 700,
                       color: '#575E75',
                       whiteSpace: 'nowrap',
                       marginBottom: '8px',
@@ -682,7 +695,15 @@ export function StageCanvas() {
         </div>
       )}
 
-      <div style={{ position: 'absolute', bottom: '8px', right: '8px' }}>
+      <div
+        style={{
+          position: 'absolute',
+          bottom: '8px',
+          right: '8px',
+          zIndex: 50,
+          pointerEvents: 'auto',
+        }}
+      >
         <ScratchZoomRail />
       </div>
 

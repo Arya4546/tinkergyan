@@ -108,7 +108,8 @@ Blockly.Blocks['ai_is_predicting'] = {
       .appendField('AI sees')
       .appendField(new Blockly.FieldDropdown(getClassLabels), 'LABEL')
       .appendField('?');
-    this.setOutput(true, ['Number', 'String']);
+    // Boolean so it snaps into "wait until" / "if" condition slots.
+    this.setOutput(true, 'Boolean');
     this.setColour(COLOR_AI);
     this.setTooltip("True if the AI model's current top prediction matches this class.");
   },

@@ -94,16 +94,40 @@ class PoseTrainerEngine {
       const poses = await this.detector.estimatePoses(videoEl);
       if (!poses || poses.length === 0) return null;
       const keypoints = poses[0].keypoints as Array<{ x: number; y: number; score?: number }>;
-      // Flatten [x, y, score] for each of the 17 keypoints → 51 floats.
+      const w = videoEl.videoWidth || 224;
+      const h = videoEl.videoHeight || 224;
+
+      // Torso-relative frame: origin at mid-hip/shoulder, scale by torso length.
+      // This makes the same pose look similar whether the student stands near or
+      // far from the camera — a big accuracy win for classroom pose models.
+      const ls = keypoints[5] ?? { x: 0, y: 0, score: 0 };
+      const rs = keypoints[6] ?? { x: 0, y: 0, score: 0 };
+      const lh = keypoints[11] ?? { x: 0, y: 0, score: 0 };
+      const rh = keypoints[12] ?? { x: 0, y: 0, score: 0 };
+      const cx = (ls.x + rs.x + lh.x + rh.x) / 4;
+      const cy = (ls.y + rs.y + lh.y + rh.y) / 4;
+      const shoulderMidX = (ls.x + rs.x) / 2;
+      const shoulderMidY = (ls.y + rs.y) / 2;
+      const hipMidX = (lh.x + rh.x) / 2;
+      const hipMidY = (lh.y + rh.y) / 2;
+      const torsoLen =
+        Math.hypot(shoulderMidX - hipMidX, shoulderMidY - hipMidY) || Math.max(w, h) * 0.25;
+
       const flat: number[] = [];
       for (let i = 0; i < this.NUM_KEYPOINTS; i++) {
         const kp = keypoints[i] ?? { x: 0, y: 0, score: 0 };
-        // Normalise x/y by video dimensions.
-        flat.push(kp.x / (videoEl.videoWidth || 224));
-        flat.push(kp.y / (videoEl.videoHeight || 224));
+        flat.push((kp.x - cx) / torsoLen);
+        flat.push((kp.y - cy) / torsoLen);
         flat.push(kp.score ?? 0);
       }
-      return tfRef.tensor1d(flat);
+
+      // L2-normalise the whole feature vector for stable KNN distances.
+      const tensor = tfRef.tensor1d(flat);
+      const norm = tensor.norm();
+      const normalised = tensor.div(norm.add(1e-6));
+      tensor.dispose();
+      norm.dispose();
+      return normalised;
     } catch {
       return null;
     }
@@ -167,18 +191,33 @@ class PoseTrainerEngine {
 
   /** Rename a trained class by updating the underlying dataset */
   renameClass(oldLabel: string, newLabel: string): void {
-    if (!this.classifier || oldLabel === newLabel) return;
-    const dataset = this.classifier.getClassifierDataset();
-    if (dataset && dataset[oldLabel]) {
+    if (!this.classifier || oldLabel === newLabel || !newLabel.trim()) return;
+    const dataset = this.classifier.getClassifierDataset() ?? {};
+    // Always move the label — even with 0 samples — so rename works immediately.
+    if (dataset[oldLabel]) {
       dataset[newLabel] = dataset[oldLabel];
       delete dataset[oldLabel];
-      this.classifier.setClassifierDataset(dataset);
     }
-    // Delete old label from internal KNN classifier counts so getExampleCounts() won't retain it
+    this.classifier.setClassifierDataset(dataset);
+
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    delete (this.classifier as any).classExampleCount?.[oldLabel];
+    const counts = (this.classifier as any).classExampleCount as Record<string, number> | undefined;
+    if (counts) {
+      if (counts[oldLabel] !== undefined) {
+        counts[newLabel] = counts[oldLabel]!;
+        delete counts[oldLabel];
+      }
+      // Do not inject a 0-count key for empty renames — that inflates
+      // getNumClasses() and can make predictClass run on a broken set.
+    }
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    delete (this.classifier as any).classDatasetMatrices?.[oldLabel];
+    const matrices = (this.classifier as any).classDatasetMatrices as
+      | Record<string, unknown>
+      | undefined;
+    if (matrices && matrices[oldLabel] !== undefined) {
+      matrices[newLabel] = matrices[oldLabel];
+      delete matrices[oldLabel];
+    }
   }
 
   clearAll(): void {
@@ -192,7 +231,7 @@ class PoseTrainerEngine {
 
   // ── Inference ─────────────────────────────────────────────────────────────
 
-  startPredicting(videoEl: HTMLVideoElement, callback: PosePredictionCallback, k = 3): void {
+  startPredicting(videoEl: HTMLVideoElement, callback: PosePredictionCallback, k = 5): void {
     if (this.predictionInterval !== null) return;
     this.predictionInterval = setInterval(async () => {
       if (!this.classifier || this.classifier.getNumClasses() < 2) return;
@@ -201,7 +240,8 @@ class PoseTrainerEngine {
       try {
         const counts = this.classifier.getClassExampleCount();
         const minSamples = Math.min(...Object.values(counts));
-        const kClamped = Math.min(k, Math.max(1, minSamples));
+        let kClamped = Math.min(k, Math.max(1, minSamples));
+        if (kClamped > 1 && kClamped % 2 === 0) kClamped -= 1;
         const result = await this.classifier.predictClass(feat, kClamped);
         const allConfidences: Record<string, number> = {};
         for (const [label, conf] of Object.entries(result.confidences)) {

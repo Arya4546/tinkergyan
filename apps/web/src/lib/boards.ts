@@ -208,7 +208,9 @@ export const BOARD_DEFINITIONS: readonly BoardDefinition[] = [
     digitalPins: MEGA_DIGITAL,
     pwmPins: MEGA_PWM,
     analogPins: MEGA_ANALOG,
-    uploadBauds: [115200],
+    // Most stock Megas use 115200 STK500v2; some CH340 clones need a second try
+    // at 57600 after a fresh reset pulse.
+    uploadBauds: [115200, 57600],
     builtinLed: '13',
   },
   {

@@ -52,21 +52,25 @@ export function StagePanel({ onReset }: StagePanelProps) {
             on some screen sizes with no way to tell it was ever rendered. */}
         <button
           onClick={() => setStageViewMode('large')}
+          aria-label="Exit fullscreen"
+          title="Exit fullscreen (Esc)"
           style={{
-            position: 'absolute',
+            position: 'fixed',
             top: '16px',
             right: '16px',
-            zIndex: 1,
-            padding: '8px 16px',
-            backgroundColor: 'rgba(255,255,255,0.2)',
+            zIndex: 2147483646,
+            padding: '10px 18px',
+            backgroundColor: '#1E293B',
             color: 'white',
-            border: '1px solid rgba(255,255,255,0.4)',
-            borderRadius: '8px',
+            border: '2px solid #F8FAFC',
+            borderRadius: '10px',
             display: 'flex',
             alignItems: 'center',
             gap: '8px',
             cursor: 'pointer',
-            fontWeight: 'bold',
+            fontWeight: 700,
+            fontSize: '14px',
+            boxShadow: '0 8px 24px rgba(0,0,0,0.45)',
           }}
         >
           <ExitFullscreenIcon size={16} />

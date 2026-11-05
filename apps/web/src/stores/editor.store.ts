@@ -18,6 +18,7 @@ import { api } from '../services/api';
 import { aiEngine } from '../lib/ai-engine';
 import { audioTrainerEngine } from '../lib/audio-trainer-engine';
 import { poseTrainerEngine } from '../lib/pose-trainer-engine';
+import { resetAllAIState } from '../lib/reset-ai-state';
 import { useAIStore } from './ai.store';
 import { useSimulatorStore, type SimulatorSprite } from './simulator.store';
 
@@ -530,6 +531,10 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
   loadProject: async (id: string) => {
     set({ isLoading: true });
     try {
+      // Wipe singleton engines + AI store before restoring this project so
+      // leftover classes from a deleted/previous project cannot leak in.
+      resetAllAIState();
+
       const { data } = await api.get(`/projects/${id}`);
       const project = data.data.project;
 
@@ -597,11 +602,13 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
         ...(aiTextData ? { aiTextData } : {}),
       };
 
+      // Pass null (not undefined) for missing fields so setSavedProjectAI
+      // clears leftover metadata from the previous project.
       useAIStore.getState().setSavedProjectAI({
-        tab: aiTab,
-        classes: aiClasses,
-        thumbnails: aiThumbnails,
-        textData: aiTextData,
+        tab: aiTab ?? null,
+        classes: aiClasses ?? null,
+        thumbnails: aiThumbnails ?? null,
+        textData: aiTextData ?? null,
       });
 
       set({
@@ -665,12 +672,14 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
   resetEditor: () => {
     const timer = get()._autoSaveTimer;
     if (timer) clearTimeout(timer);
+    resetAllAIState();
     set({ ...INITIAL_STATE });
   },
 
   loadTemplate: (template: StarterTemplate) => {
     const timer = get()._autoSaveTimer;
     if (timer) clearTimeout(timer);
+    resetAllAIState();
     set({
       ...INITIAL_STATE,
       projectTitle: template.title,
@@ -691,14 +700,14 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
     try {
       const code = mode === 'code' ? manualCode : generatedCode;
 
-      // 1. Image AI dataset
+      // 1. Image AI dataset — null serialize after clear/start-over must wipe,
+      // not fall back to lastLoadedAIState (that resurrected deleted models).
       let aiDataset = lastLoadedAIState?.aiDataset ?? null;
       if (aiEngine.isInitialised) {
         try {
-          const fresh = await aiEngine.serializeDataset();
-          if (fresh) aiDataset = fresh;
+          aiDataset = await aiEngine.serializeDataset();
         } catch {
-          // Keep previous
+          // Keep previous on unexpected serialize failure
         }
       }
 
@@ -706,10 +715,9 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
       let aiAudioDataset = lastLoadedAIState?.aiAudioDataset ?? null;
       if (audioTrainerEngine.isInitialised) {
         try {
-          const fresh = await audioTrainerEngine.serializeDataset();
-          if (fresh) aiAudioDataset = fresh;
+          aiAudioDataset = await audioTrainerEngine.serializeDataset();
         } catch {
-          // Keep previous
+          // Keep previous on unexpected serialize failure
         }
       }
 
@@ -717,10 +725,9 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
       let aiPoseDataset = lastLoadedAIState?.aiPoseDataset ?? null;
       if (poseTrainerEngine.isInitialised) {
         try {
-          const fresh = await poseTrainerEngine.serializeDataset();
-          if (fresh) aiPoseDataset = fresh;
+          aiPoseDataset = await poseTrainerEngine.serializeDataset();
         } catch {
-          // Keep previous
+          // Keep previous on unexpected serialize failure
         }
       }
 

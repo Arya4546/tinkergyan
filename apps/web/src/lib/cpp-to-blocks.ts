@@ -57,6 +57,7 @@ export interface Token {
     | 'IDENTIFIER'
     | 'NUMBER'
     | 'STRING'
+    | 'CHAR'
     | 'OPERATOR'
     | 'PUNCTUATION'
     | 'PREPROCESSOR'
@@ -280,7 +281,8 @@ export function tokenize(code: string): { tokens: Token[]; comments: CommentInfo
       continue;
     }
 
-    // Char literals
+    // Char literals — keep distinct from STRING so `'1'` does not round-trip
+    // into String("1") (breaks Serial.read() / Bluetooth LED sketches).
     if (char === "'") {
       const startLine = line;
       const startCol = col;
@@ -299,7 +301,7 @@ export function tokenize(code: string): { tokens: Token[]; comments: CommentInfo
         throw new ParserError('Unterminated char literal', startLine, startCol);
       }
       advance();
-      tokens.push({ type: 'STRING', value: val, line: startLine, col: startCol });
+      tokens.push({ type: 'CHAR', value: val, line: startLine, col: startCol });
       continue;
     }
 
@@ -1257,6 +1259,24 @@ class Parser {
       return `<block type="text"><field name="TEXT">${escapeXml(t.value)}</field></block>`;
     }
 
+    if (t.type === 'CHAR') {
+      this.advance();
+      // Emit ASCII code so comparisons with Serial.read() (returns int) work
+      // after convert-to-blocks. Escape sequences map to their C values.
+      const escapeMap: Record<string, number> = {
+        '\\n': 10,
+        '\\r': 13,
+        '\\t': 9,
+        '\\0': 0,
+        "\\'": 39,
+        '\\\\': 92,
+      };
+      const codePoint =
+        escapeMap[t.value] ??
+        (t.value.length === 1 ? t.value.charCodeAt(0) : t.value.charCodeAt(0));
+      return `<block type="math_number"><field name="NUM">${codePoint}</field></block>`;
+    }
+
     if (t.type === 'KEYWORD' && (t.value === 'true' || t.value === 'false')) {
       this.advance();
       return `<block type="logic_boolean"><field name="BOOL">${escapeXml(t.value.toUpperCase())}</field></block>`;
@@ -1448,6 +1468,12 @@ class Parser {
         return `<block type="arduino_serial_println">
           <value name="VALUE">${valXml}</value>
         </block>`;
+      }
+      if (methodName === 'available') {
+        return `<block type="arduino_serial_available"></block>`;
+      }
+      if (methodName === 'read') {
+        return `<block type="arduino_serial_read"></block>`;
       }
     }
 

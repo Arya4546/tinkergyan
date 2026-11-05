@@ -4,20 +4,19 @@
  * In-house AI training & inference engine running 100% in the browser.
  *
  * Architecture:
- *   1. MobileNet v2 (alpha 0.5) extracts a 1024-dim feature vector from each
- *      webcam frame — this is a pre-trained "feature extractor", NOT a classifier.
- *   2. A KNN (k-Nearest Neighbors) classifier stores labelled feature vectors
- *      added by the student. At prediction time it finds the 3 closest stored
- *      vectors and returns a confidence-weighted vote.
- *   3. The webcam stream is managed via getUserMedia. Frames are captured on a
- *      requestAnimationFrame loop throttled to ~10 FPS for battery friendliness.
- *   4. The KNN dataset (feature vectors + labels) can be serialised to/from JSON
- *      for project persistence — stored inside the existing blockState field.
+ *   1. MobileNet v2 extracts an embedding from each webcam frame — a
+ *      pre-trained feature extractor, NOT a classifier.
+ *   2. Embeddings are L2-normalised so KNN Euclidean distance behaves like
+ *      cosine similarity (much more stable for MobileNet features).
+ *   3. A KNN classifier stores labelled vectors. Prediction uses an adaptive
+ *      odd k plus a short temporal confidence average so flicker and
+ *      near-tie mistakes (e.g. Specs vs No Specs) settle correctly.
+ *   4. Webcam frames run on a rAF loop throttled to ~12 FPS.
+ *   5. The KNN dataset serialises to/from JSON inside blockState.
  *
  * Privacy:  No image data or feature vectors ever leave the browser.
  * Cost:    Zero server load. Everything runs on the student's GPU via WebGL.
- * Size:    MobileNet weights (~7 MB) are fetched once from the TF CDN and
- *          permanently cached by the browser's HTTP cache.
+ * Size:    MobileNet weights are fetched once from the TF CDN and cached.
  */
 
 import type * as tf from '@tensorflow/tfjs';
@@ -53,6 +52,8 @@ export interface PredictionResult {
   label: string;
   confidence: number;
   allConfidences: Record<string, number>;
+  /** True when confidence is below the active predictionThreshold. */
+  belowThreshold?: boolean;
 }
 
 export type PredictionCallback = (result: PredictionResult) => void;
@@ -62,16 +63,20 @@ export type PredictionCallback = (result: PredictionResult) => void;
  * Changing these at runtime takes effect on the next prediction cycle.
  */
 export interface TrainingConfig {
-  /** Number of nearest neighbours for KNN voting (default: 3, range: 1–10). */
+  /** Number of nearest neighbours for KNN voting (default: 5, range: 1–15). */
   k: number;
-  /** Minimum confidence (0–1) to emit a prediction result (default: 0.70). */
+  /** Minimum confidence (0–1) for belowThreshold flag / careful UI (default: 0.65). */
   predictionThreshold: number;
 }
 
 export const DEFAULT_TRAINING_CONFIG: TrainingConfig = {
-  k: 3,
-  predictionThreshold: 0.7,
+  // Odd k reduces tie votes; 5 works well once each class has ~8+ samples.
+  k: 5,
+  predictionThreshold: 0.65,
 };
+
+/** Frames averaged for temporal smoothing (~400 ms at 12 FPS). */
+const SMOOTH_WINDOW = 5;
 
 // ─── Singleton AI Engine ──────────────────────────────────────────────────────
 
@@ -98,11 +103,14 @@ class AIEngine {
   private latestSpeechCommand: { word: string; score: number } | null = null;
   private speechCommandListeners: Array<(word: string) => void> = [];
 
-  /** Minimum interval between predictions (ms). ~10 FPS. */
-  private readonly PREDICTION_INTERVAL_MS = 100;
+  /** Minimum interval between predictions (ms). ~12 FPS. */
+  private readonly PREDICTION_INTERVAL_MS = 80;
 
   /** Active hyperparameter config — updated each time startPredicting() is called. */
   private activeConfig: TrainingConfig = DEFAULT_TRAINING_CONFIG;
+
+  /** Rolling window of recent confidences for temporal smoothing. */
+  private recentConfidences: Array<Record<string, number>> = [];
 
   // ── Lifecycle ─────────────────────────────────────────────────────────────
 
@@ -125,8 +133,9 @@ class AIEngine {
     // Ensure the WebGL/WebGPU backend is initialized
     await tfRef.ready();
 
-    // alpha 0.5 = half-width MobileNet — 4× faster than full, good enough for
-    // classroom image classification on a Chromebook.
+    // alpha 0.5 keeps embedding size compatible with existing saved projects.
+    // Accuracy gains come from L2-normalisation, adaptive k, and temporal
+    // smoothing rather than a heavier backbone.
     this.mobilenet = (await mobilenetModule.load({
       version: 2,
       alpha: 0.5,
@@ -175,15 +184,120 @@ class AIEngine {
   async startWebcam(videoEl: HTMLVideoElement, deviceId?: string): Promise<void> {
     if (this.videoStream) return; // already running
 
+    // Request a sharper feed than 224² — MobileNet resizes internally, and the
+    // extra pixels improve fine details (glasses, pens, earpods).
+    const videoConstraints: MediaTrackConstraints = deviceId
+      ? {
+          deviceId: { exact: deviceId },
+          width: { ideal: 640 },
+          height: { ideal: 480 },
+          frameRate: { ideal: 30 },
+        }
+      : {
+          facingMode: 'user',
+          width: { ideal: 640 },
+          height: { ideal: 480 },
+          frameRate: { ideal: 30 },
+        };
+
     this.videoStream = await navigator.mediaDevices.getUserMedia({
-      video: deviceId
-        ? { deviceId: { exact: deviceId }, width: 224, height: 224 }
-        : { facingMode: 'user', width: 224, height: 224 },
+      video: videoConstraints,
       audio: false,
     });
 
     videoEl.srcObject = this.videoStream;
     await videoEl.play();
+  }
+
+  /**
+   * L2-normalise an embedding so Euclidean KNN ≈ cosine similarity.
+   * Caller owns the returned tensor and must dispose it.
+   */
+  private l2Normalize(embedding: tf.Tensor): tf.Tensor {
+    return tfRef.tidy(() => {
+      const flat = embedding.flatten();
+      const norm = flat.norm();
+      return flat.div(norm.add(1e-6));
+    }) as tf.Tensor;
+  }
+
+  /**
+   * Run MobileNet on a video/image frame and return an L2-normalised embedding.
+   * Optionally mirror the frame first (used as free augmentation).
+   */
+  private embedFrame(
+    source: HTMLVideoElement | HTMLImageElement,
+    flipHorizontal = false,
+  ): tf.Tensor {
+    if (!this.mobilenet || !tfRef) {
+      throw new Error('AI Engine not initialised');
+    }
+
+    if (!flipHorizontal) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const raw = this.mobilenet.infer(source as any, true);
+      const normalised = this.l2Normalize(raw);
+      raw.dispose();
+      return normalised;
+    }
+
+    // Flip via tensor so we do not need a second DOM element.
+    const flippedInput = tfRef.tidy(() => {
+      const pixels = tfRef.browser.fromPixels(source);
+      return tfRef.image.flipLeftRight(pixels.expandDims(0)).squeeze(0);
+    });
+    try {
+      const raw = this.mobilenet.infer(flippedInput, true);
+      const normalised = this.l2Normalize(raw);
+      raw.dispose();
+      return normalised;
+    } finally {
+      flippedInput.dispose();
+    }
+  }
+
+  /** Pick an odd k that cannot exceed the smallest class sample count. */
+  private resolveK(counts: Record<string, number>, requested: number): number {
+    const values = Object.values(counts).filter((n) => n > 0);
+    if (values.length === 0) return 1;
+    const minSamples = Math.min(...values);
+    let k = Math.min(Math.max(1, requested), minSamples);
+    // Prefer odd k so neighbour votes rarely tie.
+    if (k > 1 && k % 2 === 0) k -= 1;
+    return Math.max(1, k);
+  }
+
+  /** Average confidences over the recent window and return the top label. */
+  private smoothPrediction(confidences: Record<string, number>): {
+    label: string;
+    confidence: number;
+    allConfidences: Record<string, number>;
+  } {
+    this.recentConfidences.push(confidences);
+    if (this.recentConfidences.length > SMOOTH_WINDOW) {
+      this.recentConfidences.shift();
+    }
+
+    const averaged: Record<string, number> = {};
+    for (const frame of this.recentConfidences) {
+      for (const [label, conf] of Object.entries(frame)) {
+        averaged[label] = (averaged[label] ?? 0) + conf;
+      }
+    }
+    const n = this.recentConfidences.length;
+    for (const label of Object.keys(averaged)) {
+      averaged[label] = Math.round((averaged[label]! / n) * 10) / 10;
+    }
+
+    let bestLabel = Object.keys(averaged)[0] ?? '';
+    let bestConf = -1;
+    for (const [label, conf] of Object.entries(averaged)) {
+      if (conf > bestConf) {
+        bestConf = conf;
+        bestLabel = label;
+      }
+    }
+    return { label: bestLabel, confidence: Math.round(bestConf), allConfidences: averaged };
   }
 
   /** Restarts the webcam on a different device — used when the student switches cameras. */
@@ -213,26 +327,21 @@ class AIEngine {
 
   /**
    * Adds an example to the KNN model for a specific class.
-   * Accepts a live <video> element (webcam) or a static <img> element (file upload).
+   * Embeddings are L2-normalised before storage.
    */
   addExample(videoEl: HTMLVideoElement, label: string): void {
     if (!this.mobilenet || !this.classifier || !tfRef) {
       throw new Error('AI Engine not initialised');
     }
 
-    const embedding = this.mobilenet.infer(videoEl, true);
+    const embedding = this.embedFrame(videoEl, false);
     this.classifier.addExample(embedding, label);
-    // Dispose the intermediate tensor immediately to prevent GPU memory leaks.
     embedding.dispose();
   }
 
   /**
    * Adds an example from a static image element (e.g. a file the student uploaded
-   * from their computer). The image is run through the same MobileNet embedding
-   * pipeline as webcam frames — the KNN cannot tell the difference.
-   *
-   * @param img  An HTMLImageElement that has already finished loading (complete === true).
-   * @param label  The class this image belongs to.
+   * from their computer). Same MobileNet + L2 pipeline as webcam frames.
    */
   addExampleFromImage(img: HTMLImageElement, label: string): void {
     if (!this.mobilenet || !this.classifier) {
@@ -242,8 +351,7 @@ class AIEngine {
       throw new Error('Image has not finished loading — wait for onload before calling this.');
     }
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const embedding = this.mobilenet.infer(img as any, true);
+    const embedding = this.embedFrame(img, false);
     this.classifier.addExample(embedding, label);
     embedding.dispose();
   }
@@ -262,21 +370,21 @@ class AIEngine {
     }
     if (this.classifier.getNumClasses() < 2) return null;
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-argument
-    const embedding = this.mobilenet.infer(img as any, true);
+    const embedding = this.embedFrame(img, false);
     try {
       const counts = this.classifier.getClassExampleCount();
-      const minSamples = Math.min(...Object.values(counts));
-      const k = Math.min(config.k, Math.max(1, minSamples));
+      const k = this.resolveK(counts, config.k);
       const result = await this.classifier.predictClass(embedding, k);
       const allConfidences: Record<string, number> = {};
       for (const [label, conf] of Object.entries(result.confidences)) {
         allConfidences[label] = Math.round(conf * 100);
       }
+      const topConf = (allConfidences[result.label] ?? 0) / 100;
       return {
         label: result.label,
         confidence: allConfidences[result.label] ?? 0,
         allConfidences,
+        belowThreshold: topConf < config.predictionThreshold,
       };
     } finally {
       embedding.dispose();
@@ -378,6 +486,7 @@ class AIEngine {
     this.activeConfig = config;
     this.enableImageKNN = enableImage;
     this.enablePose = enablePose;
+    this.recentConfidences = [];
 
     if (this.predictionLoopId !== null) return; // already running
 
@@ -400,31 +509,33 @@ class AIEngine {
             this.classifier &&
             this.classifier.getNumClasses() >= 2
           ) {
-            const embedding = this.mobilenet.infer(videoEl, true);
+            let embedding: tf.Tensor | null = null;
             try {
+              embedding = this.embedFrame(videoEl, false);
               const counts = this.classifier.getClassExampleCount();
-              const minSamples = Math.min(...Object.values(counts));
-              // Use the student-configured k, but clamp so it can't exceed sample count.
-              const kClamped = Math.min(this.activeConfig.k, Math.max(1, minSamples));
+              const kClamped = this.resolveK(counts, this.activeConfig.k);
 
               const result = await this.classifier.predictClass(embedding, kClamped);
-              const allConfidences: Record<string, number> = {};
+              const frameConfs: Record<string, number> = {};
               for (const [label, conf] of Object.entries(result.confidences)) {
-                allConfidences[label] = Math.round(conf * 100);
+                frameConfs[label] = Math.round(conf * 100);
               }
-              const topConf = (allConfidences[result.label] ?? 0) / 100;
-              // Only fire callback when confidence clears the student-configured threshold.
-              if (callback && topConf >= this.activeConfig.predictionThreshold) {
+              // Temporal smoothing reduces flicker between near-tie classes
+              // (Specs / No Specs, Mask / No Mask, etc.).
+              const smoothed = this.smoothPrediction(frameConfs);
+              const topConf = smoothed.confidence / 100;
+              if (callback) {
                 callback({
-                  label: result.label,
-                  confidence: allConfidences[result.label] ?? 0,
-                  allConfidences,
+                  label: smoothed.label,
+                  confidence: smoothed.confidence,
+                  allConfidences: smoothed.allConfidences,
+                  belowThreshold: topConf < this.activeConfig.predictionThreshold,
                 });
               }
             } catch {
               // Prediction may fail if classes were cleared mid-loop — safe to ignore.
             } finally {
-              embedding.dispose();
+              embedding?.dispose();
             }
           }
 
@@ -456,6 +567,7 @@ class AIEngine {
       cancelAnimationFrame(this.predictionLoopId);
       this.predictionLoopId = null;
     }
+    this.recentConfidences = [];
   }
 
   get isPredicting(): boolean {
@@ -511,15 +623,21 @@ class AIEngine {
 
     const tensorDataset: Record<string, tf.Tensor2D> = {};
     for (const [label, entry] of Object.entries(parsed.classes)) {
+      let raw: tf.Tensor2D;
       if (Array.isArray(entry)) {
-        tensorDataset[label] = tfRef.tensor2d(entry);
-        continue;
+        raw = tfRef.tensor2d(entry);
+      } else {
+        const binary = atob(entry.data);
+        const bytes = new Uint8Array(binary.length);
+        for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+        const floats = new Float32Array(bytes.buffer);
+        raw = tfRef.tensor2d(floats, [entry.n, entry.d]);
       }
-      const binary = atob(entry.data);
-      const bytes = new Uint8Array(binary.length);
-      for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-      const floats = new Float32Array(bytes.buffer);
-      tensorDataset[label] = tfRef.tensor2d(floats, [entry.n, entry.d]);
+      // Re-normalise rows so older saves benefit from cosine-style KNN too.
+      const norms = raw.norm('euclidean', 1, true) as tf.Tensor2D;
+      tensorDataset[label] = raw.div(norms.add(1e-6));
+      raw.dispose();
+      norms.dispose();
     }
 
     this.classifier.setClassifierDataset(tensorDataset);

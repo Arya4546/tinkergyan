@@ -49,6 +49,7 @@ export interface ScratchAPI {
   move: (steps: number) => Promise<void>;
   turn: (degrees: number) => Promise<void>;
   goTo: (x: number, y: number) => Promise<void>;
+  goToRandom: () => Promise<void>;
   glideTo: (secs: number, x: number, y: number) => Promise<void>;
   pointInDirection: (degrees: number) => Promise<void>;
   pointTowardsMouse: () => Promise<void>;
@@ -467,6 +468,15 @@ export class ScratchEngine {
         goTo: async (x, y) => {
           const sprite = getTargetSprite();
           if (!sprite) return;
+          updatePositionWithCamera(sprite.id, x, y, sprite.size, sprite.type);
+          await this.tick(10);
+        },
+
+        goToRandom: async () => {
+          const sprite = getTargetSprite();
+          if (!sprite) return;
+          const x = (Math.random() * 2 - 1) * STAGE_HALF_WIDTH;
+          const y = (Math.random() * 2 - 1) * STAGE_HALF_HEIGHT;
           updatePositionWithCamera(sprite.id, x, y, sprite.size, sprite.type);
           await this.tick(10);
         },

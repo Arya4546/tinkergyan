@@ -190,6 +190,16 @@ Blockly.Blocks['scratch_motion_goto'] = {
   },
 };
 
+Blockly.Blocks['scratch_motion_goto_random'] = {
+  init(this: Blockly.Block): void {
+    this.appendDummyInput().appendField('go to random position');
+    this.setPreviousStatement(true, null);
+    this.setNextStatement(true, null);
+    this.setColour(COLOR_MOTION);
+    this.setTooltip('Moves the sprite to a random position on the stage.');
+  },
+};
+
 Blockly.Blocks['scratch_motion_turn_left'] = {
   init(this: Blockly.Block): void {
     this.appendValueInput('DEGREES').appendField('turn ↺');

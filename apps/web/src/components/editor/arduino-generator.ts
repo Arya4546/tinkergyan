@@ -171,8 +171,16 @@ export function detectServoObjects(code: string, definitions?: Record<string, st
   const servoObjects = detectServoObjects(processedCode, this.definitions_);
   const servoDeclarations: string[] = [];
   if (servoObjects.length > 0) {
-    if (!header.includes('<Servo.h>') && !processedCode.includes('<Servo.h>')) {
-      header += '#include <Servo.h>\n';
+    // ESP32Servo is ESP32-only; ESP8266 and AVR use the classic Servo.h.
+    const isEsp32Board = board.startsWith('esp32:');
+    const servoInclude = isEsp32Board ? '<ESP32Servo.h>' : '<Servo.h>';
+    if (
+      !header.includes(servoInclude) &&
+      !processedCode.includes(servoInclude) &&
+      !header.includes('<Servo.h>') &&
+      !processedCode.includes('<Servo.h>')
+    ) {
+      header += `#include ${servoInclude}\n`;
     }
     for (const servo of servoObjects) {
       delete this.definitions_[`var_${servo}`];
@@ -302,6 +310,14 @@ arduinoGenerator.forBlock['arduino_serial_print'] = function (block, generator) 
 arduinoGenerator.forBlock['arduino_serial_println'] = function (block, generator) {
   const value = generator.valueToCode(block, 'VALUE', Order.NONE) || '""';
   return `Serial.println(${value});\n`;
+};
+
+arduinoGenerator.forBlock['arduino_serial_available'] = function () {
+  return [`Serial.available()`, Order.ATOMIC] as [string, Order];
+};
+
+arduinoGenerator.forBlock['arduino_serial_read'] = function () {
+  return [`Serial.read()`, Order.ATOMIC] as [string, Order];
 };
 
 // ─────────────────────────────────────────────────────────────────────────────

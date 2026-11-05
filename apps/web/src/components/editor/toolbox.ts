@@ -54,6 +54,7 @@ export function getToolbox(engineMode: 'hardware' | 'software') {
             Y: { shadow: { type: 'math_number', fields: { NUM: 0 } } },
           },
         },
+        { kind: 'block', type: 'scratch_motion_goto_random' },
         {
           kind: 'block',
           type: 'scratch_motion_glide_to',
@@ -304,6 +305,8 @@ export function getToolbox(engineMode: 'hardware' | 'software') {
           type: 'arduino_serial_println',
           inputs: { VALUE: { shadow: { type: 'text', fields: { TEXT: 'Led ON' } } } },
         },
+        { kind: 'block', type: 'arduino_serial_available' },
+        { kind: 'block', type: 'arduino_serial_read' },
       ],
     },
   ];

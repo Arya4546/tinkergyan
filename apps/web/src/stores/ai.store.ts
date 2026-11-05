@@ -135,6 +135,10 @@ export const useAIStore = create<AIState>()((set) => ({
 
   updateTrainingState: (labels, counts) => set({ classLabels: labels, exampleCounts: counts }),
   setSerializedDataset: (data) => set({ serializedDataset: data }),
+  // Explicit `null` clears a field. `undefined` means "leave unchanged" so
+  // callers can patch a single field (e.g. tab only) without wiping the rest.
+  // loadProject must pass null for missing AI metadata so stale classes from
+  // a previous project (pen/earpods) do not leak into a fresh one.
   setSavedProjectAI: (data) =>
     set((prev) => ({
       savedTab: data.tab !== undefined ? data.tab : prev.savedTab,

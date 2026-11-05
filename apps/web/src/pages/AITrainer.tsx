@@ -239,19 +239,26 @@ export default function AITrainer() {
     }
   }, [savedThumbnails]);
 
-  // Restore classes and trained state when project finishes loading
+  // Restore classes and trained state when project finishes loading.
+  // Empty metadata → fresh Class 1/2 so prior-project names cannot linger
+  // when switching projects without unmounting AI Studio.
   useEffect(() => {
     const nonText = classLabels.filter((l) => !l.startsWith('text:'));
     const isImageProject = !savedTab || savedTab === 'image';
     const candidateClasses =
-      isImageProject && savedClasses && savedClasses.length > 0 ? savedClasses : nonText;
-    if (candidateClasses.length > 0) {
+      isImageProject && savedClasses && savedClasses.length > 0
+        ? savedClasses
+        : nonText.length > 0
+          ? nonText
+          : null;
+    if (candidateClasses && candidateClasses.length > 0) {
       setClasses(candidateClasses);
       const total = candidateClasses.reduce((sum, c) => sum + (exampleCounts[c] ?? 0), 0);
       const trainedClasses = candidateClasses.filter((c) => (exampleCounts[c] ?? 0) > 0);
-      if (total > 0 && trainedClasses.length >= 2) {
-        setIsTrained(true);
-      }
+      setIsTrained(total > 0 && trainedClasses.length >= 2);
+    } else {
+      setClasses(['Class 1', 'Class 2']);
+      setIsTrained(false);
     }
   }, [savedTab, savedClasses, classLabels, exampleCounts]);
 
@@ -846,6 +853,12 @@ export default function AITrainer() {
   const totalSamples = classes.map((c) => exampleCounts[c] ?? 0).reduce((a, b) => a + b, 0);
   const trainedClassCount = classes.map((c) => exampleCounts[c] ?? 0).filter((c) => c > 0).length;
   const canTrain = trainedClassCount >= 2;
+  const classSampleCounts = classes.map((c) => exampleCounts[c] ?? 0).filter((c) => c > 0);
+  const minClassSamples = classSampleCounts.length > 0 ? Math.min(...classSampleCounts) : 0;
+  const maxClassSamples = classSampleCounts.length > 0 ? Math.max(...classSampleCounts) : 0;
+  // Warn when one class has far more samples — KNN will bias toward it.
+  const isImbalanced =
+    classSampleCounts.length >= 2 && maxClassSamples >= Math.max(8, minClassSamples * 2.5);
   // Progressive reveal: don't show Training until there's something to train on,
   // and don't show Preview until there's a model to test — a child staring at all
   // three panels at once (most of them inert) is the confusing part, not any one
@@ -873,16 +886,16 @@ export default function AITrainer() {
     {
       label: 'Quick',
       emoji: '🐢',
-      value: 0.6,
+      value: 0.55,
       help: 'Guesses fast. It may guess wrong sometimes.',
     },
     {
       label: 'Just right',
       emoji: '⚖️',
-      value: 0.7,
+      value: 0.65,
       help: 'A good mix. This is the recommended choice.',
     },
-    { label: 'Very sure', emoji: '🎯', value: 0.85, help: 'Only guesses when it is really sure.' },
+    { label: 'Very sure', emoji: '🎯', value: 0.8, help: 'Only guesses when it is really sure.' },
   ];
   const careLevel = CAREFUL_LEVELS.reduce((best, lvl) =>
     Math.abs(lvl.value - trainingConfig.predictionThreshold) <
@@ -1097,12 +1110,19 @@ export default function AITrainer() {
                                     type="text"
                                     value={editingValue}
                                     onChange={(e) => setEditingValue(e.target.value)}
-                                    onBlur={() => {
+                                    onBlur={(e) => {
+                                      const next = e.relatedTarget as HTMLElement | null;
+                                      if (next && e.currentTarget.form?.contains(next)) return;
                                       handleRenameClass(className, editingValue);
                                       setEditingClass(null);
                                     }}
                                     onKeyDown={(e) => {
-                                      if (e.key === 'Escape') {
+                                      if (e.key === 'Enter') {
+                                        e.preventDefault();
+                                        handleRenameClass(className, editingValue);
+                                        setEditingClass(null);
+                                      } else if (e.key === 'Escape') {
+                                        e.preventDefault();
                                         setEditingClass(null);
                                       }
                                     }}
@@ -1417,6 +1437,18 @@ export default function AITrainer() {
                         {!canTrain && !isTrained && (
                           <p className={`text-xs ${muted}`}>
                             Add image samples to at least 2 classes.
+                          </p>
+                        )}
+                        {canTrain && minClassSamples < 8 && (
+                          <p className="text-xs text-amber-600 dark:text-amber-400">
+                            Tip: record about 8+ photos per class, from different angles and
+                            lighting, for better accuracy.
+                          </p>
+                        )}
+                        {isImbalanced && (
+                          <p className="text-xs text-amber-600 dark:text-amber-400">
+                            One class has many more photos than another. Add more to the smaller
+                            class so the AI does not always pick the bigger one.
                           </p>
                         )}
 

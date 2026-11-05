@@ -577,55 +577,64 @@ export class WebSerialFlasher {
   ): Promise<void> {
     this.seqV2 = 0; // Reset sequence counter before upload
 
-    const uploadBaud = 115200;
-    await this.openForFlashing(uploadBaud);
+    const uploadBauds = getBoardDefinition(board as BoardFqbn).uploadBauds;
+    let synced = false;
+    let usedBaud = uploadBauds[0] ?? 115200;
 
-    log(`Port opened at ${uploadBaud} baud for flashing Mega (STK500v2)`);
-    onProgress?.(10, 'Port ready');
+    // Match the Uno/Nano path: try each configured baud with several reset
+    // pulses. Mega clones (especially CH340) frequently miss the first sync
+    // window at a single hard-coded 115200.
+    outer: for (const uploadBaud of uploadBauds) {
+      await this.openForFlashing(uploadBaud);
+      usedBaud = uploadBaud;
+      log(`Port opened at ${uploadBaud} baud for flashing Mega (STK500v2)`);
+      onProgress?.(10, 'Port ready');
 
-    try {
-      // A single DTR/RTS pulse occasionally fails to land the board in its
-      // bootloader's brief sync window (see the identical fix/comment in
-      // flashAVR for the STK500v1/Uno path) — retry the whole reset-then-
-      // sync cycle a few times rather than just resending CMD_SIGN_ON
-      // against a chip that may never have entered the bootloader at all.
-      let synced = false;
       for (let resetAttempt = 0; resetAttempt < 3 && !synced; resetAttempt++) {
         log(
           resetAttempt === 0
-            ? 'Asserting DTR to reset board...'
-            : `Asserting DTR to reset board... (retry ${resetAttempt + 1}/3)`,
+            ? `Asserting DTR to reset board @ ${uploadBaud}...`
+            : `Asserting DTR to reset board @ ${uploadBaud}... (retry ${resetAttempt + 1}/3)`,
         );
         onProgress?.(15, 'Waiting for bootloader');
         await this.resetIntoBootloader();
 
-        // Sync with bootloader using CMD_SIGN_ON (0x01)
         log('Syncing with STK500v2 bootloader...');
         onProgress?.(20, 'Syncing with bootloader');
 
-        for (let attempt = 0; attempt < 10; attempt++) {
+        for (let attempt = 0; attempt < 12; attempt++) {
           try {
             const resp = await this.sendCommandV2([0x01]); // CMD_SIGN_ON
             if (resp[0] === 0x01 && resp[1] === 0x00) {
               synced = true;
-              break;
+              break outer;
             }
           } catch (e) {
             log(
-              `Sync attempt ${attempt + 1} failed: ${e instanceof Error ? e.message : String(e)}`,
+              `Sync attempt ${attempt + 1} @ ${uploadBaud} failed: ${e instanceof Error ? e.message : String(e)}`,
             );
           }
           await this.delay(50);
         }
       }
 
+      // Close before retrying the next baud so openForFlashing can reopen cleanly.
+      try {
+        await this.releaseStreams();
+        await this.port.close();
+      } catch {
+        // Best-effort — next openForFlashing will surface a real error if needed.
+      }
+    }
+
+    try {
       if (!synced) {
         throw new Error(
           'Could not sync with bootloader. Make sure the board is connected and has a bootloader.',
         );
       }
 
-      log('Bootloader synced ✓');
+      log(`Bootloader synced ✓ @ ${usedBaud} baud`);
       onProgress?.(25, 'Bootloader synced');
 
       // Enter programming mode

@@ -14,23 +14,32 @@ export function ScratchZoomRail() {
   const resetZoom = useSimulatorStore((s) => s.resetZoom);
 
   return (
-    <div className="flex flex-col gap-1">
+    <div className="flex flex-col gap-1 items-center" style={{ pointerEvents: 'auto' }}>
       <Tooltip content="Zoom In (+)" position="left">
         <button
           type="button"
-          onClick={zoomIn}
+          onClick={(e) => {
+            e.stopPropagation();
+            zoomIn();
+          }}
           disabled={stageZoom >= 2}
-          className="w-7 h-7 rounded-full bg-ed-raised border border-ed-line shadow-sm flex items-center justify-center text-ed-mid hover:text-ed-hi hover:bg-ed-panel transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+          className="w-8 h-8 rounded-full bg-ed-raised border border-ed-line shadow-md flex items-center justify-center text-ed-mid hover:text-ed-hi hover:bg-ed-panel transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
         >
           <ZoomInIcon size={14} />
         </button>
       </Tooltip>
+      <span className="text-[10px] font-bold text-ed-mid tabular-nums">
+        {Math.round(stageZoom * 100)}%
+      </span>
       <Tooltip content="Zoom Out (-)" position="left">
         <button
           type="button"
-          onClick={zoomOut}
+          onClick={(e) => {
+            e.stopPropagation();
+            zoomOut();
+          }}
           disabled={stageZoom <= 0.5}
-          className="w-7 h-7 rounded-full bg-ed-raised border border-ed-line shadow-sm flex items-center justify-center text-ed-mid hover:text-ed-hi hover:bg-ed-panel transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+          className="w-8 h-8 rounded-full bg-ed-raised border border-ed-line shadow-md flex items-center justify-center text-ed-mid hover:text-ed-hi hover:bg-ed-panel transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
         >
           <ZoomOutIcon size={14} />
         </button>
@@ -38,8 +47,11 @@ export function ScratchZoomRail() {
       <Tooltip content="Reset Zoom & Center" position="left">
         <button
           type="button"
-          onClick={resetZoom}
-          className="w-7 h-7 rounded-full bg-ed-raised border border-ed-line shadow-sm flex items-center justify-center text-ed-mid hover:text-ed-hi hover:bg-ed-panel transition-colors"
+          onClick={(e) => {
+            e.stopPropagation();
+            resetZoom();
+          }}
+          className="w-8 h-8 rounded-full bg-ed-raised border border-ed-line shadow-md flex items-center justify-center text-ed-mid hover:text-ed-hi hover:bg-ed-panel transition-colors"
         >
           <ZoomResetIcon size={14} />
         </button>

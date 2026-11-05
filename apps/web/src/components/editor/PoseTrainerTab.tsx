@@ -102,16 +102,23 @@ export function PoseTrainerTab() {
     setSavedProjectAI({ tab: 'pose', classes });
   }, [classes, setSavedProjectAI]);
 
-  // Sync counts and classes on mount and when restored
+  // Sync counts and classes on mount and when restored. Clear local names when
+  // the loaded project has no pose metadata so prior-session labels cannot stick.
   useEffect(() => {
     syncCounts();
     if (savedTab === 'pose' && savedClasses && savedClasses.length > 0) {
       setClasses(savedClasses);
       const counts = poseTrainerEngine.isInitialised ? poseTrainerEngine.getExampleCounts() : {};
       const trainedCount = savedClasses.filter((c) => (counts[c] ?? 0) > 0).length;
-      if (trainedCount >= 2) {
-        setIsTrained(true);
-      }
+      setIsTrained(trainedCount >= 2);
+    } else if (!savedClasses || savedClasses.length === 0) {
+      const existing = poseTrainerEngine.isInitialised
+        ? Object.keys(poseTrainerEngine.getExampleCounts()).filter(
+            (k) => (poseTrainerEngine.getExampleCounts()[k] ?? 0) > 0,
+          )
+        : [];
+      setClasses(existing.length > 0 ? existing : ['Class 1', 'Class 2']);
+      setIsTrained(existing.length >= 2);
     }
   }, [syncCounts, poseModelLoaded, savedTab, savedClasses]);
 
@@ -290,14 +297,27 @@ export function PoseTrainerTab() {
   const handleRenameClass = useCallback(
     (oldName: string, newName: string) => {
       const trimmed = newName.trim();
-      if (!trimmed || trimmed === oldName) return;
-      if (classes.includes(trimmed)) return;
+      if (!trimmed || trimmed === oldName) {
+        setEditingClass(null);
+        return;
+      }
+      if (classes.includes(trimmed)) {
+        setEditingClass(null);
+        return;
+      }
       poseTrainerEngine.renameClass(oldName, trimmed);
       const nextClasses = classes.map((c) => (c === oldName ? trimmed : c));
       setClasses(nextClasses);
       setSavedProjectAI({ tab: 'pose', classes: nextClasses });
+      useAIStore
+        .getState()
+        .updateTrainingState(
+          nextClasses,
+          poseTrainerEngine.isInitialised ? poseTrainerEngine.getExampleCounts() : {},
+        );
       if (openClass === oldName) setOpenClass(trimmed);
       if (isCapturing === oldName) setIsCapturing(trimmed);
+      setEditingClass(null);
       syncCounts();
     },
     [classes, openClass, isCapturing, setSavedProjectAI, syncCounts],
@@ -347,7 +367,6 @@ export function PoseTrainerTab() {
                         onSubmit={(e) => {
                           e.preventDefault();
                           handleRenameClass(className, editingValue);
-                          setEditingClass(null);
                         }}
                         className="flex items-center gap-1.5 min-w-0"
                       >
@@ -356,12 +375,17 @@ export function PoseTrainerTab() {
                           type="text"
                           value={editingValue}
                           onChange={(e) => setEditingValue(e.target.value)}
-                          onBlur={() => {
+                          onBlur={(e) => {
+                            const next = e.relatedTarget as HTMLElement | null;
+                            if (next && e.currentTarget.form?.contains(next)) return;
                             handleRenameClass(className, editingValue);
-                            setEditingClass(null);
                           }}
                           onKeyDown={(e) => {
-                            if (e.key === 'Escape') {
+                            if (e.key === 'Enter') {
+                              e.preventDefault();
+                              handleRenameClass(className, editingValue);
+                            } else if (e.key === 'Escape') {
+                              e.preventDefault();
                               setEditingClass(null);
                             }
                           }}

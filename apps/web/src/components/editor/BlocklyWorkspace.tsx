@@ -72,8 +72,8 @@ const KID_CATEGORY_STYLES = {
 
 const KID_FONT: Blockly.Theme.FontStyle = {
   family: 'Inter, system-ui, sans-serif',
-  weight: '600',
-  size: 13,
+  weight: '500',
+  size: 12,
 };
 
 /**
@@ -317,7 +317,8 @@ export const BlocklyWorkspace = forwardRef<BlocklyWorkspaceHandle, BlocklyWorksp
         zoom: {
           controls: true,
           wheel: true,
-          startScale: 1.0,
+          // Slightly smaller default so the workspace feels less dense for kids.
+          startScale: 0.85,
           maxScale: 3,
           minScale: 0.3,
           scaleSpeed: 1.2,

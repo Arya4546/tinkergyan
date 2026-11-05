@@ -69,6 +69,8 @@ arduino-cli core install esp32:esp32 || echo "⚠️  ESP32 core install failed 
 # Install common libraries
 echo "📦 Installing common libraries..."
 arduino-cli lib install "Servo" || true
+# ESP32 boards need ESP32Servo — the classic Servo.h AVR library does not compile there.
+arduino-cli lib install "ESP32Servo" || true
 arduino-cli lib install "Adafruit NeoPixel" || true
 arduino-cli lib install "DHT sensor library" || true
 arduino-cli lib install "LiquidCrystal" || true

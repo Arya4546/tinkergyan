@@ -109,16 +109,24 @@ export function AudioTrainerTab() {
     setSavedProjectAI({ tab: 'audio', classes });
   }, [classes, setSavedProjectAI]);
 
-  // Sync counts and classes on mount and when restored
+  // Sync counts and classes on mount and when restored. When the project has
+  // no audio metadata (null after reset/load), fall back to fresh defaults so
+  // stale names from a previous project cannot linger in local React state.
   useEffect(() => {
     syncCounts();
     if (savedTab === 'audio' && savedClasses && savedClasses.length > 0) {
       setClasses(savedClasses);
       const counts = audioTrainerEngine.isInitialised ? audioTrainerEngine.getExampleCounts() : {};
       const trainedCount = savedClasses.filter((c) => (counts[c] ?? 0) > 0).length;
-      if (trainedCount >= 2) {
-        setIsTrained(true);
-      }
+      setIsTrained(trainedCount >= 2);
+    } else if (!savedClasses || savedClasses.length === 0) {
+      const existing = audioTrainerEngine.isInitialised
+        ? Object.keys(audioTrainerEngine.getExampleCounts()).filter(
+            (k) => (audioTrainerEngine.getExampleCounts()[k] ?? 0) > 0,
+          )
+        : [];
+      setClasses(existing.length > 0 ? existing : ['Class 1', 'Class 2']);
+      setIsTrained(existing.length >= 2);
     }
   }, [syncCounts, audioModelLoaded, savedTab, savedClasses]);
 
@@ -127,7 +135,9 @@ export function AudioTrainerTab() {
     setError(null);
     try {
       if (!audioTrainerEngine.isInitialised) await audioTrainerEngine.init();
-      await audioTrainerEngine.startMic();
+      // Force-resume (or recreate) the AudioContext under this user gesture so
+      // Train / Input toggle always leaves the mic actually live.
+      await audioTrainerEngine.forceResumeMic();
       setIsMicOn(true);
     } catch (e) {
       setError(`Mic error: ${e instanceof Error ? e.message : String(e)}`);
@@ -144,10 +154,9 @@ export function AudioTrainerTab() {
     setPrediction(null);
   }, []);
 
-  // Attempt to auto-start microphone on mount so students can record sounds immediately
-  useEffect(() => {
-    void handleStartMic();
-  }, [handleStartMic]);
+  // Do NOT auto-start the mic on mount — browsers block getUserMedia /
+  // AudioContext without a gesture, which left Input OFF until students
+  // toggled it. Mic starts from Enable Mic, Input toggle, or Train.
 
   // Cleanup on unmount
   useEffect(() => {
@@ -256,13 +265,33 @@ export function AudioTrainerTab() {
   const handleRenameClass = useCallback(
     (oldName: string, newName: string) => {
       const trimmed = newName.trim();
-      if (!trimmed || trimmed === oldName) return;
-      if (classes.includes(trimmed)) return;
-      audioTrainerEngine.renameClass(oldName, trimmed);
+      if (!trimmed || trimmed === oldName) {
+        setEditingClass(null);
+        return;
+      }
+      if (classes.includes(trimmed)) {
+        setError(`A class named "${trimmed}" already exists.`);
+        setEditingClass(null);
+        return;
+      }
+      if (!audioTrainerEngine.isInitialised) {
+        void audioTrainerEngine.init().then(() => {
+          audioTrainerEngine.renameClass(oldName, trimmed);
+        });
+      } else {
+        audioTrainerEngine.renameClass(oldName, trimmed);
+      }
       const nextClasses = classes.map((c) => (c === oldName ? trimmed : c));
       setClasses(nextClasses);
       setSavedProjectAI({ tab: 'audio', classes: nextClasses });
+      useAIStore
+        .getState()
+        .updateTrainingState(
+          nextClasses,
+          audioTrainerEngine.isInitialised ? audioTrainerEngine.getExampleCounts() : {},
+        );
       if (isRecording === oldName) setIsRecording(trimmed);
+      setEditingClass(null);
       syncCounts();
     },
     [classes, isRecording, setSavedProjectAI, syncCounts],
@@ -279,8 +308,15 @@ export function AudioTrainerTab() {
         origin: { y: 0.6 },
         colors: ['#FF6F61', '#E8584A', '#FFAB9E', '#ffffff'],
       });
-      if (!isMicOn) {
-        await handleStartMic();
+      // Always force-resume (or recreate) the mic on the Train click so a
+      // suspended AudioContext from an earlier auto-start gets a fresh gesture.
+      try {
+        if (!audioTrainerEngine.isInitialised) await audioTrainerEngine.init();
+        await audioTrainerEngine.forceResumeMic();
+        setIsMicOn(true);
+      } catch (e) {
+        setError(`Mic error: ${e instanceof Error ? e.message : String(e)}`);
+        return;
       }
       startListening();
     }
@@ -312,7 +348,6 @@ export function AudioTrainerTab() {
                         onSubmit={(e) => {
                           e.preventDefault();
                           handleRenameClass(className, editingValue);
-                          setEditingClass(null);
                         }}
                         className="flex items-center gap-1.5 min-w-0"
                       >
@@ -321,12 +356,18 @@ export function AudioTrainerTab() {
                           type="text"
                           value={editingValue}
                           onChange={(e) => setEditingValue(e.target.value)}
-                          onBlur={() => {
+                          onBlur={(e) => {
+                            // Ignore blur caused by clicking the Save button inside the form.
+                            const next = e.relatedTarget as HTMLElement | null;
+                            if (next && e.currentTarget.form?.contains(next)) return;
                             handleRenameClass(className, editingValue);
-                            setEditingClass(null);
                           }}
                           onKeyDown={(e) => {
-                            if (e.key === 'Escape') {
+                            if (e.key === 'Enter') {
+                              e.preventDefault();
+                              handleRenameClass(className, editingValue);
+                            } else if (e.key === 'Escape') {
+                              e.preventDefault();
                               setEditingClass(null);
                             }
                           }}
