@@ -46,16 +46,23 @@ const SKELETON_PAIRS = [
   [2, 4], // face
 ] as [number, number][];
 
+const DEFAULT_POSE_CLASSES = ['Class 1', 'Class 2'];
+
+function resolvePoseClasses(): string[] {
+  // ONLY pose-specific names — never Image's savedImageClasses.
+  const saved = useAIStore.getState().savedPoseClasses;
+  if (saved && saved.length > 0) return saved;
+  if (poseTrainerEngine.isInitialised) {
+    const existing = Object.keys(poseTrainerEngine.getExampleCounts()).filter(
+      (k) => (poseTrainerEngine.getExampleCounts()[k] ?? 0) > 0,
+    );
+    if (existing.length > 0) return existing;
+  }
+  return [...DEFAULT_POSE_CLASSES];
+}
+
 export function PoseTrainerTab() {
-  const [classes, setClasses] = useState<string[]>(() => {
-    const savedTab = useAIStore.getState().savedTab;
-    const saved = savedTab === 'pose' ? useAIStore.getState().savedClasses : null;
-    if (saved && saved.length > 0) return saved;
-    const existing = poseTrainerEngine.isInitialised
-      ? Object.keys(poseTrainerEngine.getExampleCounts())
-      : [];
-    return existing.length > 0 ? existing : ['Class 1', 'Class 2'];
-  });
+  const [classes, setClasses] = useState<string[]>(() => resolvePoseClasses());
   const [editingClass, setEditingClass] = useState<string | null>(null);
   const [editingValue, setEditingValue] = useState('');
   const [isIniting, setIsIniting] = useState(false);
@@ -67,7 +74,8 @@ export function PoseTrainerTab() {
     confs: Record<string, number>;
   } | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [isTrained, setIsTrained] = useState(false);
+  // Trained only after an explicit Train click (or a restored pose model).
+  const [isTrained, setIsTrained] = useState(() => useAIStore.getState().poseModelLoaded === true);
   const [menuClass, setMenuClass] = useState<string | null>(null);
   const [openClass, setOpenClass] = useState<string | null>(null);
   const [showHood, setShowHood] = useState(false);
@@ -88,39 +96,29 @@ export function PoseTrainerTab() {
   }, []);
 
   const poseModelLoaded = useAIStore((s) => s.poseModelLoaded);
-  const savedTab = useAIStore((s) => s.savedTab);
-  const savedClasses = useAIStore((s) => s.savedClasses);
+  const savedPoseClasses = useAIStore((s) => s.savedPoseClasses);
   const setSavedProjectAI = useAIStore((s) => s.setSavedProjectAI);
 
   const isInitialMount = useRef(true);
-  // Keep savedClasses in sync for saving
+  // Persist POSE class names only — never overwrite Image/Audio names.
   useEffect(() => {
     if (isInitialMount.current) {
       isInitialMount.current = false;
       return;
     }
-    setSavedProjectAI({ tab: 'pose', classes });
+    setSavedProjectAI({ poseClasses: classes });
   }, [classes, setSavedProjectAI]);
 
-  // Sync counts and classes on mount and when restored. Clear local names when
-  // the loaded project has no pose metadata so prior-session labels cannot stick.
+  // Sync from pose-specific store / engine. Never read Image class names.
   useEffect(() => {
     syncCounts();
-    if (savedTab === 'pose' && savedClasses && savedClasses.length > 0) {
-      setClasses(savedClasses);
-      const counts = poseTrainerEngine.isInitialised ? poseTrainerEngine.getExampleCounts() : {};
-      const trainedCount = savedClasses.filter((c) => (counts[c] ?? 0) > 0).length;
-      setIsTrained(trainedCount >= 2);
-    } else if (!savedClasses || savedClasses.length === 0) {
-      const existing = poseTrainerEngine.isInitialised
-        ? Object.keys(poseTrainerEngine.getExampleCounts()).filter(
-            (k) => (poseTrainerEngine.getExampleCounts()[k] ?? 0) > 0,
-          )
-        : [];
-      setClasses(existing.length > 0 ? existing : ['Class 1', 'Class 2']);
-      setIsTrained(existing.length >= 2);
+    if (savedPoseClasses && savedPoseClasses.length > 0) {
+      setClasses(savedPoseClasses);
+    } else {
+      setClasses(resolvePoseClasses());
     }
-  }, [syncCounts, poseModelLoaded, savedTab, savedClasses]);
+    setIsTrained(poseModelLoaded);
+  }, [syncCounts, poseModelLoaded, savedPoseClasses]);
 
   // Draw skeleton overlay on canvas
   useEffect(() => {
@@ -210,9 +208,15 @@ export function PoseTrainerTab() {
     };
   }, []);
 
+  const invalidatePoseTraining = useCallback(() => {
+    setIsTrained(false);
+    useAIStore.getState().setPoseModelLoaded(false);
+  }, []);
+
   const handleCaptureStart = useCallback(
     (className: string) => {
       if (!isWebcamOn || !videoRef.current) return;
+      invalidatePoseTraining();
       setIsCapturing(className);
       const capture = async () => {
         if (!videoRef.current) return;
@@ -222,7 +226,7 @@ export function PoseTrainerTab() {
       void capture();
       captureIntervalRef.current = setInterval(() => void capture(), 200);
     },
-    [isWebcamOn, syncCounts],
+    [isWebcamOn, syncCounts, invalidatePoseTraining],
   );
 
   const handleCaptureStop = useCallback(() => {
@@ -268,10 +272,10 @@ export function PoseTrainerTab() {
   // If poses are deleted such that there are fewer than 2 classes with data, invalidate trained state
   useEffect(() => {
     if (isTrained && !canTest) {
-      setIsTrained(false);
+      invalidatePoseTraining();
       stopTesting();
     }
-  }, [isTrained, canTest, stopTesting]);
+  }, [isTrained, canTest, stopTesting, invalidatePoseTraining]);
 
   const CLASS_COLORS = ['#f59e0b', '#e11d48', '#10b981', '#6366f1', '#0ea5e9', '#a855f7'];
   const totalSamples = classes.reduce((sum, c) => sum + (exampleCounts[c] ?? 0), 0);
@@ -308,13 +312,7 @@ export function PoseTrainerTab() {
       poseTrainerEngine.renameClass(oldName, trimmed);
       const nextClasses = classes.map((c) => (c === oldName ? trimmed : c));
       setClasses(nextClasses);
-      setSavedProjectAI({ tab: 'pose', classes: nextClasses });
-      useAIStore
-        .getState()
-        .updateTrainingState(
-          nextClasses,
-          poseTrainerEngine.isInitialised ? poseTrainerEngine.getExampleCounts() : {},
-        );
+      setSavedProjectAI({ poseClasses: nextClasses });
       if (openClass === oldName) setOpenClass(trimmed);
       if (isCapturing === oldName) setIsCapturing(trimmed);
       setEditingClass(null);
@@ -328,6 +326,9 @@ export function PoseTrainerTab() {
     // and automatically starts live guessing in the Preview panel.
     if (canTest) {
       setIsTrained(true);
+      // Persist trained flag so remounting Pose after leaving the tab keeps
+      // "Model Trained" instead of resetting to untrained.
+      useAIStore.getState().setPoseModelLoaded(true);
       void confetti({
         particleCount: 70,
         spread: 65,
@@ -454,6 +455,7 @@ export function PoseTrainerTab() {
                             onClick={() => {
                               setMenuClass(null);
                               poseTrainerEngine.clearClass(className);
+                              invalidatePoseTraining();
                               syncCounts();
                             }}
                             className="w-full px-3 py-2 text-sm text-left hover:bg-slate-50 dark:hover:bg-white/5 disabled:opacity-40"
@@ -467,6 +469,7 @@ export function PoseTrainerTab() {
                               setMenuClass(null);
                               poseTrainerEngine.clearClass(className);
                               setClasses((p) => p.filter((c) => c !== className));
+                              invalidatePoseTraining();
                               syncCounts();
                             }}
                             className="w-full px-3 py-2 text-sm text-left text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 disabled:opacity-40"
@@ -548,7 +551,7 @@ export function PoseTrainerTab() {
               }
               const next = [...classes, nextName];
               setClasses(next);
-              setSavedProjectAI({ tab: 'pose', classes: next });
+              setSavedProjectAI({ poseClasses: next });
             }}
             className="w-full py-5 rounded-xl border-2 border-dashed border-slate-300 dark:border-white/15 text-slate-500 dark:text-white/50 text-base flex items-center justify-center gap-2 hover:border-[#FF6F61] hover:text-[#FF6F61] hover:bg-[#FFEDEA]/50 dark:hover:bg-[#FF6F61]/10 hover:scale-[1.01] active:scale-[0.99] transition-all"
           >
@@ -559,6 +562,9 @@ export function PoseTrainerTab() {
               onClick={() => {
                 poseTrainerEngine.clearAll();
                 stopTesting();
+                setClasses([...DEFAULT_POSE_CLASSES]);
+                setSavedProjectAI({ poseClasses: [...DEFAULT_POSE_CLASSES] });
+                useAIStore.getState().setPoseModelLoaded(false);
                 setIsTrained(false);
                 syncCounts();
               }}

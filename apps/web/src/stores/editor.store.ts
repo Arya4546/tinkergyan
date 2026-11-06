@@ -19,6 +19,7 @@ import { aiEngine } from '../lib/ai-engine';
 import { audioTrainerEngine } from '../lib/audio-trainer-engine';
 import { poseTrainerEngine } from '../lib/pose-trainer-engine';
 import { resetAllAIState } from '../lib/reset-ai-state';
+import { textAIEngine } from '../lib/text-ai-engine';
 import { useAIStore } from './ai.store';
 import { useSimulatorStore, type SimulatorSprite } from './simulator.store';
 
@@ -26,7 +27,12 @@ import { useSimulatorStore, type SimulatorSprite } from './simulator.store';
 
 export interface AIMetadata {
   tab?: 'image' | 'text' | 'audio' | 'pose' | 'numbers' | undefined;
+  /** Image-tab class names. */
   classes?: string[] | undefined;
+  /** Audio-tab class names (kept separate so Image labels never leak into Audio). */
+  audioClasses?: string[] | undefined;
+  /** Pose-tab class names (kept separate so Image labels never leak into Pose). */
+  poseClasses?: string[] | undefined;
   thumbnails?: Record<string, string[]> | undefined;
   textData?: { classes: { name: string; sentences: string[] }[] } | undefined;
 }
@@ -229,6 +235,8 @@ export interface EditorState {
     aiPoseDataset?: string;
     aiTab?: 'image' | 'text' | 'audio' | 'pose' | 'numbers';
     aiClasses?: string[];
+    aiAudioClasses?: string[];
+    aiPoseClasses?: string[];
     aiThumbnails?: Record<string, string[]>;
     aiTextData?: { classes: { name: string; sentences: string[] }[] };
   } | null;
@@ -451,6 +459,8 @@ const INITIAL_STATE = {
     aiPoseDataset?: string;
     aiTab?: 'image' | 'text' | 'audio' | 'pose' | 'numbers';
     aiClasses?: string[];
+    aiAudioClasses?: string[];
+    aiPoseClasses?: string[];
     aiThumbnails?: Record<string, string[]>;
     aiTextData?: { classes: { name: string; sentences: string[] }[] };
   } | null,
@@ -545,6 +555,8 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
       let aiPoseDataset: string | null = null;
       let aiTab: 'image' | 'text' | 'audio' | 'pose' | 'numbers' | undefined;
       let aiClasses: string[] | undefined;
+      let aiAudioClasses: string[] | undefined;
+      let aiPoseClasses: string[] | undefined;
       let aiThumbnails: Record<string, string[]> | undefined;
       let aiTextData: { classes: { name: string; sentences: string[] }[] } | undefined;
       let savedSprites: SimulatorSprite[] | undefined;
@@ -568,6 +580,8 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
           aiPoseDataset?: string;
           aiTab?: 'image' | 'text' | 'audio' | 'pose' | 'numbers';
           aiClasses?: string[];
+          aiAudioClasses?: string[];
+          aiPoseClasses?: string[];
           aiThumbnails?: Record<string, string[]>;
           aiTextData?: { classes: { name: string; sentences: string[] }[] };
           sprites?: SimulatorSprite[];
@@ -579,6 +593,8 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
         aiPoseDataset = state.aiPoseDataset ?? null;
         aiTab = state.aiTab;
         aiClasses = state.aiClasses;
+        aiAudioClasses = state.aiAudioClasses;
+        aiPoseClasses = state.aiPoseClasses;
         aiThumbnails = state.aiThumbnails;
         aiTextData = state.aiTextData;
         savedSprites = state.sprites;
@@ -598,15 +614,25 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
         ...(aiPoseDataset ? { aiPoseDataset } : {}),
         ...(aiTab ? { aiTab } : {}),
         ...(aiClasses ? { aiClasses } : {}),
+        ...(aiAudioClasses ? { aiAudioClasses } : {}),
+        ...(aiPoseClasses ? { aiPoseClasses } : {}),
         ...(aiThumbnails ? { aiThumbnails } : {}),
         ...(aiTextData ? { aiTextData } : {}),
       };
 
       // Pass null (not undefined) for missing fields so setSavedProjectAI
-      // clears leftover metadata from the previous project.
+      // clears leftover metadata from the previous project. Class names are
+      // per-modality — Image "specs" must never become Audio/Pose labels.
+      // Legacy projects only had `aiClasses`; route them by aiTab so Audio/Pose
+      // names never land in savedImageClasses.
+      const legacyImage = !aiTab || aiTab === 'image' ? (aiClasses ?? null) : null;
+      const legacyAudio = aiAudioClasses ?? (aiTab === 'audio' ? (aiClasses ?? null) : null);
+      const legacyPose = aiPoseClasses ?? (aiTab === 'pose' ? (aiClasses ?? null) : null);
       useAIStore.getState().setSavedProjectAI({
         tab: aiTab ?? null,
-        classes: aiClasses ?? null,
+        imageClasses: legacyImage,
+        audioClasses: legacyAudio,
+        poseClasses: legacyPose,
         thumbnails: aiThumbnails ?? null,
         textData: aiTextData ?? null,
       });
@@ -630,10 +656,21 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
         try {
           if (!aiEngine.isInitialised) await aiEngine.init();
           aiEngine.deserializeDataset(aiDataset);
-          const labels = aiClasses && aiClasses.length > 0 ? aiClasses : aiEngine.getClassLabels();
+          const labels =
+            (legacyImage && legacyImage.length > 0 ? legacyImage : aiEngine.getClassLabels()) ?? [];
           const counts = aiEngine.getExampleCounts();
+          // Preserve text:* labels so restoring Image does not wipe Text blocks.
+          const prev = useAIStore.getState();
+          const textLabels = prev.classLabels.filter((l) => l.startsWith('text:'));
+          const textCounts: Record<string, number> = {};
+          for (const l of textLabels) {
+            textCounts[l] = prev.exampleCounts[l] ?? 0;
+          }
           useAIStore.getState().setModelLoaded(true);
-          useAIStore.getState().updateTrainingState(labels, counts);
+          useAIStore.getState().updateTrainingState([...labels, ...textLabels], {
+            ...counts,
+            ...textCounts,
+          });
           useAIStore.getState().setSerializedDataset(aiDataset);
           useAIStore.getState().setImageModelLoaded(true);
         } catch (err) {
@@ -647,6 +684,13 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
           if (!audioTrainerEngine.isInitialised) await audioTrainerEngine.init();
           audioTrainerEngine.deserializeDataset(aiAudioDataset);
           useAIStore.getState().setAudioModelLoaded(true);
+          // Prefer explicit audio class names; fall back to labels inside the dataset.
+          if (!aiAudioClasses || aiAudioClasses.length === 0) {
+            const fromEngine = Object.keys(audioTrainerEngine.getExampleCounts());
+            if (fromEngine.length > 0) {
+              useAIStore.getState().setSavedProjectAI({ audioClasses: fromEngine });
+            }
+          }
         } catch (err) {
           console.warn('Failed to restore AI audio model from project:', err);
         }
@@ -658,8 +702,44 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
           if (!poseTrainerEngine.isInitialised) await poseTrainerEngine.init();
           poseTrainerEngine.deserializeDataset(aiPoseDataset);
           useAIStore.getState().setPoseModelLoaded(true);
+          if (!aiPoseClasses || aiPoseClasses.length === 0) {
+            const fromEngine = Object.keys(poseTrainerEngine.getExampleCounts());
+            if (fromEngine.length > 0) {
+              useAIStore.getState().setSavedProjectAI({ poseClasses: fromEngine });
+            }
+          }
         } catch (err) {
           console.warn('Failed to restore AI pose model from project:', err);
+        }
+      }
+
+      // Restore Text classifier from saved sentences (re-embed + train).
+      if (aiTextData?.classes && aiTextData.classes.length > 0) {
+        const valid = aiTextData.classes.filter((c) => c.sentences.length > 0);
+        if (valid.length >= 2) {
+          try {
+            if (!textAIEngine.isInitialised) await textAIEngine.init();
+            textAIEngine.clearAll();
+            for (const cls of aiTextData.classes) {
+              for (const sentence of cls.sentences) {
+                textAIEngine.addTextExample(sentence, cls.name);
+              }
+            }
+            await textAIEngine.trainModel();
+            const labels = valid.map((c) => `text:${c.name}`);
+            const counts: Record<string, number> = {};
+            for (const c of valid) counts[`text:${c.name}`] = c.sentences.length;
+            const prev = useAIStore.getState();
+            const nonText = prev.classLabels.filter((l) => !l.startsWith('text:'));
+            const nonTextCounts: Record<string, number> = {};
+            for (const l of nonText) nonTextCounts[l] = prev.exampleCounts[l] ?? 0;
+            useAIStore.getState().updateTrainingState([...nonText, ...labels], {
+              ...nonTextCounts,
+              ...counts,
+            });
+          } catch (err) {
+            console.warn('Failed to restore AI text model from project:', err);
+          }
         }
       }
     } catch {
@@ -731,11 +811,17 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
         }
       }
 
-      // 4. Tab, classes, thumbnails, textData metadata
-      const aiTab = aiMetadata?.tab ?? lastLoadedAIState?.aiTab;
-      const aiClasses = aiMetadata?.classes ?? lastLoadedAIState?.aiClasses;
-      const aiThumbnails = aiMetadata?.thumbnails ?? lastLoadedAIState?.aiThumbnails;
-      const aiTextData = aiMetadata?.textData ?? lastLoadedAIState?.aiTextData;
+      // 4. Tab + per-modality class names + thumbnails + textData.
+      // Prefer live store / explicit metadata. Do NOT fall back to
+      // lastLoadedAIState for class/thumb/text — that resurrected cleared
+      // "Start over" metadata on Editor autosave with no aiMetadata.
+      const aiStore = useAIStore.getState();
+      const aiTab = aiMetadata?.tab ?? aiStore.savedTab ?? lastLoadedAIState?.aiTab;
+      const aiClasses = aiMetadata?.classes ?? aiStore.savedImageClasses ?? undefined;
+      const aiAudioClasses = aiMetadata?.audioClasses ?? aiStore.savedAudioClasses ?? undefined;
+      const aiPoseClasses = aiMetadata?.poseClasses ?? aiStore.savedPoseClasses ?? undefined;
+      const aiThumbnails = aiMetadata?.thumbnails ?? aiStore.savedThumbnails ?? undefined;
+      const aiTextData = aiMetadata?.textData ?? aiStore.savedTextData ?? undefined;
 
       const simulator = useSimulatorStore.getState();
       const sprites = simulator.sprites.map((s) =>
@@ -748,6 +834,8 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
         ...(aiPoseDataset ? { aiPoseDataset } : {}),
         ...(aiTab ? { aiTab } : {}),
         ...(aiClasses && aiClasses.length > 0 ? { aiClasses } : {}),
+        ...(aiAudioClasses && aiAudioClasses.length > 0 ? { aiAudioClasses } : {}),
+        ...(aiPoseClasses && aiPoseClasses.length > 0 ? { aiPoseClasses } : {}),
         ...(aiThumbnails && Object.keys(aiThumbnails).length > 0 ? { aiThumbnails } : {}),
         ...(aiTextData ? { aiTextData } : {}),
         sprites,
@@ -760,6 +848,8 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
         ...(aiPoseDataset ? { aiPoseDataset } : {}),
         ...(aiTab ? { aiTab } : {}),
         ...(aiClasses ? { aiClasses } : {}),
+        ...(aiAudioClasses ? { aiAudioClasses } : {}),
+        ...(aiPoseClasses ? { aiPoseClasses } : {}),
         ...(aiThumbnails ? { aiThumbnails } : {}),
         ...(aiTextData ? { aiTextData } : {}),
       };

@@ -1,13 +1,17 @@
 /**
  * Fully clears AI Studio in-memory state across the shared Zustand store and
- * the three trainer engine singletons. Must run whenever a project is loaded,
+ * the trainer engine singletons. Must run whenever a project is loaded,
  * created, or left — otherwise leftover KNN classes (e.g. "pen" / "earpods")
  * leak into the next project and show as already trained.
  */
 import { useAIStore } from '../stores/ai.store';
 import { aiEngine } from './ai-engine';
 import { audioTrainerEngine } from './audio-trainer-engine';
+import { emotionEngine } from './emotion-engine';
+import { handEngine } from './hand-engine';
 import { poseTrainerEngine } from './pose-trainer-engine';
+import { speechEngine } from './speech-engine';
+import { tabularAIEngine } from './tabular-ai-engine';
 import { textAIEngine } from './text-ai-engine';
 
 export function resetAllAIState(): void {
@@ -31,6 +35,22 @@ export function resetAllAIState(): void {
   } catch {
     // ignore
   }
+  try {
+    emotionEngine.stopDetecting();
+  } catch {
+    // ignore
+  }
+  try {
+    handEngine.stopTracking();
+    handEngine.clearListeners();
+  } catch {
+    // ignore
+  }
+  try {
+    speechEngine.stopListening();
+  } catch {
+    // ignore
+  }
 
   try {
     if (aiEngine.isInitialised) aiEngine.clearAll();
@@ -49,6 +69,11 @@ export function resetAllAIState(): void {
   }
   try {
     textAIEngine.clearAll();
+  } catch {
+    // ignore
+  }
+  try {
+    tabularAIEngine.reset();
   } catch {
     // ignore
   }

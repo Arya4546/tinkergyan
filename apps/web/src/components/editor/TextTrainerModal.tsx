@@ -23,7 +23,8 @@ export function TextTrainerModal() {
   });
   const [newClassName, setNewClassName] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [isTrained, setIsTrained] = useState(false);
+  // Remount (tab switch) must reflect engine state, not always start untrained.
+  const [isTrained, setIsTrained] = useState(() => textAIEngine.isReadyToClassify);
   const [testInput, setTestInput] = useState('');
   const [testResult, setTestResult] = useState<string | null>(null);
   const [testLoading, setTestLoading] = useState(false);
@@ -31,23 +32,32 @@ export function TextTrainerModal() {
 
   const { updateTrainingState, savedTextData, setSavedProjectAI } = useAIStore();
 
-  // Restore saved text classes if project had them
+  // Restore saved text classes if project had them. Do NOT mark trained just
+  // because sentences exist — the engine must be hydrated via Train first
+  // (same rule as Image/Audio/Pose).
   useEffect(() => {
     if (savedTextData?.classes && savedTextData.classes.length > 0) {
       setClasses(savedTextData.classes);
-      const valid = savedTextData.classes.filter((c) => c.sentences.length > 0);
-      if (valid.length >= 2) {
-        setIsTrained(true);
-      }
     }
   }, [savedTextData]);
 
-  // Sync class names into AI store so blocks and saveProject can see them
+  // Sync text labels into AI store without wiping Image/Audio/Pose labels.
   useEffect(() => {
-    const labels = classes.map((c) => `text:${c.name}`);
-    const counts: Record<string, number> = {};
-    for (const cls of classes) counts[`text:${cls.name}`] = cls.sentences.length;
-    updateTrainingState(labels, counts);
+    const textLabels = classes.map((c) => `text:${c.name}`);
+    const textCounts: Record<string, number> = {};
+    for (const cls of classes) textCounts[`text:${cls.name}`] = cls.sentences.length;
+
+    const prev = useAIStore.getState();
+    const nonTextLabels = prev.classLabels.filter((l) => !l.startsWith('text:'));
+    const nonTextCounts: Record<string, number> = {};
+    for (const l of nonTextLabels) {
+      nonTextCounts[l] = prev.exampleCounts[l] ?? 0;
+    }
+
+    updateTrainingState([...nonTextLabels, ...textLabels], {
+      ...nonTextCounts,
+      ...textCounts,
+    });
     setSavedProjectAI({ textData: { classes } });
   }, [classes, updateTrainingState, setSavedProjectAI]);
 

@@ -114,9 +114,8 @@ export default function AITrainer() {
 
   const [activeTab, setActiveTab] = useState<TrainerTab>('image');
   const [classes, setClasses] = useState<string[]>(() => {
-    const savedTab = useAIStore.getState().savedTab;
-    const isImage = !savedTab || savedTab === 'image';
-    const saved = isImage ? useAIStore.getState().savedClasses : null;
+    // Image tab only reads image-specific class names.
+    const saved = useAIStore.getState().savedImageClasses;
     if (saved && saved.length > 0) return saved;
     const labels = useAIStore.getState().classLabels.filter((l) => !l.startsWith('text:'));
     return labels.length > 0 ? labels : ['Class 1', 'Class 2'];
@@ -219,9 +218,10 @@ export default function AITrainer() {
     updatePrediction,
     clearPrediction,
     savedTab,
-    savedClasses,
+    savedImageClasses,
     savedThumbnails,
     classLabels,
+    imageModelLoaded,
   } = useAIStore();
 
   const projectTitle = useEditorStore((s) => s.projectTitle);
@@ -232,35 +232,37 @@ export default function AITrainer() {
     if (savedTab) setActiveTab(savedTab);
   }, [savedTab]);
 
-  // Restore sample thumbnails if saved in project
+  // Restore sample thumbnails if saved in project. Replace (don't merge) so
+  // a new/empty project cannot keep the previous project's thumbs.
   useEffect(() => {
     if (savedThumbnails && Object.keys(savedThumbnails).length > 0) {
-      setSampleThumbnails((prev) => ({ ...prev, ...savedThumbnails }));
+      setSampleThumbnails({ ...savedThumbnails });
+    } else {
+      setSampleThumbnails({});
     }
   }, [savedThumbnails]);
 
-  // Restore classes and trained state when project finishes loading.
-  // Empty metadata → fresh Class 1/2 so prior-project names cannot linger
-  // when switching projects without unmounting AI Studio.
+  // Restore IMAGE class names when project metadata loads.
+  // Do NOT mark trained from sample counts alone — that made "Model Trained"
+  // appear before the student clicked Train Model. Trained state comes only
+  // from an explicit Train click or a restored imageModelLoaded flag.
   useEffect(() => {
     const nonText = classLabels.filter((l) => !l.startsWith('text:'));
-    const isImageProject = !savedTab || savedTab === 'image';
+    const imageClasses = useAIStore.getState().savedImageClasses;
     const candidateClasses =
-      isImageProject && savedClasses && savedClasses.length > 0
-        ? savedClasses
-        : nonText.length > 0
-          ? nonText
-          : null;
+      imageClasses && imageClasses.length > 0 ? imageClasses : nonText.length > 0 ? nonText : null;
     if (candidateClasses && candidateClasses.length > 0) {
       setClasses(candidateClasses);
-      const total = candidateClasses.reduce((sum, c) => sum + (exampleCounts[c] ?? 0), 0);
-      const trainedClasses = candidateClasses.filter((c) => (exampleCounts[c] ?? 0) > 0);
-      setIsTrained(total > 0 && trainedClasses.length >= 2);
     } else {
       setClasses(['Class 1', 'Class 2']);
-      setIsTrained(false);
     }
-  }, [savedTab, savedClasses, classLabels, exampleCounts]);
+  }, [savedTab, classLabels, savedImageClasses, imageModelLoaded]);
+
+  // Mirror store flag both ways — project switch clears imageModelLoaded via
+  // resetAllAIState; local isTrained must clear too (same mounted route).
+  useEffect(() => {
+    setIsTrained(!!imageModelLoaded);
+  }, [imageModelLoaded]);
 
   const syncTrainingState = useCallback(() => {
     const counts = aiEngine.getExampleCounts();
@@ -281,6 +283,8 @@ export default function AITrainer() {
   // marks the page dirty so leaving prompts a save.
   const invalidateTraining = useCallback(() => {
     setIsTrained(false);
+    // Samples changed — the previously restored/saved model is no longer current.
+    useAIStore.getState().setImageModelLoaded(false);
     setHasUnsavedChanges(true);
     if (isTesting) {
       aiEngine.stopPredicting();
@@ -460,8 +464,7 @@ export default function AITrainer() {
             }));
           }
           syncTrainingState();
-          setIsTrained(false);
-          setHasUnsavedChanges(true);
+          invalidateTraining();
         } catch {
           // Model may still be loading — ignore.
         }
@@ -470,7 +473,7 @@ export default function AITrainer() {
       void capture();
       captureIntervalRef.current = setInterval(() => void capture(), 200);
     },
-    [isWebcamActive, syncTrainingState],
+    [isWebcamActive, syncTrainingState, invalidateTraining],
   );
 
   const handleCaptureStop = useCallback(() => {
@@ -542,7 +545,7 @@ export default function AITrainer() {
       aiEngine.renameClass(oldName, trimmed);
       const nextClasses = classes.map((c) => (c === oldName ? trimmed : c));
       setClasses(nextClasses);
-      useAIStore.getState().setSavedProjectAI({ tab: 'image', classes: nextClasses });
+      useAIStore.getState().setSavedProjectAI({ imageClasses: nextClasses });
       setSampleThumbnails((prev) => {
         const n = { ...prev };
         if (n[oldName]) {
@@ -620,6 +623,7 @@ export default function AITrainer() {
         aiEngine.clearClass('__warmup__');
       }
       setIsTrained(true);
+      useAIStore.getState().setImageModelLoaded(true);
       void confetti({
         particleCount: 70,
         spread: 65,
@@ -709,11 +713,25 @@ export default function AITrainer() {
   const handleResetAll = useCallback(() => {
     aiEngine.clearAll();
     setClasses(['Class 1', 'Class 2']);
+    useAIStore.getState().setSavedProjectAI({ imageClasses: ['Class 1', 'Class 2'] });
+    useAIStore.getState().setImageModelLoaded(false);
     setSampleThumbnails({});
     clearPrediction();
     syncTrainingState();
     invalidateTraining();
   }, [clearPrediction, syncTrainingState, invalidateTraining]);
+
+  // Keep image class names in the store as the student edits them (without
+  // touching audio/pose names).
+  const imageClassesMount = useRef(true);
+  useEffect(() => {
+    if (activeTab !== 'image') return;
+    if (imageClassesMount.current) {
+      imageClassesMount.current = false;
+      return;
+    }
+    useAIStore.getState().setSavedProjectAI({ imageClasses: classes });
+  }, [classes, activeTab]);
 
   const handleExportZip = useCallback(async () => {
     setIsExporting(true);
@@ -815,18 +833,21 @@ export default function AITrainer() {
         compactThumbs[cls] = thumbs.slice(0, 20);
       }
 
-      const activeClasses =
-        activeTab === 'audio' || activeTab === 'pose'
-          ? (useAIStore.getState().savedClasses ?? classes)
-          : activeTab === 'text'
-            ? (useAIStore.getState().savedTextData?.classes.map((c) => c.name) ?? classes)
-            : classes;
-
+      const store = useAIStore.getState();
+      // Parent `classes` is Image-only. Always persist each modality from its
+      // own store field so Save on Audio/Pose cannot write Image names into
+      // aiAudioClasses / aiPoseClasses.
+      if (activeTab === 'image') {
+        store.setSavedProjectAI({ imageClasses: classes });
+      }
+      const latest = useAIStore.getState();
       await saveProject(blockXml, {
         tab: activeTab,
-        classes: activeClasses,
+        classes: latest.savedImageClasses ?? undefined,
+        audioClasses: latest.savedAudioClasses ?? undefined,
+        poseClasses: latest.savedPoseClasses ?? undefined,
         thumbnails: compactThumbs,
-        textData: useAIStore.getState().savedTextData ?? undefined,
+        textData: latest.savedTextData ?? undefined,
       });
       setHasUnsavedChanges(false);
       setJustSaved(true);

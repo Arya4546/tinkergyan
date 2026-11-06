@@ -24,16 +24,23 @@ import { RobotMascot } from '../illustrations/RobotMascot';
 
 const COLOR = '#FF6F61';
 
+const DEFAULT_AUDIO_CLASSES = ['Class 1', 'Class 2'];
+
+function resolveAudioClasses(): string[] {
+  // ONLY audio-specific names — never Image's savedImageClasses.
+  const saved = useAIStore.getState().savedAudioClasses;
+  if (saved && saved.length > 0) return saved;
+  if (audioTrainerEngine.isInitialised) {
+    const existing = Object.keys(audioTrainerEngine.getExampleCounts()).filter(
+      (k) => (audioTrainerEngine.getExampleCounts()[k] ?? 0) > 0,
+    );
+    if (existing.length > 0) return existing;
+  }
+  return [...DEFAULT_AUDIO_CLASSES];
+}
+
 export function AudioTrainerTab() {
-  const [classes, setClasses] = useState<string[]>(() => {
-    const savedTab = useAIStore.getState().savedTab;
-    const saved = savedTab === 'audio' ? useAIStore.getState().savedClasses : null;
-    if (saved && saved.length > 0) return saved;
-    const existing = audioTrainerEngine.isInitialised
-      ? Object.keys(audioTrainerEngine.getExampleCounts())
-      : [];
-    return existing.length > 0 ? existing : ['Class 1', 'Class 2'];
-  });
+  const [classes, setClasses] = useState<string[]>(() => resolveAudioClasses());
   const [editingClass, setEditingClass] = useState<string | null>(null);
   const [editingValue, setEditingValue] = useState('');
   const [isIniting, setIsIniting] = useState(false);
@@ -45,7 +52,8 @@ export function AudioTrainerTab() {
     confs: Record<string, number>;
   } | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [isTrained, setIsTrained] = useState(false);
+  // Trained only after an explicit Train click (or a restored audio model).
+  const [isTrained, setIsTrained] = useState(() => useAIStore.getState().audioModelLoaded === true);
   const [menuClass, setMenuClass] = useState<string | null>(null);
   const [showHood, setShowHood] = useState(false);
   const [exampleCounts, setExampleCounts] = useState<Record<string, number>>({});
@@ -95,40 +103,31 @@ export function AudioTrainerTab() {
   }, []);
 
   const audioModelLoaded = useAIStore((s) => s.audioModelLoaded);
-  const savedTab = useAIStore((s) => s.savedTab);
-  const savedClasses = useAIStore((s) => s.savedClasses);
+  const savedAudioClasses = useAIStore((s) => s.savedAudioClasses);
   const setSavedProjectAI = useAIStore((s) => s.setSavedProjectAI);
 
   const isInitialMount = useRef(true);
-  // Keep savedClasses in sync for saving
+  // Persist AUDIO class names only — never overwrite Image/Pose names.
   useEffect(() => {
     if (isInitialMount.current) {
       isInitialMount.current = false;
       return;
     }
-    setSavedProjectAI({ tab: 'audio', classes });
+    setSavedProjectAI({ audioClasses: classes });
   }, [classes, setSavedProjectAI]);
 
-  // Sync counts and classes on mount and when restored. When the project has
-  // no audio metadata (null after reset/load), fall back to fresh defaults so
-  // stale names from a previous project cannot linger in local React state.
+  // Sync from audio-specific store / engine. Never read Image class names.
   useEffect(() => {
     syncCounts();
-    if (savedTab === 'audio' && savedClasses && savedClasses.length > 0) {
-      setClasses(savedClasses);
-      const counts = audioTrainerEngine.isInitialised ? audioTrainerEngine.getExampleCounts() : {};
-      const trainedCount = savedClasses.filter((c) => (counts[c] ?? 0) > 0).length;
-      setIsTrained(trainedCount >= 2);
-    } else if (!savedClasses || savedClasses.length === 0) {
-      const existing = audioTrainerEngine.isInitialised
-        ? Object.keys(audioTrainerEngine.getExampleCounts()).filter(
-            (k) => (audioTrainerEngine.getExampleCounts()[k] ?? 0) > 0,
-          )
-        : [];
-      setClasses(existing.length > 0 ? existing : ['Class 1', 'Class 2']);
-      setIsTrained(existing.length >= 2);
+    if (savedAudioClasses && savedAudioClasses.length > 0) {
+      setClasses(savedAudioClasses);
+    } else {
+      setClasses(resolveAudioClasses());
     }
-  }, [syncCounts, audioModelLoaded, savedTab, savedClasses]);
+    // Mark trained only when a saved audio model was restored — not merely
+    // because samples exist or Image was trained.
+    setIsTrained(audioModelLoaded);
+  }, [syncCounts, audioModelLoaded, savedAudioClasses]);
 
   const handleStartMic = useCallback(async () => {
     setIsIniting(true);
@@ -183,6 +182,11 @@ export function AudioTrainerTab() {
 
   const canTest = classes.filter((c) => (exampleCounts[c] ?? 0) > 0).length >= 2;
 
+  const invalidateAudioTraining = useCallback(() => {
+    setIsTrained(false);
+    useAIStore.getState().setAudioModelLoaded(false);
+  }, []);
+
   // When model is trained and microphone is on, automatically keep listening active
   useEffect(() => {
     if (isTrained && isMicOn && !isRecording && !isTesting) {
@@ -193,10 +197,10 @@ export function AudioTrainerTab() {
   // If samples are deleted such that there are fewer than 2 classes with data, invalidate trained state
   useEffect(() => {
     if (isTrained && !canTest) {
-      setIsTrained(false);
+      invalidateAudioTraining();
       stopListening();
     }
-  }, [isTrained, canTest, stopListening]);
+  }, [isTrained, canTest, stopListening, invalidateAudioTraining]);
 
   const handleCaptureStart = useCallback(
     async (className: string) => {
@@ -206,6 +210,7 @@ export function AudioTrainerTab() {
       if (audioTrainerEngine.isPredicting) {
         audioTrainerEngine.stopPredicting();
       }
+      invalidateAudioTraining();
       setIsRecording(className);
       const capture = () => {
         audioTrainerEngine.captureExample(className);
@@ -214,7 +219,7 @@ export function AudioTrainerTab() {
       capture();
       captureIntervalRef.current = setInterval(capture, 200);
     },
-    [isMicOn, handleStartMic, syncCounts],
+    [isMicOn, handleStartMic, syncCounts, invalidateAudioTraining],
   );
 
   const handleCaptureStop = useCallback(() => {
@@ -283,15 +288,10 @@ export function AudioTrainerTab() {
       }
       const nextClasses = classes.map((c) => (c === oldName ? trimmed : c));
       setClasses(nextClasses);
-      setSavedProjectAI({ tab: 'audio', classes: nextClasses });
-      useAIStore
-        .getState()
-        .updateTrainingState(
-          nextClasses,
-          audioTrainerEngine.isInitialised ? audioTrainerEngine.getExampleCounts() : {},
-        );
+      setSavedProjectAI({ audioClasses: nextClasses });
       if (isRecording === oldName) setIsRecording(trimmed);
       setEditingClass(null);
+      // Renaming does not invalidate the model — only sample changes do.
       syncCounts();
     },
     [classes, isRecording, setSavedProjectAI, syncCounts],
@@ -302,6 +302,9 @@ export function AudioTrainerTab() {
     // and automatically starts live listening in the Preview panel.
     if (canTest) {
       setIsTrained(true);
+      // Persist trained flag so remounting Audio after leaving the tab keeps
+      // "Model Trained" instead of resetting to untrained.
+      useAIStore.getState().setAudioModelLoaded(true);
       void confetti({
         particleCount: 70,
         spread: 65,
@@ -436,6 +439,7 @@ export function AudioTrainerTab() {
                             onClick={() => {
                               setMenuClass(null);
                               audioTrainerEngine.clearClass(className);
+                              invalidateAudioTraining();
                               syncCounts();
                             }}
                             className="w-full px-3 py-2 text-sm text-left hover:bg-slate-50 dark:hover:bg-white/5 disabled:opacity-40"
@@ -449,6 +453,7 @@ export function AudioTrainerTab() {
                               setMenuClass(null);
                               audioTrainerEngine.clearClass(className);
                               setClasses((p) => p.filter((c) => c !== className));
+                              invalidateAudioTraining();
                               syncCounts();
                             }}
                             className="w-full px-3 py-2 text-sm text-left text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 disabled:opacity-40"
@@ -526,7 +531,7 @@ export function AudioTrainerTab() {
               }
               const next = [...classes, nextName];
               setClasses(next);
-              setSavedProjectAI({ tab: 'audio', classes: next });
+              setSavedProjectAI({ audioClasses: next });
             }}
             className="w-full py-5 rounded-xl border-2 border-dashed border-slate-300 dark:border-white/15 text-slate-500 dark:text-white/50 text-base flex items-center justify-center gap-2 hover:border-[#FF6F61] hover:text-[#FF6F61] hover:bg-[#FFEDEA]/50 dark:hover:bg-[#FF6F61]/10 hover:scale-[1.01] active:scale-[0.99] transition-all"
           >
@@ -537,6 +542,9 @@ export function AudioTrainerTab() {
               onClick={() => {
                 audioTrainerEngine.clearAll();
                 stopListening();
+                setClasses([...DEFAULT_AUDIO_CLASSES]);
+                setSavedProjectAI({ audioClasses: [...DEFAULT_AUDIO_CLASSES] });
+                useAIStore.getState().setAudioModelLoaded(false);
                 setIsTrained(false);
                 syncCounts();
               }}

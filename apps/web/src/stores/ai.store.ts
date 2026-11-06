@@ -3,9 +3,15 @@
  *
  * Zustand store for all AI Model Studio reactive state.
  * Keeps AI concerns isolated from editor/simulator stores.
+ *
+ * Class names are stored PER modality (image / audio / pose). A single shared
+ * `savedClasses` list caused Audio/Pose to inherit Image labels like
+ * "specs" / "no specs" when switching tabs.
  */
 import { create } from 'zustand';
 import type { EmotionLabel } from '../lib/emotion-engine';
+
+export type AITrainerTab = 'image' | 'text' | 'audio' | 'pose' | 'numbers';
 
 interface AIState {
   // ── Status ──────────────────────────────────────────────────────────────
@@ -39,8 +45,13 @@ interface AIState {
   // ── Persistence ─────────────────────────────────────────────────────────
   serializedDataset: string | null;
   serializedTextExamples: string | null;
-  savedTab: 'image' | 'text' | 'audio' | 'pose' | 'numbers' | null;
-  savedClasses: string[] | null;
+  savedTab: AITrainerTab | null;
+  /** Image-tab class names only. */
+  savedImageClasses: string[] | null;
+  /** Audio-tab class names only. */
+  savedAudioClasses: string[] | null;
+  /** Pose-tab class names only. */
+  savedPoseClasses: string[] | null;
   savedThumbnails: Record<string, string[]> | null;
   savedTextData: { classes: { name: string; sentences: string[] }[] } | null;
   audioModelLoaded: boolean;
@@ -56,8 +67,12 @@ interface AIState {
   updateTrainingState: (labels: string[], counts: Record<string, number>) => void;
   setSerializedDataset: (data: string | null) => void;
   setSavedProjectAI: (data: {
-    tab?: 'image' | 'text' | 'audio' | 'pose' | 'numbers' | null | undefined;
+    tab?: AITrainerTab | null | undefined;
+    /** @deprecated use imageClasses — kept so older call sites still compile */
     classes?: string[] | null | undefined;
+    imageClasses?: string[] | null | undefined;
+    audioClasses?: string[] | null | undefined;
+    poseClasses?: string[] | null | undefined;
     thumbnails?: Record<string, string[]> | null | undefined;
     textData?: { classes: { name: string; sentences: string[] }[] } | null | undefined;
   }) => void;
@@ -114,8 +129,10 @@ const INITIAL_STATE = {
   handKeypoints: {} as Record<string, { x: number; y: number }>,
   serializedDataset: null as string | null,
   serializedTextExamples: null as string | null,
-  savedTab: null as 'image' | 'text' | 'audio' | 'pose' | 'numbers' | null,
-  savedClasses: null as string[] | null,
+  savedTab: null as AITrainerTab | null,
+  savedImageClasses: null as string[] | null,
+  savedAudioClasses: null as string[] | null,
+  savedPoseClasses: null as string[] | null,
   savedThumbnails: null as Record<string, string[]> | null,
   savedTextData: null as { classes: { name: string; sentences: string[] }[] } | null,
   audioModelLoaded: false,
@@ -135,36 +152,41 @@ export const useAIStore = create<AIState>()((set) => ({
 
   updateTrainingState: (labels, counts) => set({ classLabels: labels, exampleCounts: counts }),
   setSerializedDataset: (data) => set({ serializedDataset: data }),
-  // Explicit `null` clears a field. `undefined` means "leave unchanged" so
-  // callers can patch a single field (e.g. tab only) without wiping the rest.
-  // loadProject must pass null for missing AI metadata so stale classes from
-  // a previous project (pen/earpods) do not leak into a fresh one.
+
+  // Explicit `null` clears a field. `undefined` means "leave unchanged".
   setSavedProjectAI: (data) =>
-    set((prev) => ({
-      savedTab: data.tab !== undefined ? data.tab : prev.savedTab,
-      savedClasses: data.classes !== undefined ? data.classes : prev.savedClasses,
-      savedThumbnails: data.thumbnails !== undefined ? data.thumbnails : prev.savedThumbnails,
-      savedTextData: data.textData !== undefined ? data.textData : prev.savedTextData,
-    })),
+    set((prev) => {
+      const imageClasses =
+        data.imageClasses !== undefined
+          ? data.imageClasses
+          : data.classes !== undefined
+            ? data.classes
+            : undefined;
+      return {
+        savedTab: data.tab !== undefined ? data.tab : prev.savedTab,
+        savedImageClasses: imageClasses !== undefined ? imageClasses : prev.savedImageClasses,
+        savedAudioClasses:
+          data.audioClasses !== undefined ? data.audioClasses : prev.savedAudioClasses,
+        savedPoseClasses: data.poseClasses !== undefined ? data.poseClasses : prev.savedPoseClasses,
+        savedThumbnails: data.thumbnails !== undefined ? data.thumbnails : prev.savedThumbnails,
+        savedTextData: data.textData !== undefined ? data.textData : prev.savedTextData,
+      };
+    }),
   setAudioModelLoaded: (loaded) => set({ audioModelLoaded: loaded }),
   setPoseModelLoaded: (loaded) => set({ poseModelLoaded: loaded }),
   setImageModelLoaded: (loaded) => set({ imageModelLoaded: loaded }),
 
-  // Emotion
   setEmotionActive: (active) => set({ isEmotionActive: active }),
   updateEmotion: (emotion, confidences, faceDetected) =>
     set({ currentEmotion: emotion, emotionConfidences: confidences, faceDetected }),
 
-  // Speech
   setSpeechListening: (listening) => set({ isSpeechListening: listening }),
   setLatestTranscript: (text) => set({ latestTranscript: text }),
 
-  // Hand
   setHandTrackingActive: (active) => set({ isHandTrackingActive: active }),
   updateHandKeypoints: (detected, keypoints) =>
     set({ handDetected: detected, handKeypoints: keypoints }),
 
-  // Text classification
   setSerializedTextExamples: (data) => set({ serializedTextExamples: data }),
 
   resetAI: () => set({ ...INITIAL_STATE }),
