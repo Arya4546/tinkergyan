@@ -1,9 +1,21 @@
-import { Play, Cpu, Brain, X, Check } from 'lucide-react';
+import {
+  Play,
+  Cpu,
+  Brain,
+  X,
+  Check,
+  Camera,
+  Mic,
+  PersonStanding,
+  Type as TypeIcon,
+  Table2,
+} from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { projectService } from '../../services/project.service';
 import { useProjectStore } from '../../stores/project.store';
 import { BOARDS } from '../../lib/boards';
+import type { AITrainerTab } from '../../stores/ai.store';
 
 type ProjectCategory = 'software' | 'hardware' | 'ai';
 
@@ -12,6 +24,24 @@ const CATEGORY_LABELS: Record<ProjectCategory, string> = {
   hardware: 'Hardware',
   ai: 'AI',
 };
+
+/**
+ * An AI project is created for exactly one modality. AI Studio then opens only
+ * that trainer, which is what stops one project's image/audio/pose data and
+ * "already trained" flags from showing up in another.
+ */
+const AI_KINDS: Array<{
+  id: AITrainerTab;
+  label: string;
+  hint: string;
+  icon: typeof Camera;
+}> = [
+  { id: 'image', label: 'Image / Video', hint: 'Webcam or uploaded pictures', icon: Camera },
+  { id: 'audio', label: 'Audio', hint: 'Sounds and spoken words', icon: Mic },
+  { id: 'pose', label: 'Pose', hint: 'Body positions from the webcam', icon: PersonStanding },
+  { id: 'text', label: 'Text', hint: 'Sentences and phrases', icon: TypeIcon },
+  { id: 'numbers', label: 'Numbers', hint: 'Rows of numeric data', icon: Table2 },
+];
 
 interface NewProjectDialogProps {
   open: boolean;
@@ -24,6 +54,7 @@ export function NewProjectDialog({ open, onClose, preSelectedCategory }: NewProj
   const [title, setTitle] = useState('');
   const [category, setCategory] = useState<ProjectCategory | null>(null);
   const [board, setBoard] = useState<string>(BOARDS[0]!.fqbn);
+  const [aiKind, setAiKind] = useState<AITrainerTab | null>(null);
   const [isCreating, setIsCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -43,6 +74,7 @@ export function NewProjectDialog({ open, onClose, preSelectedCategory }: NewProj
       setTitle('');
       setCategory(preSelectedCategory || null);
       setBoard(BOARDS[0]!.fqbn);
+      setAiKind(null);
       setError(null);
       setIsCreating(false);
     }
@@ -60,6 +92,10 @@ export function NewProjectDialog({ open, onClose, preSelectedCategory }: NewProj
       setError('Please select a coding mode');
       return;
     }
+    if (category === 'ai' && !aiKind) {
+      setError('Please choose what this AI model learns from');
+      return;
+    }
 
     setIsCreating(true);
     setError(null);
@@ -70,6 +106,12 @@ export function NewProjectDialog({ open, onClose, preSelectedCategory }: NewProj
         title: title.trim(),
         type: 'BLOCK',
         boardTarget,
+        // Stamp the chosen modality into the project's own saved state at
+        // creation, so every later open (direct URL, Projects list, Gallery)
+        // knows which single trainer to show without guessing.
+        ...(category === 'ai' && aiKind
+          ? { blockState: JSON.stringify({ blockXml: '', aiKind, aiTab: aiKind }) }
+          : {}),
       });
 
       // Optimistically add to store projects list
@@ -77,7 +119,7 @@ export function NewProjectDialog({ open, onClose, preSelectedCategory }: NewProj
 
       navigate(
         category === 'ai'
-          ? `/ai-trainer/${project.id}`
+          ? `/ai-trainer/${project.id}?kind=${aiKind!}`
           : `/editor/${project.id}?engine=${category}`,
       );
       onClose();
@@ -219,6 +261,54 @@ export function NewProjectDialog({ open, onClose, preSelectedCategory }: NewProj
           </div>
         )}
 
+        {/* AI Model Type (AI only) — required, mirrors the Board step below. */}
+        {category === 'ai' && (
+          <div>
+            <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">
+              What does this model learn from? <span className="text-red-500">*</span>
+            </label>
+            <p className="text-xs text-slate-500 dark:text-slate-400 mb-3">
+              Pick one — the studio opens just that trainer, so this project stays separate from
+              your other AI projects.
+            </p>
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+              {AI_KINDS.map(({ id, label, hint, icon: Icon }) => (
+                <button
+                  key={id}
+                  type="button"
+                  onClick={() => setAiKind(id)}
+                  disabled={isCreating}
+                  className={`flex flex-col items-start gap-1 px-3 py-2.5 rounded-xl border text-left transition-all duration-150 ${
+                    aiKind === id
+                      ? 'border-[#FF6F61] ring-2 ring-[#FF6F61]/20 bg-[#FFEDEA]/40 dark:bg-[#FF6F61]/10'
+                      : 'border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-[#1b1b33] hover:bg-slate-100 dark:hover:bg-white/5'
+                  }`}
+                >
+                  <span className="flex items-center gap-1.5 w-full">
+                    <Icon
+                      size={14}
+                      className={`shrink-0 ${aiKind === id ? 'text-[#FF6F61]' : 'text-slate-400'}`}
+                    />
+                    <span
+                      className={`text-sm font-semibold truncate ${
+                        aiKind === id ? 'text-[#FF6F61]' : 'text-slate-700 dark:text-slate-200'
+                      }`}
+                    >
+                      {label}
+                    </span>
+                    {aiKind === id && (
+                      <Check size={13} className="ml-auto shrink-0 text-[#FF6F61]" />
+                    )}
+                  </span>
+                  <span className="text-[11px] leading-snug text-slate-500 dark:text-slate-400">
+                    {hint}
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* Board Selection (Hardware only) */}
         {category === 'hardware' && (
           <div>
@@ -252,7 +342,7 @@ export function NewProjectDialog({ open, onClose, preSelectedCategory }: NewProj
         {/* Submit Button */}
         <button
           type="submit"
-          disabled={isCreating || !title.trim() || !category}
+          disabled={isCreating || !title.trim() || !category || (category === 'ai' && !aiKind)}
           className={`w-full h-11 rounded-xl text-white font-sans font-bold text-sm flex items-center justify-center gap-2 shadow-md transition-all duration-200 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed ${
             category === 'software'
               ? 'bg-emerald-500 hover:bg-emerald-600 shadow-emerald-500/10'

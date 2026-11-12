@@ -27,6 +27,12 @@ import { useSimulatorStore, type SimulatorSprite } from './simulator.store';
 
 export interface AIMetadata {
   tab?: 'image' | 'text' | 'audio' | 'pose' | 'numbers' | undefined;
+  /**
+   * Modality a dedicated AI project was created for — written once at
+   * creation. AI Studio opens only this trainer, so the five modalities can
+   * no longer bleed into each other inside one project.
+   */
+  kind?: 'image' | 'text' | 'audio' | 'pose' | 'numbers' | undefined;
   /** Image-tab class names. */
   classes?: string[] | undefined;
   /** Audio-tab class names (kept separate so Image labels never leak into Audio). */
@@ -234,6 +240,7 @@ export interface EditorState {
     aiAudioDataset?: string;
     aiPoseDataset?: string;
     aiTab?: 'image' | 'text' | 'audio' | 'pose' | 'numbers';
+    aiKind?: 'image' | 'text' | 'audio' | 'pose' | 'numbers';
     aiClasses?: string[];
     aiAudioClasses?: string[];
     aiPoseClasses?: string[];
@@ -458,6 +465,7 @@ const INITIAL_STATE = {
     aiAudioDataset?: string;
     aiPoseDataset?: string;
     aiTab?: 'image' | 'text' | 'audio' | 'pose' | 'numbers';
+    aiKind?: 'image' | 'text' | 'audio' | 'pose' | 'numbers';
     aiClasses?: string[];
     aiAudioClasses?: string[];
     aiPoseClasses?: string[];
@@ -554,6 +562,7 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
       let aiAudioDataset: string | null = null;
       let aiPoseDataset: string | null = null;
       let aiTab: 'image' | 'text' | 'audio' | 'pose' | 'numbers' | undefined;
+      let aiKind: 'image' | 'text' | 'audio' | 'pose' | 'numbers' | undefined;
       let aiClasses: string[] | undefined;
       let aiAudioClasses: string[] | undefined;
       let aiPoseClasses: string[] | undefined;
@@ -579,6 +588,7 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
           aiAudioDataset?: string;
           aiPoseDataset?: string;
           aiTab?: 'image' | 'text' | 'audio' | 'pose' | 'numbers';
+          aiKind?: 'image' | 'text' | 'audio' | 'pose' | 'numbers';
           aiClasses?: string[];
           aiAudioClasses?: string[];
           aiPoseClasses?: string[];
@@ -592,6 +602,7 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
         aiAudioDataset = state.aiAudioDataset ?? null;
         aiPoseDataset = state.aiPoseDataset ?? null;
         aiTab = state.aiTab;
+        aiKind = state.aiKind;
         aiClasses = state.aiClasses;
         aiAudioClasses = state.aiAudioClasses;
         aiPoseClasses = state.aiPoseClasses;
@@ -613,6 +624,7 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
         ...(aiAudioDataset ? { aiAudioDataset } : {}),
         ...(aiPoseDataset ? { aiPoseDataset } : {}),
         ...(aiTab ? { aiTab } : {}),
+        ...(aiKind ? { aiKind } : {}),
         ...(aiClasses ? { aiClasses } : {}),
         ...(aiAudioClasses ? { aiAudioClasses } : {}),
         ...(aiPoseClasses ? { aiPoseClasses } : {}),
@@ -630,6 +642,9 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
       const legacyPose = aiPoseClasses ?? (aiTab === 'pose' ? (aiClasses ?? null) : null);
       useAIStore.getState().setSavedProjectAI({
         tab: aiTab ?? null,
+        // null for a project with no declared kind — AI Studio then keeps all
+        // tabs (hardware/software "Train AI", or a pre-kinds AI project).
+        kind: aiKind ?? null,
         imageClasses: legacyImage,
         audioClasses: legacyAudio,
         poseClasses: legacyPose,
@@ -817,6 +832,9 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
       // "Start over" metadata on Editor autosave with no aiMetadata.
       const aiStore = useAIStore.getState();
       const aiTab = aiMetadata?.tab ?? aiStore.savedTab ?? lastLoadedAIState?.aiTab;
+      // The kind is immutable once set — a save must never drop or rewrite it,
+      // or the next open would fall back to showing every modality again.
+      const aiKind = lastLoadedAIState?.aiKind ?? aiStore.savedAIKind ?? aiMetadata?.kind;
       const aiClasses = aiMetadata?.classes ?? aiStore.savedImageClasses ?? undefined;
       const aiAudioClasses = aiMetadata?.audioClasses ?? aiStore.savedAudioClasses ?? undefined;
       const aiPoseClasses = aiMetadata?.poseClasses ?? aiStore.savedPoseClasses ?? undefined;
@@ -833,6 +851,7 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
         ...(aiAudioDataset ? { aiAudioDataset } : {}),
         ...(aiPoseDataset ? { aiPoseDataset } : {}),
         ...(aiTab ? { aiTab } : {}),
+        ...(aiKind ? { aiKind } : {}),
         ...(aiClasses && aiClasses.length > 0 ? { aiClasses } : {}),
         ...(aiAudioClasses && aiAudioClasses.length > 0 ? { aiAudioClasses } : {}),
         ...(aiPoseClasses && aiPoseClasses.length > 0 ? { aiPoseClasses } : {}),
@@ -847,6 +866,7 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
         ...(aiAudioDataset ? { aiAudioDataset } : {}),
         ...(aiPoseDataset ? { aiPoseDataset } : {}),
         ...(aiTab ? { aiTab } : {}),
+        ...(aiKind ? { aiKind } : {}),
         ...(aiClasses ? { aiClasses } : {}),
         ...(aiAudioClasses ? { aiAudioClasses } : {}),
         ...(aiPoseClasses ? { aiPoseClasses } : {}),

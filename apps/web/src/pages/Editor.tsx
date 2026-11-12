@@ -525,6 +525,25 @@ export default function Editor() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [routeProjectId, engineMode]);
 
+  // ── Panel layout follows the engine, not just the first render ──────────
+  // Software (Scratch) opens with the Stage + code panel; hardware opens with
+  // neither. The engine is not always known at mount: a software project
+  // opened from a bare /editor/:id URL (bookmark, shared link, or a reload
+  // after the URL lost its query) starts out as 'hardware' and only becomes
+  // 'software' once the project's boardTarget lands and the effect above
+  // reconciles the URL. The useState initialisers ran long before that, so
+  // without this the student got the Scratch workspace with no Stage.
+  // Re-applied only when the engine actually changes, so a manual Stage /
+  // code-panel toggle is never overridden.
+  const appliedEngineRef = useRef<'hardware' | 'software' | null>(null);
+  useEffect(() => {
+    if (appliedEngineRef.current === engineMode) return;
+    appliedEngineRef.current = engineMode;
+    const isSoftware = engineMode === 'software';
+    setShowCodePanel(isSoftware);
+    setShowSimulator(isSoftware);
+  }, [engineMode]);
+
   // ── Software projects have no C++ concept — the Blocks/C++ toggle is
   // hidden entirely in software mode, so guard against ever being stuck in
   // code mode with no way back (e.g. a project saved while `mode` was 'code'

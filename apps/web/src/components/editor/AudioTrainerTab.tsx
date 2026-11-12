@@ -26,6 +26,19 @@ const COLOR = '#FF6F61';
 
 const DEFAULT_AUDIO_CLASSES = ['Class 1', 'Class 2'];
 
+/**
+ * One tap records a fixed-length clip and banks the whole batch of samples in
+ * one go. Recording used to be hold-to-record at one sample per tick, which
+ * made collecting a class feel like a sample-per-second crawl and left the
+ * class short whenever the student let go early.
+ *
+ * 2000ms / 100ms = 20 samples per take, which clears both minimums below
+ * (8 for a normal class, 20 for a background-noise class) in a single tap.
+ */
+const RECORD_MS = 2000;
+const SAMPLE_EVERY_MS = 100;
+const SAMPLES_PER_TAKE = Math.floor(RECORD_MS / SAMPLE_EVERY_MS);
+
 function resolveAudioClasses(): string[] {
   // ONLY audio-specific names — never Image's savedImageClasses.
   const saved = useAIStore.getState().savedAudioClasses;
@@ -46,6 +59,9 @@ export function AudioTrainerTab() {
   const [isIniting, setIsIniting] = useState(false);
   const [isMicOn, setIsMicOn] = useState(false);
   const [isRecording, setIsRecording] = useState<string | null>(null);
+  /** Class whose mic is still warming up — its take has not started yet. */
+  const [isStartingRecord, setIsStartingRecord] = useState<string | null>(null);
+  const [recordMsLeft, setRecordMsLeft] = useState(0);
   const [isTesting, setIsTesting] = useState(false);
   const [prediction, setPrediction] = useState<{
     label: string;
@@ -59,6 +75,19 @@ export function AudioTrainerTab() {
   const [exampleCounts, setExampleCounts] = useState<Record<string, number>>({});
 
   const captureIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  /**
+   * Bumped on every start/stop so a take whose getUserMedia was still pending
+   * when the student cancelled can detect that it is stale and bail out
+   * instead of starting an interval nobody is left to clear.
+   */
+  const recordTokenRef = useRef(0);
+  /**
+   * Synchronous "a take is running" flag. Two fast clicks are handled by the
+   * same render, so the `isRecording` state cannot gate the second one.
+   */
+  const isTakeActiveRef = useRef(false);
+  /** Mirrors the class being recorded, readable from handlers synchronously. */
+  const recordingClassRef = useRef<string | null>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const animFrameRef = useRef<number | null>(null);
 
@@ -146,6 +175,17 @@ export function AudioTrainerTab() {
   }, []);
 
   const handleStopMic = useCallback(() => {
+    // Abandon any take in flight — without the mic it would only bank silence.
+    recordTokenRef.current += 1;
+    isTakeActiveRef.current = false;
+    recordingClassRef.current = null;
+    if (captureIntervalRef.current) {
+      clearInterval(captureIntervalRef.current);
+      captureIntervalRef.current = null;
+    }
+    setIsRecording(null);
+    setIsStartingRecord(null);
+    setRecordMsLeft(0);
     audioTrainerEngine.stopPredicting();
     audioTrainerEngine.stopMic();
     setIsMicOn(false);
@@ -157,9 +197,17 @@ export function AudioTrainerTab() {
   // AudioContext without a gesture, which left Input OFF until students
   // toggled it. Mic starts from Enable Mic, Input toggle, or Train.
 
-  // Cleanup on unmount
+  // Cleanup on unmount — also cancels an in-flight take so its interval (and
+  // any start still waiting on getUserMedia) cannot outlive the component.
   useEffect(() => {
     return () => {
+      recordTokenRef.current += 1;
+      isTakeActiveRef.current = false;
+      recordingClassRef.current = null;
+      if (captureIntervalRef.current) {
+        clearInterval(captureIntervalRef.current);
+        captureIntervalRef.current = null;
+      }
       audioTrainerEngine.stopPredicting();
       audioTrainerEngine.stopMic();
     };
@@ -189,10 +237,10 @@ export function AudioTrainerTab() {
 
   // When model is trained and microphone is on, automatically keep listening active
   useEffect(() => {
-    if (isTrained && isMicOn && !isRecording && !isTesting) {
+    if (isTrained && isMicOn && !isRecording && !isStartingRecord && !isTesting) {
       startListening();
     }
-  }, [isTrained, isMicOn, isRecording, isTesting, startListening]);
+  }, [isTrained, isMicOn, isRecording, isStartingRecord, isTesting, startListening]);
 
   // If samples are deleted such that there are fewer than 2 classes with data, invalidate trained state
   useEffect(() => {
@@ -202,36 +250,117 @@ export function AudioTrainerTab() {
     }
   }, [isTrained, canTest, stopListening, invalidateAudioTraining]);
 
-  const handleCaptureStart = useCallback(
-    async (className: string) => {
-      if (!isMicOn) {
-        await handleStartMic();
-      }
-      if (audioTrainerEngine.isPredicting) {
-        audioTrainerEngine.stopPredicting();
-      }
-      invalidateAudioTraining();
-      setIsRecording(className);
-      const capture = () => {
-        audioTrainerEngine.captureExample(className);
-        syncCounts();
-      };
-      capture();
-      captureIntervalRef.current = setInterval(capture, 200);
-    },
-    [isMicOn, handleStartMic, syncCounts, invalidateAudioTraining],
-  );
-
-  const handleCaptureStop = useCallback(() => {
-    setIsRecording(null);
+  // ── Recording ─────────────────────────────────────────────────────────────
+  // Ends a take: the fixed clip finished, the student tapped Stop, or the tab
+  // is going away. Bumping the token also neutralises any pending start.
+  const stopRecording = useCallback(() => {
+    recordTokenRef.current += 1;
+    isTakeActiveRef.current = false;
     if (captureIntervalRef.current) {
       clearInterval(captureIntervalRef.current);
       captureIntervalRef.current = null;
     }
-    if (isTrained && isMicOn) {
-      startListening();
-    }
-  }, [isTrained, isMicOn, startListening]);
+    recordingClassRef.current = null;
+    setIsRecording(null);
+    setIsStartingRecord(null);
+    setRecordMsLeft(0);
+  }, []);
+
+  /**
+   * Records one RECORD_MS clip for `className` and adds SAMPLES_PER_TAKE
+   * samples from it — the whole batch in one tap.
+   *
+   * This replaces hold-to-record, which had two problems: the student had to
+   * keep the button pressed while the counter rose one sample at a time, and
+   * the very first press awaited getUserMedia *inside* mousedown — so letting
+   * go while the browser's permission prompt was open ran mouseup before the
+   * interval existed, leaving a capture loop that nothing ever cleared.
+   */
+  const handleRecordBatch = useCallback(
+    async (className: string) => {
+      // A second tap (this class or another) cancels the take in progress and
+      // keeps whatever was captured so far.
+      if (isTakeActiveRef.current) {
+        stopRecording();
+        return;
+      }
+      isTakeActiveRef.current = true;
+      recordingClassRef.current = className;
+      const micWasOn = isMicOn;
+      const token = recordTokenRef.current + 1;
+      recordTokenRef.current = token;
+      setError(null);
+      setIsStartingRecord(className);
+      try {
+        if (!audioTrainerEngine.isInitialised) await audioTrainerEngine.init();
+        // Resume (or rebuild) the AudioContext under this click. A suspended
+        // context reads as pure silence, which would bank a whole take of
+        // dead samples that quietly poison the class.
+        await audioTrainerEngine.forceResumeMic();
+      } catch (e) {
+        if (token === recordTokenRef.current) {
+          setError(`Mic error: ${e instanceof Error ? e.message : String(e)}`);
+          stopRecording();
+        }
+        return;
+      }
+      // Cancelled (or unmounted) while the mic was warming up.
+      if (token !== recordTokenRef.current) return;
+
+      setIsMicOn(true);
+      if (!micWasOn) {
+        // First tap only turns the microphone on. The student is probably
+        // still looking at the browser's permission prompt, so starting the
+        // clip here would record two seconds of them reading it. The next tap
+        // records, with the mic already live.
+        stopRecording();
+        return;
+      }
+      if (audioTrainerEngine.isPredicting) audioTrainerEngine.stopPredicting();
+      setIsTesting(false);
+      setPrediction(null);
+      // New samples invalidate the trained model, same as before.
+      invalidateAudioTraining();
+      setIsStartingRecord(null);
+      setIsRecording(className);
+      setRecordMsLeft(RECORD_MS);
+
+      const startedAt = Date.now();
+      const endAt = startedAt + RECORD_MS;
+      let captured = 0;
+      const tick = () => {
+        if (token !== recordTokenRef.current) return;
+        let ok = false;
+        try {
+          ok = audioTrainerEngine.captureExample(className);
+        } catch {
+          // Engine disposed mid-take (project switch / tab change).
+          stopRecording();
+          setError('Recording stopped unexpectedly. Try again.');
+          return;
+        }
+        if (ok) captured += 1;
+        syncCounts();
+        setRecordMsLeft(Math.max(0, endAt - Date.now()));
+        // The take ends on the sample count, not on the clock: a busy or
+        // backgrounded tab skips interval ticks, and a take that quietly
+        // banked 17 of the 20 samples it promised would leave a
+        // background-noise class (minimum 20) short through no fault of the
+        // student. The elapsed cap is only a backstop so a mic that yields
+        // nothing can't keep the take running forever.
+        const timedOut = Date.now() - startedAt > RECORD_MS * 3;
+        if (captured >= SAMPLES_PER_TAKE || timedOut) {
+          stopRecording();
+          if (captured === 0) {
+            setError('The microphone stopped before anything was recorded. Try again.');
+          }
+        }
+      };
+      // First capture one tick in, so the mic has settled before sample #1.
+      captureIntervalRef.current = setInterval(tick, SAMPLE_EVERY_MS);
+    },
+    [isMicOn, stopRecording, syncCounts, invalidateAudioTraining],
+  );
 
   const handleToggleTest = useCallback(() => {
     if (!isMicOn) return;
@@ -267,6 +396,11 @@ export function AudioTrainerTab() {
   // If a class is named background noise, it needs 20 samples; otherwise standard 8.
   const minSamples = (name: string) => (name.toLowerCase().includes('background') ? 20 : 8);
 
+  // Only one take at a time: every class reads the same shared analyser, so
+  // two takes at once would bank identical frames into both classes.
+  const recordingClass = isRecording ?? isStartingRecord;
+  const RECORD_SECONDS_LABEL = (RECORD_MS / 1000).toFixed(RECORD_MS % 1000 === 0 ? 0 : 1);
+
   const handleRenameClass = useCallback(
     (oldName: string, newName: string) => {
       const trimmed = newName.trim();
@@ -279,6 +413,10 @@ export function AudioTrainerTab() {
         setEditingClass(null);
         return;
       }
+      // A take in flight captures into the *old* label (its loop closed over
+      // the name), so renaming mid-take would scatter one class's samples
+      // across two names. End the take first and keep what it already got.
+      if (recordingClassRef.current === oldName) stopRecording();
       if (!audioTrainerEngine.isInitialised) {
         void audioTrainerEngine.init().then(() => {
           audioTrainerEngine.renameClass(oldName, trimmed);
@@ -294,7 +432,7 @@ export function AudioTrainerTab() {
       // Renaming does not invalidate the model — only sample changes do.
       syncCounts();
     },
-    [classes, isRecording, setSavedProjectAI, syncCounts],
+    [classes, isRecording, setSavedProjectAI, syncCounts, stopRecording],
   );
 
   const handleTrain = async () => {
@@ -334,6 +472,7 @@ export function AudioTrainerTab() {
             const count = exampleCounts[className] ?? 0;
             const needed = minSamples(className);
             const classColor = CLASS_COLORS[classIdx % CLASS_COLORS.length];
+            const isBusyElsewhere = recordingClass !== null && recordingClass !== className;
             return (
               <div
                 key={className}
@@ -438,6 +577,7 @@ export function AudioTrainerTab() {
                             disabled={count === 0}
                             onClick={() => {
                               setMenuClass(null);
+                              if (recordingClass === className) stopRecording();
                               audioTrainerEngine.clearClass(className);
                               invalidateAudioTraining();
                               syncCounts();
@@ -451,6 +591,7 @@ export function AudioTrainerTab() {
                             disabled={classes.length <= 2}
                             onClick={() => {
                               setMenuClass(null);
+                              if (recordingClass === className) stopRecording();
                               audioTrainerEngine.clearClass(className);
                               setClasses((p) => p.filter((c) => c !== className));
                               invalidateAudioTraining();
@@ -478,38 +619,51 @@ export function AudioTrainerTab() {
                   </p>
                   <div className="flex items-center gap-2">
                     <button
-                      onClick={async () => {
-                        if (!isMicOn) await handleStartMic();
-                      }}
-                      onMouseDown={() => void handleCaptureStart(className)}
-                      onMouseUp={handleCaptureStop}
-                      onMouseLeave={handleCaptureStop}
-                      onTouchStart={() => void handleCaptureStart(className)}
-                      onTouchEnd={handleCaptureStop}
-                      disabled={isIniting}
-                      title={isMicOn ? 'Hold to record' : 'Click to enable microphone'}
-                      className={`${tile} select-none ${isRecording === className ? '!bg-red-500 !text-white' : ''}`}
+                      onClick={() => void handleRecordBatch(className)}
+                      disabled={isIniting || isBusyElsewhere}
+                      title={
+                        isRecording === className
+                          ? 'Stop recording (keeps what was captured)'
+                          : isMicOn
+                            ? `Record ${RECORD_SECONDS_LABEL}s and add ${SAMPLES_PER_TAKE} samples`
+                            : 'Click to turn on your microphone'
+                      }
+                      className={`${tile} select-none ${isRecording === className ? '!bg-red-500 !text-white !border-red-500' : ''}`}
                     >
-                      <Mic size={20} />
-                      <span className="text-[11px] font-medium">
+                      {isRecording === className ? <Square size={18} /> : <Mic size={20} />}
+                      <span className="text-[11px] font-medium tabular-nums">
                         {isRecording === className
-                          ? 'Recording…'
-                          : isIniting
+                          ? `${(recordMsLeft / 1000).toFixed(1)}s`
+                          : isStartingRecord === className
                             ? 'Starting…'
                             : isMicOn
-                              ? 'Mic'
+                              ? `Record ${RECORD_SECONDS_LABEL}s`
                               : 'Enable Mic'}
                       </span>
                     </button>
                     <div className="flex-1 min-w-0 text-xs text-slate-500 dark:text-white/50">
-                      {isRecording === className
-                        ? 'Keep holding while you make the sound.'
-                        : isIniting
-                          ? 'Starting microphone…'
-                          : isMicOn
-                            ? 'Hold the Mic button and make the sound.'
-                            : 'Click Enable Mic to turn on your microphone.'}
-                      {count > 0 && count < needed && (
+                      {isRecording === className ? (
+                        <>
+                          Keep making the sound — capturing {SAMPLES_PER_TAKE} samples.
+                          <span className="mt-1.5 block h-1 rounded-full bg-slate-200 dark:bg-white/10 overflow-hidden">
+                            <span
+                              className="block h-full bg-[#FF6F61] transition-[width] duration-100 ease-linear"
+                              style={{
+                                width: `${Math.round(((RECORD_MS - recordMsLeft) / RECORD_MS) * 100)}%`,
+                              }}
+                            />
+                          </span>
+                        </>
+                      ) : isStartingRecord === className ? (
+                        'Starting microphone…'
+                      ) : isBusyElsewhere ? (
+                        `Recording "${isRecording ?? isStartingRecord}" — finish that first.`
+                      ) : isMicOn ? (
+                        `One tap records ${RECORD_SECONDS_LABEL} seconds and adds ${SAMPLES_PER_TAKE} samples at once.`
+                      ) : (
+                        'Turn on your microphone, then tap once to record.'
+                      )}
+                      {count > 0 && count < needed && isRecording !== className && (
                         <p className="mt-1 text-amber-600 dark:text-amber-400">
                           Record {needed - count} more to reach the minimum.
                         </p>
@@ -540,6 +694,7 @@ export function AudioTrainerTab() {
           <div className="flex justify-end pt-1">
             <button
               onClick={() => {
+                stopRecording();
                 audioTrainerEngine.clearAll();
                 stopListening();
                 setClasses([...DEFAULT_AUDIO_CLASSES]);
@@ -571,7 +726,7 @@ export function AudioTrainerTab() {
             <div className={`${card} p-5 flex-1 flex flex-col gap-4`}>
               <h2 className="text-lg font-semibold">Training</h2>
               <button
-                onClick={handleTrain}
+                onClick={() => void handleTrain()}
                 disabled={!canTest || isTrained}
                 className={`w-full py-2 rounded-md text-sm font-semibold ${isTrained ? grayBtn : primaryBtn}`}
               >
@@ -641,8 +796,8 @@ export function AudioTrainerTab() {
                   <Mic size={24} className="text-white/30" />
                 )}
                 {isRecording && (
-                  <div className="absolute bottom-2 left-1/2 -translate-x-1/2 px-2.5 py-0.5 rounded-full bg-red-500 text-white text-[11px] font-semibold">
-                    Recording: {isRecording}
+                  <div className="absolute bottom-2 left-1/2 -translate-x-1/2 px-2.5 py-0.5 rounded-full bg-red-500 text-white text-[11px] font-semibold tabular-nums">
+                    Recording: {isRecording} · {(recordMsLeft / 1000).toFixed(1)}s
                   </div>
                 )}
               </div>

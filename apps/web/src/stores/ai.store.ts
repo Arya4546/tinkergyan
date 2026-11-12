@@ -46,6 +46,17 @@ interface AIState {
   serializedDataset: string | null;
   serializedTextExamples: string | null;
   savedTab: AITrainerTab | null;
+  /**
+   * The modality a dedicated AI project was created for. Set once at creation
+   * and never changed, so AI Studio can open just that one trainer instead of
+   * all five — which is what let a previous project's image/audio/pose data
+   * (and its "already trained" flags) surface in a brand-new project.
+   *
+   * `null` means "no declared kind": either a hardware/software project using
+   * Train AI, or an AI project created before kinds existed. Both keep the
+   * full tab bar.
+   */
+  savedAIKind: AITrainerTab | null;
   /** Image-tab class names only. */
   savedImageClasses: string[] | null;
   /** Audio-tab class names only. */
@@ -68,6 +79,8 @@ interface AIState {
   setSerializedDataset: (data: string | null) => void;
   setSavedProjectAI: (data: {
     tab?: AITrainerTab | null | undefined;
+    /** Declared modality of a dedicated AI project (see `savedAIKind`). */
+    kind?: AITrainerTab | null | undefined;
     /** @deprecated use imageClasses — kept so older call sites still compile */
     classes?: string[] | null | undefined;
     imageClasses?: string[] | null | undefined;
@@ -130,6 +143,7 @@ const INITIAL_STATE = {
   serializedDataset: null as string | null,
   serializedTextExamples: null as string | null,
   savedTab: null as AITrainerTab | null,
+  savedAIKind: null as AITrainerTab | null,
   savedImageClasses: null as string[] | null,
   savedAudioClasses: null as string[] | null,
   savedPoseClasses: null as string[] | null,
@@ -164,6 +178,7 @@ export const useAIStore = create<AIState>()((set) => ({
             : undefined;
       return {
         savedTab: data.tab !== undefined ? data.tab : prev.savedTab,
+        savedAIKind: data.kind !== undefined ? data.kind : prev.savedAIKind,
         savedImageClasses: imageClasses !== undefined ? imageClasses : prev.savedImageClasses,
         savedAudioClasses:
           data.audioClasses !== undefined ? data.audioClasses : prev.savedAudioClasses,

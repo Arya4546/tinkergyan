@@ -69,6 +69,29 @@ function captureThumbnail(source: HTMLVideoElement | HTMLImageElement, size = 24
 
 type TrainerTab = 'image' | 'text' | 'audio' | 'pose' | 'numbers';
 
+const ALL_TABS: Array<{ id: TrainerTab; label: string }> = [
+  { id: 'image', label: 'Image' },
+  { id: 'text', label: 'Text' },
+  { id: 'audio', label: 'Audio' },
+  { id: 'pose', label: 'Pose' },
+  { id: 'numbers', label: 'Numbers' },
+];
+
+const TAB_IDS = ALL_TABS.map((t) => t.id);
+
+/** What a single-modality project calls itself in the header. */
+const KIND_LABELS: Record<TrainerTab, string> = {
+  image: 'Image / Video',
+  text: 'Text',
+  audio: 'Audio',
+  pose: 'Pose',
+  numbers: 'Numbers',
+};
+
+function parseTrainerTab(value: string | null): TrainerTab | null {
+  return value && (TAB_IDS as string[]).includes(value) ? (value as TrainerTab) : null;
+}
+
 export default function AITrainer() {
   const navigate = useNavigate();
   const { id: projectId } = useParams<{ id?: string }>();
@@ -77,6 +100,43 @@ export default function AITrainer() {
   // back to — it was started directly from the Dashboard's AI card. "Leave"
   // then means the Dashboard, not an Editor route that was never visited.
   const backEngine = searchParams.get('engine');
+  /**
+   * A dedicated AI project is created for one modality and opens only that
+   * trainer. Everything else — a hardware/software project using "Train AI",
+   * or an AI project made before kinds existed — keeps all five tabs.
+   *
+   * The kind arrives two ways: on the URL right after creation (`?kind=`),
+   * and from the project's own saved state on every later open. The URL is
+   * only trusted as a head start; the project's own value wins once loaded,
+   * which is also what keeps a hand-edited URL from opening the wrong trainer.
+   */
+  const urlKind = parseTrainerTab(searchParams.get('kind'));
+  // `loadProject` (below) swallows its own errors, so a failed fetch would
+  // otherwise leave the store empty forever — and the "which trainer?" gate
+  // waiting on it. Track that it settled without landing, and fall back to the
+  // full studio rather than an endless spinner.
+  const [projectLoadFailed, setProjectLoadFailed] = useState(false);
+  const storeProjectId = useEditorStore((s) => s.projectId);
+  const storeBoard = useEditorStore((s) => s.board);
+  const savedAIKind = useAIStore((s) => s.savedAIKind);
+  // The store only describes *this* project once its load has landed.
+  const projectStateReady = !projectId || storeProjectId === projectId;
+  // `projectId &&` matters: react-router keeps this component mounted when the
+  // route changes from /ai-trainer/:id to /ai-trainer, so the unmount reset
+  // never runs and the store can still describe the AI project just left. A
+  // kind only ever applies to the project the URL actually names.
+  const projectKind = projectId && projectStateReady && storeBoard === 'ai' ? savedAIKind : null;
+  const lockedKind: TrainerTab | null = projectStateReady ? projectKind : urlKind;
+  /**
+   * The route names a project the store has not produced yet. Until it lands,
+   * `blockXml` and the engines still describe whatever was open before, so
+   * saving would write an empty workspace over this project's saved model and
+   * importing would be wiped by the load that follows. Both are gated on it.
+   */
+  const isProjectSettling = !!projectId && !projectStateReady && !projectLoadFailed;
+  // Opening a saved project by URL: hold off on picking a trainer (and on
+  // loading the image model) until we know which one this project is for.
+  const isAwaitingKind = isProjectSettling && !urlKind;
 
   const goToEditorNow = useCallback(() => {
     if (!backEngine) {
@@ -96,9 +156,21 @@ export default function AITrainer() {
   // second, duplicate project instead of updating this one. Loading here too
   // — guarded so it's a no-op once the store already matches — fixes both.
   useEffect(() => {
-    if (projectId && useEditorStore.getState().projectId !== projectId) {
-      void useEditorStore.getState().loadProject(projectId);
-    }
+    if (!projectId) return;
+    setProjectLoadFailed(false);
+    if (useEditorStore.getState().projectId === projectId) return;
+    let cancelled = false;
+    void useEditorStore
+      .getState()
+      .loadProject(projectId)
+      .finally(() => {
+        if (!cancelled && useEditorStore.getState().projectId !== projectId) {
+          setProjectLoadFailed(true);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [projectId]);
 
   // Leaving AI Studio must clear the shared editor store — otherwise its
@@ -112,7 +184,7 @@ export default function AITrainer() {
     };
   }, []);
 
-  const [activeTab, setActiveTab] = useState<TrainerTab>('image');
+  const [activeTab, setActiveTab] = useState<TrainerTab>(() => urlKind ?? 'image');
   const [classes, setClasses] = useState<string[]>(() => {
     // Image tab only reads image-specific class names.
     const saved = useAIStore.getState().savedImageClasses;
@@ -227,10 +299,16 @@ export default function AITrainer() {
   const projectTitle = useEditorStore((s) => s.projectTitle);
   const setProjectTitle = useEditorStore((s) => s.setProjectTitle);
 
-  // Restore active tab if saved in project
+  // Restore active tab if saved in project. A single-modality project ignores
+  // the saved tab entirely — its one trainer is the only valid tab, and an
+  // older/stale aiTab must not be able to open a different one.
   useEffect(() => {
+    if (lockedKind) {
+      setActiveTab(lockedKind);
+      return;
+    }
     if (savedTab) setActiveTab(savedTab);
-  }, [savedTab]);
+  }, [savedTab, lockedKind]);
 
   // Restore sample thumbnails if saved in project. Replace (don't merge) so
   // a new/empty project cannot keep the previous project's thumbs.
@@ -296,6 +374,9 @@ export default function AITrainer() {
 
   useEffect(() => {
     if (activeTab !== 'image') return;
+    // Still resolving which trainer this project wants — loading MobileNet now
+    // would download ~17MB for a project that may well be Audio or Numbers.
+    if (isAwaitingKind) return;
 
     const initEngine = async () => {
       if (aiEngine.isInitialised) {
@@ -317,7 +398,7 @@ export default function AITrainer() {
     };
 
     void initEngine();
-  }, [activeTab, setModelLoaded]);
+  }, [activeTab, isAwaitingKind, setModelLoaded]);
 
   // Cleanup image-tab resources when switching to another tab.
   useEffect(() => {
@@ -843,6 +924,7 @@ export default function AITrainer() {
       const latest = useAIStore.getState();
       await saveProject(blockXml, {
         tab: activeTab,
+        ...(lockedKind ? { kind: lockedKind } : {}),
         classes: latest.savedImageClasses ?? undefined,
         audioClasses: latest.savedAudioClasses ?? undefined,
         poseClasses: latest.savedPoseClasses ?? undefined,
@@ -857,7 +939,7 @@ export default function AITrainer() {
     } finally {
       setIsSavingAI(false);
     }
-  }, [activeTab, classes, sampleThumbnails]);
+  }, [activeTab, classes, sampleThumbnails, lockedKind]);
 
   const handleSaveAndLeave = useCallback(async () => {
     await handleSaveAI();
@@ -893,14 +975,6 @@ export default function AITrainer() {
       : visiblePanels === 2
         ? 'grid-cols-[minmax(0,1fr)_280px]'
         : 'grid-cols-[minmax(0,1fr)_280px_340px]';
-
-  const TABS: Array<{ id: TrainerTab; label: string }> = [
-    { id: 'image', label: 'Image' },
-    { id: 'text', label: 'Text' },
-    { id: 'audio', label: 'Audio' },
-    { id: 'pose', label: 'Pose' },
-    { id: 'numbers', label: 'Numbers' },
-  ];
 
   // Kid-friendly "How careful should it be?" — maps to the engine's threshold.
   const CAREFUL_LEVELS: Array<{ label: string; emoji: string; value: number; help: string }> = [
@@ -982,27 +1056,40 @@ export default function AITrainer() {
         </div>
 
         <div className="flex items-center gap-2 bg-white dark:bg-[#15152b] rounded-xl shadow-[0_2px_12px_rgba(20,20,40,0.08)] dark:shadow-[0_2px_12px_rgba(0,0,0,0.4)] px-2 py-2">
-          {TABS.map(({ id, label }) => (
-            <button
-              key={id}
-              onClick={() => {
-                setActiveTab(id);
-                useAIStore.getState().setSavedProjectAI({ tab: id });
-              }}
-              className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
-                activeTab === id
-                  ? 'bg-[#FF6F61] text-white shadow-[0_2px_8px_-1px_rgba(255,111,97,0.5)]'
-                  : 'text-slate-500 dark:text-white/50 hover:text-slate-800 dark:hover:text-white hover:bg-slate-50 dark:hover:bg-white/5'
-              }`}
+          {isAwaitingKind ? (
+            <span className="px-3 py-1.5 text-sm font-medium text-slate-400 dark:text-white/30">
+              Loading…
+            </span>
+          ) : lockedKind ? (
+            <span
+              title="This project was created as a single-model AI project"
+              className="px-3 py-1.5 rounded-lg text-sm font-semibold bg-[#FF6F61] text-white shadow-[0_2px_8px_-1px_rgba(255,111,97,0.5)]"
             >
-              {label}
-            </button>
-          ))}
+              {KIND_LABELS[lockedKind]} model
+            </span>
+          ) : (
+            ALL_TABS.map(({ id, label }) => (
+              <button
+                key={id}
+                onClick={() => {
+                  setActiveTab(id);
+                  useAIStore.getState().setSavedProjectAI({ tab: id });
+                }}
+                className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
+                  activeTab === id
+                    ? 'bg-[#FF6F61] text-white shadow-[0_2px_8px_-1px_rgba(255,111,97,0.5)]'
+                    : 'text-slate-500 dark:text-white/50 hover:text-slate-800 dark:hover:text-white hover:bg-slate-50 dark:hover:bg-white/5'
+                }`}
+              >
+                {label}
+              </button>
+            ))
+          )}
           <div className="w-px h-6 bg-slate-200 dark:bg-white/10 mx-1" />
           <button
             onClick={() => void handleSaveAI()}
-            disabled={isSavingAI}
-            title="Save to this project"
+            disabled={isSavingAI || isProjectSettling}
+            title={isProjectSettling ? 'Still opening this project…' : 'Save to this project'}
             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium ${
               justSaved
                 ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300'
@@ -1018,7 +1105,7 @@ export default function AITrainer() {
             )}
             {isSavingAI ? 'Saving…' : justSaved ? 'Saved' : 'Save'}
           </button>
-          {activeTab === 'image' && (
+          {activeTab === 'image' && !isProjectSettling && (
             <>
               <button
                 onClick={() => importZipRef.current?.click()}
@@ -1065,7 +1152,12 @@ export default function AITrainer() {
 
       {/* ── Main content ── */}
       <main className="relative z-10 flex-1 flex flex-col">
-        {activeTab === 'text' ? (
+        {isAwaitingKind ? (
+          <div className="flex flex-col items-center justify-center gap-3 py-24">
+            <Loader2 size={36} className="text-[#FF6F61] animate-spin" />
+            <p className="text-sm font-semibold">Opening your project…</p>
+          </div>
+        ) : activeTab === 'text' ? (
           <div className="flex-1 flex justify-center py-10 px-6 min-h-[calc(100vh-96px)]">
             <div className="w-full max-w-2xl">
               <TextTrainerModal />
