@@ -10,7 +10,7 @@ import {
   Type as TypeIcon,
   Table2,
 } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { projectService } from '../../services/project.service';
 import { useProjectStore } from '../../stores/project.store';
@@ -102,6 +102,9 @@ export function NewProjectDialog({ open, onClose, preSelectedCategory }: NewProj
   const [aiKind, setAiKind] = useState<AITrainerTab>('audio');
   const [isCreating, setIsCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  /** Name box flagged red after Create was pressed with it empty. */
+  const [nameError, setNameError] = useState(false);
+  const nameInputRef = useRef<HTMLInputElement>(null);
 
   // Handle escape key
   useEffect(() => {
@@ -121,6 +124,7 @@ export function NewProjectDialog({ open, onClose, preSelectedCategory }: NewProj
       setBoard(BOARDS[0]!.fqbn);
       setAiKind('audio');
       setError(null);
+      setNameError(false);
       setIsCreating(false);
     }
   }, [open, preSelectedCategory]);
@@ -130,7 +134,11 @@ export function NewProjectDialog({ open, onClose, preSelectedCategory }: NewProj
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!title.trim()) {
-      setError('Project name is required');
+      // Flag the name box instead of blocking the button: red border, a short
+      // message under it, and the cursor placed there ready to type.
+      setNameError(true);
+      setError(null);
+      nameInputRef.current?.focus();
       return;
     }
     if (!category) {
@@ -213,14 +221,28 @@ export function NewProjectDialog({ open, onClose, preSelectedCategory }: NewProj
             Project Name <span className="text-red-500">*</span>
           </label>
           <input
+            ref={nameInputRef}
             type="text"
-            required
             placeholder="e.g. My Smart Home LED"
             value={title}
-            onChange={(e) => setTitle(e.target.value)}
+            onChange={(e) => {
+              setTitle(e.target.value);
+              if (nameError) setNameError(false);
+            }}
             disabled={isCreating}
-            className="w-full h-11 px-4 rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-[#1b1b33] text-sm text-slate-900 dark:text-white placeholder:text-slate-400 outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
+            aria-invalid={nameError}
+            aria-describedby={nameError ? 'project-name-error' : undefined}
+            className={`w-full h-11 px-4 rounded-xl border bg-slate-50 dark:bg-[#1b1b33] text-sm text-slate-900 dark:text-white placeholder:text-slate-400 outline-none focus:ring-2 transition-all ${
+              nameError
+                ? 'border-red-500 dark:border-red-500 focus:ring-red-500/25 focus:border-red-500'
+                : 'border-slate-200 dark:border-white/10 focus:ring-emerald-500/20 focus:border-emerald-500'
+            }`}
           />
+          {nameError && (
+            <p id="project-name-error" className="mt-1.5 text-xs font-medium text-red-500">
+              Please enter a project name.
+            </p>
+          )}
         </div>
 
         {/* Category / Mode Selection */}
@@ -333,7 +355,7 @@ export function NewProjectDialog({ open, onClose, preSelectedCategory }: NewProj
         {/* Submit Button */}
         <button
           type="submit"
-          disabled={isCreating || !title.trim() || !category}
+          disabled={isCreating}
           className={`w-full h-11 rounded-xl text-white font-sans font-bold text-sm flex items-center justify-center gap-2 shadow-md transition-all duration-200 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed ${
             category === 'software'
               ? 'bg-emerald-500 hover:bg-emerald-600 shadow-emerald-500/10'

@@ -163,7 +163,9 @@ function TemplatePicker({
                   {t.title}
                 </span>
               </div>
-              <p className="font-playful text-xs text-muted-foreground leading-relaxed">{t.desc}</p>
+              <p className="font-playful text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
+                {t.desc}
+              </p>
             </button>
           ))}
         </div>
@@ -1976,7 +1978,7 @@ export default function Editor() {
               </h2>
             </div>
             <div className="p-6">
-              <p className="font-playful text-sm text-muted-foreground leading-relaxed mb-6">
+              <p className="font-playful text-sm text-slate-600 dark:text-slate-300 leading-relaxed mb-6">
                 This will permanently remove all blocks, code, and sprites, and start this project
                 over from a blank slate. This cannot be undone.
               </p>
@@ -2019,7 +2021,7 @@ export default function Editor() {
               <h3 className="text-xl font-heading font-black text-slate-900 dark:text-white">
                 Unsaved Changes
               </h3>
-              <p className="text-sm font-playful text-muted-foreground mt-2 leading-relaxed">
+              <p className="text-sm font-playful text-slate-600 dark:text-slate-300 mt-2 leading-relaxed">
                 You have unsaved changes in this project. What would you like to do before leaving?
               </p>
             </div>
