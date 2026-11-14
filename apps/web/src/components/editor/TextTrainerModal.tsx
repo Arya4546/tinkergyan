@@ -7,7 +7,7 @@
  *
  * Uses Universal Sentence Encoder + KNN internally (text-ai-engine.ts).
  */
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { Plus, Trash2, Brain, Loader2, CheckCircle2, X } from 'lucide-react';
 import { textAIEngine } from '../../lib/text-ai-engine';
 import { useAIStore } from '../../stores/ai.store';
@@ -29,6 +29,9 @@ export function TextTrainerModal() {
   const [testResult, setTestResult] = useState<string | null>(null);
   const [testLoading, setTestLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  /** The sentence encoder is downloading ahead of the Train click. */
+  const [isWarming, setIsWarming] = useState(false);
+  const isWarmingRef = useRef(false);
 
   const { updateTrainingState, savedTextData, setSavedProjectAI } = useAIStore();
 
@@ -84,6 +87,25 @@ export function TextTrainerModal() {
   const handleAddSentence = useCallback((classIdx: number, sentence: string) => {
     const trimmed = sentence.trim();
     if (!trimmed) return;
+    // Start fetching the sentence encoder now. It is ~26.6MB — by far the
+    // largest model in the studio — and waiting for the Train click meant the
+    // whole download sat between the student and their first result. The
+    // first sentence is the earliest reliable signal that they mean to train,
+    // so the download overlaps with them typing the rest. Train awaits the
+    // same in-flight init, so this only ever moves the wait earlier.
+    if (!textAIEngine.isInitialised && !isWarmingRef.current) {
+      isWarmingRef.current = true;
+      setIsWarming(true);
+      void textAIEngine
+        .init()
+        .catch(() => {
+          // Train surfaces the real error; a failed warm-up just retries there.
+        })
+        .finally(() => {
+          isWarmingRef.current = false;
+          setIsWarming(false);
+        });
+    }
     setClasses((prev) =>
       prev.map((c, i) => (i === classIdx ? { ...c, sentences: [...c.sentences, trimmed] } : c)),
     );
@@ -218,7 +240,12 @@ export function TextTrainerModal() {
       >
         {isLoading ? (
           <>
-            <Loader2 size={16} className="animate-spin" /> Training model...
+            <Loader2 size={16} className="animate-spin" />{' '}
+            {textAIEngine.isInitialised ? 'Training model...' : 'Getting the model ready...'}
+          </>
+        ) : isWarming && !isTrained ? (
+          <>
+            <Loader2 size={16} className="animate-spin" /> Getting ready — keep adding sentences
           </>
         ) : isTrained ? (
           <>

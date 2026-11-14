@@ -133,24 +133,39 @@ class AudioTrainerEngine {
   // ── Feature Extraction ────────────────────────────────────────────────────
 
   private extractFeatures(): any {
+    return this.extractFrame()?.feat ?? null;
+  }
+
+  /** One normalised spectrum snapshot, plus how loud it was (0–1, pre-normalisation). */
+  private extractFrame(): { feat: any; energy: number } | null {
     if (!this.analyser || !tfRef) return null;
     if (this.audioCtx && this.audioCtx.state === 'suspended') {
       void this.audioCtx.resume();
     }
     const freqData = new Float32Array(this.analyser.frequencyBinCount);
     this.analyser.getFloatFrequencyData(freqData);
+    return this.featuresFromFreq(freqData);
+  }
+
+  /**
+   * dB spectrum -> normalised feature tensor. Shared by the live microphone
+   * and by uploaded files so both land in exactly the same feature space.
+   */
+  private featuresFromFreq(freqData: Float32Array): { feat: any; energy: number } | null {
+    if (!tfRef) return null;
     // Map dB → 0–1, then log-compress so quiet/loud samples sit closer together
     // and mid-band speech cues are not drowned by absolute volume.
     const features = Array.from(freqData).map((v) => {
       const linear = Math.max(0, (v + 160) / 160);
       return Math.log1p(linear * 12) / Math.log1p(12);
     });
+    const energy = features.reduce((a, b) => a + b, 0) / Math.max(1, features.length);
     const tensor = tfRef.tensor1d(features);
     const norm = tensor.norm();
     const normalised = tensor.div(norm.add(1e-6));
     tensor.dispose();
     norm.dispose();
-    return normalised;
+    return { feat: normalised, energy };
   }
 
   private smoothPrediction(confidences: Record<string, number>): {
@@ -182,6 +197,130 @@ class AudioTrainerEngine {
   }
 
   // ── Training ──────────────────────────────────────────────────────────────
+
+  /** Grab one snapshot for a take in progress. The caller owns (and must dispose) `feat`. */
+  grabFrame(): { feat: any; energy: number } | null {
+    return this.extractFrame();
+  }
+
+  /**
+   * Turn a whole take (many snapshots over a second or two) into ONE sample.
+   *
+   * A spoken word fills only part of the take, so averaging every snapshot
+   * would blend the word with the silence around it. Unless it is a steady
+   * background-noise class, only the louder half of the take (by loudness) is
+   * averaged. Takes ownership of `frames` and disposes them.
+   */
+  addTakeExample(
+    label: string,
+    frames: Array<{ feat: any; energy: number }>,
+    steady = false,
+  ): boolean {
+    if (!this.classifier || !tfRef) {
+      for (const f of frames) f.feat.dispose();
+      throw new Error('Audio engine not initialised');
+    }
+    if (frames.length === 0) return false;
+    const energies = frames.map((f) => f.energy);
+    const lo = Math.min(...energies);
+    const hi = Math.max(...energies);
+    const cut = steady || hi - lo < 0.01 ? -Infinity : lo + (hi - lo) * 0.5;
+    const chosen = frames.filter((f) => f.energy >= cut);
+    const stacked = tfRef.stack(chosen.map((f) => f.feat));
+    const mean = stacked.mean(0);
+    const norm = mean.norm();
+    const sample = mean.div(norm.add(1e-6));
+    this.classifier.addExample(sample, label);
+    for (const t of [stacked, mean, norm, sample]) t.dispose();
+    for (const f of frames) f.feat.dispose();
+    return true;
+  }
+
+  /**
+   * Turn an uploaded audio file into samples, with the same rule as recording:
+   * every `takeMs` of audio is ONE sample (a long file gives several, a short
+   * one gives one). Anything past `maxTakes` is ignored.
+   *
+   * The file is decoded and analysed offline — faster than playing it — using
+   * the same analyser settings and sample rate as the live microphone, so an
+   * uploaded sample and a recorded one are directly comparable.
+   *
+   * Throws if the browser cannot decode the data.
+   */
+  async addSamplesFromAudioFile(
+    label: string,
+    data: ArrayBuffer,
+    opts: { takeMs: number; frameMs: number; maxTakes: number; steady?: boolean },
+  ): Promise<{ added: number; seconds: number; truncated: boolean }> {
+    if (!this.classifier || !tfRef) throw new Error('Audio engine not initialised');
+    const { takeMs, frameMs, maxTakes, steady = false } = opts;
+
+    // Match the live context's rate so FFT bins mean the same frequencies.
+    let sampleRate = this.audioCtx?.sampleRate;
+    if (!sampleRate) {
+      const probe = new AudioContext();
+      sampleRate = probe.sampleRate;
+      void probe.close().catch(() => {});
+    }
+
+    const decoder = new OfflineAudioContext(1, 1, sampleRate);
+    const buffer = await decoder.decodeAudioData(data.slice(0));
+    const seconds = buffer.duration;
+    if (!(seconds > 0)) throw new Error('The file has no audio in it.');
+
+    // Whole takes only, but never drop a file that is just shorter than one,
+    // and keep a trailing piece only if it is at least a second long.
+    const takeSec = takeMs / 1000;
+    let takes = Math.floor(seconds / takeSec);
+    if (takes === 0 || seconds - takes * takeSec >= 1) takes += 1;
+    const truncated = takes > maxTakes;
+    takes = Math.min(takes, maxTakes);
+
+    const framesPerTake = Math.max(1, Math.floor(takeMs / frameMs));
+    const totalFrames = Math.max(
+      1,
+      Math.min(takes * framesPerTake, Math.floor((seconds * 1000) / frameMs)),
+    );
+
+    const ctx = new OfflineAudioContext(
+      1,
+      Math.ceil(((totalFrames * frameMs) / 1000 + 0.1) * sampleRate),
+      sampleRate,
+    );
+    const analyser = ctx.createAnalyser();
+    analyser.fftSize = this.FFT_SIZE;
+    analyser.smoothingTimeConstant = 0.3;
+    const source = ctx.createBufferSource();
+    source.buffer = buffer;
+    source.connect(analyser);
+    analyser.connect(ctx.destination);
+    source.start();
+
+    const perTake: Array<Array<{ feat: any; energy: number }>> = Array.from(
+      { length: takes },
+      () => [],
+    );
+    // Pause the render every frameMs and read the analyser, exactly like the
+    // live path reads it on a timer.
+    for (let k = 1; k <= totalFrames; k++) {
+      void ctx.suspend((k * frameMs) / 1000).then(() => {
+        const freq = new Float32Array(analyser.frequencyBinCount);
+        analyser.getFloatFrequencyData(freq);
+        const frame = this.featuresFromFreq(freq);
+        const bucket = perTake[Math.floor((k - 1) / framesPerTake)];
+        if (frame && bucket) bucket.push(frame);
+        return ctx.resume();
+      });
+    }
+    await ctx.startRendering();
+
+    let added = 0;
+    for (const frames of perTake) {
+      if (frames.length === 0) continue;
+      if (this.addTakeExample(label, frames, steady)) added += 1;
+    }
+    return { added, seconds, truncated };
+  }
 
   /** Capture one snapshot from the mic and add it to the class. */
   captureExample(label: string): boolean {

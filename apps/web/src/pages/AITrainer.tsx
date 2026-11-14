@@ -79,15 +79,6 @@ const ALL_TABS: Array<{ id: TrainerTab; label: string }> = [
 
 const TAB_IDS = ALL_TABS.map((t) => t.id);
 
-/** What a single-modality project calls itself in the header. */
-const KIND_LABELS: Record<TrainerTab, string> = {
-  image: 'Image / Video',
-  text: 'Text',
-  audio: 'Audio',
-  pose: 'Pose',
-  numbers: 'Numbers',
-};
-
 function parseTrainerTab(value: string | null): TrainerTab | null {
   return value && (TAB_IDS as string[]).includes(value) ? (value as TrainerTab) : null;
 }
@@ -101,32 +92,21 @@ export default function AITrainer() {
   // then means the Dashboard, not an Editor route that was never visited.
   const backEngine = searchParams.get('engine');
   /**
-   * A dedicated AI project is created for one modality and opens only that
-   * trainer. Everything else — a hardware/software project using "Train AI",
-   * or an AI project made before kinds existed — keeps all five tabs.
-   *
-   * The kind arrives two ways: on the URL right after creation (`?kind=`),
-   * and from the project's own saved state on every later open. The URL is
-   * only trusted as a head start; the project's own value wins once loaded,
-   * which is also what keeps a hand-edited URL from opening the wrong trainer.
+   * An AI project is created with a starting modality (Image, Audio, ...).
+   * It only decides which tab opens first — every tab stays available, as it
+   * is for a hardware/software project using "Train AI". The choice arrives
+   * on the URL right after creation (`?kind=`) and from the project's saved
+   * `aiTab` on every later open.
    */
   const urlKind = parseTrainerTab(searchParams.get('kind'));
   // `loadProject` (below) swallows its own errors, so a failed fetch would
-  // otherwise leave the store empty forever — and the "which trainer?" gate
+  // otherwise leave the store empty forever — and the "which tab first?" gate
   // waiting on it. Track that it settled without landing, and fall back to the
-  // full studio rather than an endless spinner.
+  // studio rather than an endless spinner.
   const [projectLoadFailed, setProjectLoadFailed] = useState(false);
   const storeProjectId = useEditorStore((s) => s.projectId);
-  const storeBoard = useEditorStore((s) => s.board);
-  const savedAIKind = useAIStore((s) => s.savedAIKind);
   // The store only describes *this* project once its load has landed.
   const projectStateReady = !projectId || storeProjectId === projectId;
-  // `projectId &&` matters: react-router keeps this component mounted when the
-  // route changes from /ai-trainer/:id to /ai-trainer, so the unmount reset
-  // never runs and the store can still describe the AI project just left. A
-  // kind only ever applies to the project the URL actually names.
-  const projectKind = projectId && projectStateReady && storeBoard === 'ai' ? savedAIKind : null;
-  const lockedKind: TrainerTab | null = projectStateReady ? projectKind : urlKind;
   /**
    * The route names a project the store has not produced yet. Until it lands,
    * `blockXml` and the engines still describe whatever was open before, so
@@ -163,6 +143,7 @@ export default function AITrainer() {
     void useEditorStore
       .getState()
       .loadProject(projectId)
+      .catch((err: unknown) => console.error('Failed to load project:', err))
       .finally(() => {
         if (!cancelled && useEditorStore.getState().projectId !== projectId) {
           setProjectLoadFailed(true);
@@ -194,6 +175,14 @@ export default function AITrainer() {
   });
   const [newClassName, setNewClassName] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  /**
+   * MobileNet is downloading in the background. Distinct from `isLoading`,
+   * which still blocks the page for an import — this one must not, because
+   * blocking here is exactly what made opening an Image/Video project feel
+   * slow while Audio/Pose/Text/Numbers (which load their engines on first
+   * use, after their UI is already on screen) opened instantly.
+   */
+  const [isModelWarming, setIsModelWarming] = useState(false);
   const [loadingMessage, setLoadingMessage] = useState('');
   const [editingClass, setEditingClass] = useState<string | null>(null);
   const [editingValue, setEditingValue] = useState('');
@@ -299,16 +288,11 @@ export default function AITrainer() {
   const projectTitle = useEditorStore((s) => s.projectTitle);
   const setProjectTitle = useEditorStore((s) => s.setProjectTitle);
 
-  // Restore active tab if saved in project. A single-modality project ignores
-  // the saved tab entirely — its one trainer is the only valid tab, and an
-  // older/stale aiTab must not be able to open a different one.
+  // Restore active tab if saved in project (a new AI project saves the
+  // modality it was created for, so that tab opens first).
   useEffect(() => {
-    if (lockedKind) {
-      setActiveTab(lockedKind);
-      return;
-    }
     if (savedTab) setActiveTab(savedTab);
-  }, [savedTab, lockedKind]);
+  }, [savedTab]);
 
   // Restore sample thumbnails if saved in project. Replace (don't merge) so
   // a new/empty project cannot keep the previous project's thumbs.
@@ -383,17 +367,15 @@ export default function AITrainer() {
         setModelLoaded(true);
         return;
       }
-      setIsLoading(true);
-      setLoadingMessage('Loading AI model (first time only)...');
+      setIsModelWarming(true);
       setError(null);
       try {
         await aiEngine.init();
         setModelLoaded(true);
-        setLoadingMessage('');
       } catch (err) {
         setError(`Failed to load AI model: ${err instanceof Error ? err.message : String(err)}`);
       } finally {
-        setIsLoading(false);
+        setIsModelWarming(false);
       }
     };
 
@@ -484,19 +466,34 @@ export default function AITrainer() {
   );
 
   const handleStartWebcam = useCallback(async () => {
-    if (!videoRef.current || !isModelLoaded) return;
+    // Deliberately not gated on the model: getUserMedia touches none of it,
+    // and letting the camera (and its permission prompt) warm up while
+    // MobileNet downloads is most of the wait, overlapped.
+    if (!videoRef.current) return;
     try {
       setError(null);
       await aiEngine.startWebcam(videoRef.current, selectedCameraId || undefined);
       setWebcamActive(true);
       const track = aiEngine.stream?.getVideoTracks()[0];
       void refreshCameraList(track?.getSettings().deviceId);
+      // A camera already held by another tab, window or app can hand back a
+      // track that looks live but never delivers a frame — the student just
+      // sees a black square with no error anywhere. videoWidth stays 0 in
+      // that case (it is the stream's own size, not a CSS size), so check it
+      // once the feed has had time to start and say what is actually wrong.
+      window.setTimeout(() => {
+        if (videoRef.current && videoRef.current.videoWidth === 0) {
+          setError(
+            'The camera turned on but is not sending any picture. It is usually open in another tab, window or app — close that one, then press Webcam again.',
+          );
+        }
+      }, 2500);
     } catch (err) {
       setError(
         `Camera error: ${err instanceof Error ? err.message : String(err)}. Please allow camera access.`,
       );
     }
-  }, [isModelLoaded, selectedCameraId, setWebcamActive, refreshCameraList]);
+  }, [selectedCameraId, setWebcamActive, refreshCameraList]);
 
   const handleSwitchCamera = useCallback(
     async (deviceId: string) => {
@@ -903,6 +900,18 @@ export default function AITrainer() {
   // the same mechanism the Editor's own Save button uses, so a model
   // trained here survives a refresh or a closed tab.
   const handleSaveAI = useCallback(async () => {
+    // Never write this project's model into whatever the shared editor store
+    // happens to hold. The two diverge when the project load is still in
+    // flight or failed, and saveProject() PATCHes the store's id — or POSTs a
+    // brand-new project when it is null. Either way the model lands in a
+    // project the student is not looking at. Refuse instead of guessing, and
+    // do not reload here: that would discard the samples just recorded.
+    if (projectId && useEditorStore.getState().projectId !== projectId) {
+      setError(
+        'This project is still opening, so saving now could write to the wrong project. Wait a moment and press Save again.',
+      );
+      return;
+    }
     setIsSavingAI(true);
     setError(null);
     try {
@@ -924,7 +933,6 @@ export default function AITrainer() {
       const latest = useAIStore.getState();
       await saveProject(blockXml, {
         tab: activeTab,
-        ...(lockedKind ? { kind: lockedKind } : {}),
         classes: latest.savedImageClasses ?? undefined,
         audioClasses: latest.savedAudioClasses ?? undefined,
         poseClasses: latest.savedPoseClasses ?? undefined,
@@ -939,7 +947,7 @@ export default function AITrainer() {
     } finally {
       setIsSavingAI(false);
     }
-  }, [activeTab, classes, sampleThumbnails, lockedKind]);
+  }, [activeTab, classes, sampleThumbnails, projectId]);
 
   const handleSaveAndLeave = useCallback(async () => {
     await handleSaveAI();
@@ -1059,13 +1067,6 @@ export default function AITrainer() {
           {isAwaitingKind ? (
             <span className="px-3 py-1.5 text-sm font-medium text-slate-400 dark:text-white/30">
               Loading…
-            </span>
-          ) : lockedKind ? (
-            <span
-              title="This project was created as a single-model AI project"
-              className="px-3 py-1.5 rounded-lg text-sm font-semibold bg-[#FF6F61] text-white shadow-[0_2px_8px_-1px_rgba(255,111,97,0.5)]"
-            >
-              {KIND_LABELS[lockedKind]} model
             </span>
           ) : (
             ALL_TABS.map(({ id, label }) => (
@@ -1187,9 +1188,18 @@ export default function AITrainer() {
               </div>
             )}
 
-            {isModelLoaded && !isLoading && (
-              <div className="flex-1 flex justify-center items-stretch py-10 px-6 min-h-[calc(100vh-96px)]">
-                <div className={`w-full max-w-[1400px] grid ${gridCols} gap-9 items-stretch`}>
+            {!isLoading && (
+              <div className="flex-1 flex flex-col items-center py-10 px-6 min-h-[calc(100vh-96px)]">
+                {isModelWarming && (
+                  <div className="w-full max-w-[1400px] mb-5 flex items-center gap-2.5 px-4 py-2.5 rounded-xl bg-[#FFEDEA] dark:bg-[#FF6F61]/10 border border-[#FF6F61]/30 text-[#FF6F61] text-sm font-medium">
+                    <Loader2 size={15} className="animate-spin shrink-0" />
+                    Getting the image model ready (first time only) — name your classes and turn on
+                    the camera meanwhile.
+                  </div>
+                )}
+                <div
+                  className={`w-full max-w-[1400px] flex-1 grid ${gridCols} gap-9 items-stretch`}
+                >
                   {/* ── Classes ── */}
                   <section className="min-w-0 flex flex-col gap-5">
                     {classes.map((className, classIdx) => {
@@ -1381,14 +1391,18 @@ export default function AITrainer() {
                                     onMouseLeave={handleCaptureStop}
                                     onTouchStart={() => handleCaptureStart(className)}
                                     onTouchEnd={handleCaptureStop}
-                                    disabled={!isWebcamActive}
+                                    disabled={!isWebcamActive || !isModelLoaded}
                                     className={`flex-1 py-2.5 rounded-md text-sm font-semibold select-none transition-colors ${
                                       isCapturing === className
                                         ? 'bg-red-500 text-white'
                                         : 'bg-[#FF6F61] text-white hover:bg-[#E8584A] disabled:bg-slate-300'
                                     }`}
                                   >
-                                    {isCapturing === className ? 'Recording…' : 'Hold to Record'}
+                                    {isCapturing === className
+                                      ? 'Recording…'
+                                      : !isModelLoaded
+                                        ? 'Getting ready…'
+                                        : 'Hold to Record'}
                                   </button>
                                 </div>
                               </div>
@@ -1427,7 +1441,6 @@ export default function AITrainer() {
                                     if (!isWebcamActive) await handleStartWebcam();
                                     setWebcamClass(className);
                                   }}
-                                  disabled={!isModelLoaded}
                                   className={tile}
                                 >
                                   <Video size={22} />
@@ -1438,9 +1451,11 @@ export default function AITrainer() {
                                   onDragOver={(e) => e.preventDefault()}
                                   onDrop={(e) => {
                                     e.preventDefault();
+                                    if (!isModelLoaded) return;
                                     const files = e.dataTransfer.files;
                                     if (files.length) void handleImageUpload(className, files);
                                   }}
+                                  disabled={!isModelLoaded}
                                   className={tile}
                                 >
                                   <Upload size={22} />

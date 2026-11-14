@@ -25,7 +25,7 @@ import { Loader } from '../components/ui/Loader';
 import { BOARDS, getBoardLabel } from '../lib/boards';
 
 type FilterType = 'ALL' | 'BLOCK' | 'CODE';
-type CategoryFilterType = 'ALL' | 'HARDWARE' | 'SOFTWARE';
+type CategoryFilterType = 'ALL' | 'HARDWARE' | 'SOFTWARE' | 'AI';
 
 export default function Projects() {
   const { projects, isLoading, error, fetchProjects, removeProject, removeProjects } =
@@ -63,7 +63,16 @@ export default function Projects() {
     return () => clearTimeout(timer);
   }, [search, filter, categoryFilter, boardFilter, fetchProjects]);
 
-  const filtered = projects;
+  // The API does the filtering, but the web app and the API deploy
+  // separately — and an API build from before the AI category existed drops
+  // `category=AI` on the floor and answers with every project, which reads as
+  // "the AI filter shows everything". Re-applying it here keeps the list
+  // honest against either server; against one that understands the category
+  // it is a no-op, since every row it returned is already an AI project.
+  const filtered = useMemo(
+    () => (categoryFilter === 'AI' ? projects.filter((p) => p.boardTarget === 'ai') : projects),
+    [projects, categoryFilter],
+  );
 
   // A project that's selected but no longer in the current filtered view
   // (the filters changed since it was selected) shouldn't count toward the
@@ -118,7 +127,7 @@ export default function Projects() {
       <PageHeader
         icon={FolderCode}
         title="My Projects"
-        subtitle={`${projects.length} maker projects`}
+        subtitle={`${filtered.length} maker projects`}
       >
         <button
           onClick={() => setIsNewProjectOpen(true)}
@@ -181,6 +190,22 @@ export default function Projects() {
             >
               <Play size={13} className="fill-current" /> Software
             </button>
+            <button
+              onClick={() => {
+                setCategoryFilter('AI');
+                setBoardFilter('ALL');
+                // Every AI Studio project is saved as BLOCK, so leaving a
+                // Blocks/Code choice applied would silently return nothing.
+                setFilter('ALL');
+              }}
+              className={`px-3 py-1 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all ${
+                categoryFilter === 'AI'
+                  ? 'bg-[#FF6F61] text-white shadow-sm'
+                  : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
+              }`}
+            >
+              <Brain size={13} /> AI
+            </button>
           </div>
 
           {/* Hardware Board Filter */}
@@ -203,24 +228,33 @@ export default function Projects() {
             </div>
           )}
 
-          {/* Code/Block Filter */}
-          <div className="flex gap-1.5 border-l border-slate-200 dark:border-slate-800 pl-2">
-            {(['ALL', 'BLOCK', 'CODE'] as FilterType[]).map((f) => (
-              <button
-                key={f}
-                onClick={() => setFilter(f)}
-                className={`h-10 px-3 rounded-xl text-xs font-bold transition-colors flex items-center gap-1 border ${
-                  filter === f
-                    ? 'bg-playful-primary text-white border-transparent shadow-xs'
-                    : 'bg-white dark:bg-[#141824] text-slate-600 dark:text-slate-300 border-slate-200/80 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800'
-                }`}
-              >
-                {f === 'BLOCK' && <Blocks size={12} />}
-                {f === 'CODE' && <TerminalSquare size={12} />}
-                {f === 'ALL' ? 'All Formats' : f === 'BLOCK' ? 'Blocks' : 'Code'}
-              </button>
-            ))}
-          </div>
+          {/* AI Studio Indicator — AI projects have no Blocks/Code split. */}
+          {categoryFilter === 'AI' && (
+            <div className="flex items-center gap-1.5 bg-[#FFEDEA] dark:bg-[#FF6F61]/10 border border-[#FF6F61]/30 dark:border-[#FF6F61]/30 rounded-xl px-3 py-1.5 text-xs font-bold text-[#FF6F61]">
+              <SlidersHorizontal size={12} /> Studio: AI Models
+            </div>
+          )}
+
+          {/* Code/Block Filter — not meaningful for AI projects. */}
+          {categoryFilter !== 'AI' && (
+            <div className="flex gap-1.5 border-l border-slate-200 dark:border-slate-800 pl-2">
+              {(['ALL', 'BLOCK', 'CODE'] as FilterType[]).map((f) => (
+                <button
+                  key={f}
+                  onClick={() => setFilter(f)}
+                  className={`h-10 px-3 rounded-xl text-xs font-bold transition-colors flex items-center gap-1 border ${
+                    filter === f
+                      ? 'bg-playful-primary text-white border-transparent shadow-xs'
+                      : 'bg-white dark:bg-[#141824] text-slate-600 dark:text-slate-300 border-slate-200/80 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800'
+                  }`}
+                >
+                  {f === 'BLOCK' && <Blocks size={12} />}
+                  {f === 'CODE' && <TerminalSquare size={12} />}
+                  {f === 'ALL' ? 'All Formats' : f === 'BLOCK' ? 'Blocks' : 'Code'}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
       </div>
 

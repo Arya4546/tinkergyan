@@ -233,6 +233,13 @@ export interface EditorState {
   blockXml: string;
   isSaving: boolean;
   isLoading: boolean;
+  /**
+   * Id of a project that was asked for (loadProject) but is not open — still
+   * loading, or the load failed (e.g. the session expired). While set, saving
+   * must NOT fall back to creating a new project: that silently forked the
+   * student's work into a blank "New_Project" with a fresh id.
+   */
+  unresolvedProjectId: string | null;
   isDirty: boolean;
   isPublic: boolean;
   lastLoadedAIState: {
@@ -458,6 +465,7 @@ const INITIAL_STATE = {
   blockXml: '',
   isSaving: false,
   isLoading: false,
+  unresolvedProjectId: null as string | null,
   isDirty: false,
   isPublic: false,
   lastLoadedAIState: null as {
@@ -547,7 +555,10 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
   setBlockXml: (blockXml) => set({ blockXml }),
 
   loadProject: async (id: string) => {
-    set({ isLoading: true });
+    // Cancel any pending autosave: it belongs to whatever was open before.
+    const pending = get()._autoSaveTimer;
+    if (pending) clearTimeout(pending);
+    set({ isLoading: true, unresolvedProjectId: id, _autoSaveTimer: null });
     try {
       // Wipe singleton engines + AI store before restoring this project so
       // leftover classes from a deleted/previous project cannot leak in.
@@ -652,6 +663,28 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
         textData: aiTextData ?? null,
       });
 
+      // Publish the saved class names NOW, before any model work. They are
+      // plain strings in the project JSON, but until this they only reached
+      // the store after MobileNet had downloaded and the dataset had
+      // deserialised — so a slow or failed model load, or any error in that
+      // restore (it only console.warns), left the Blockly "when AI sees
+      // [class]" dropdowns reading "(no classes trained)" on a project that
+      // plainly has classes. Real sample counts arrive with the dataset below;
+      // the names no longer depend on it.
+      const earlyImageLabels = legacyImage ?? [];
+      const earlyTextClasses = (aiTextData?.classes ?? []).filter((c) => c.sentences.length > 0);
+      if (earlyImageLabels.length > 0 || earlyTextClasses.length > 0) {
+        const earlyCounts: Record<string, number> = {};
+        for (const label of earlyImageLabels) earlyCounts[label] = 0;
+        for (const cls of earlyTextClasses) earlyCounts[`text:${cls.name}`] = cls.sentences.length;
+        useAIStore
+          .getState()
+          .updateTrainingState(
+            [...earlyImageLabels, ...earlyTextClasses.map((c) => `text:${c.name}`)],
+            earlyCounts,
+          );
+      }
+
       set({
         projectId: project.id,
         projectTitle: project.title,
@@ -664,6 +697,7 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
         isDirty: false,
         compileResult: null,
         lastLoadedAIState: loadedAIState,
+        unresolvedProjectId: null,
       });
 
       // Restore Image AI model if dataset exists
@@ -757,8 +791,10 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
           }
         }
       }
-    } catch {
-      // If project can't be loaded, stay on empty editor
+    } catch (err) {
+      // Keep unresolvedProjectId set so nothing can save this empty editor
+      // as a brand-new project. Callers surface the error to the student.
+      if (get().unresolvedProjectId === id) throw err;
     } finally {
       set({ isLoading: false });
     }
@@ -791,6 +827,11 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
   saveProject: async (blockXml: string, aiMetadata?: AIMetadata) => {
     const { projectId, projectTitle, generatedCode, board, mode, manualCode, lastLoadedAIState } =
       get();
+    if (!projectId && get().unresolvedProjectId) {
+      throw new Error(
+        "This project hasn't opened yet (you may have been signed out). Reload the page to open it before saving.",
+      );
+    }
     set({ isSaving: true });
     try {
       const code = mode === 'code' ? manualCode : generatedCode;
@@ -926,7 +967,8 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
 
     const newTimer = setTimeout(async () => {
       const state = get();
-      if (!state.isDirty || state.isSaving || state.isCompiling) return;
+      if (!state.isDirty || state.isSaving || state.isCompiling || state.isLoading) return;
+      if (!state.projectId && state.unresolvedProjectId) return;
       try {
         await state.saveProject(getBlockXml());
       } catch {

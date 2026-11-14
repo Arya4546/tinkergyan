@@ -88,14 +88,33 @@ class PoseTrainerEngine {
 
   // ── Feature Extraction ────────────────────────────────────────────────────
 
-  private async extractFeatures(videoEl: HTMLVideoElement): Promise<any> {
+  private async extractFeatures(
+    videoEl: HTMLVideoElement | HTMLImageElement,
+    requirePerson = false,
+  ): Promise<any> {
     if (!this.detector || !tfRef) return null;
     try {
       const poses = await this.detector.estimatePoses(videoEl);
       if (!poses || poses.length === 0) return null;
       const keypoints = poses[0].keypoints as Array<{ x: number; y: number; score?: number }>;
-      const w = videoEl.videoWidth || 224;
-      const h = videoEl.videoHeight || 224;
+      // MoveNet is a single-pose model: it ALWAYS answers with 17 keypoints,
+      // even for an empty room or a photo of a cat. For still photos (no
+      // later frame to correct a bad one) insist that a body was really seen:
+      // several confident keypoints, including part of the torso that the
+      // features are measured from.
+      if (requirePerson) {
+        const sure = keypoints.filter((k) => (k.score ?? 0) >= 0.3).length;
+        const torso = [5, 6, 11, 12].some((i) => (keypoints[i]?.score ?? 0) >= 0.3);
+        if (sure < 6 || !torso) return null;
+      }
+      const w =
+        ('videoWidth' in videoEl ? videoEl.videoWidth : 0) ||
+        ('naturalWidth' in videoEl ? videoEl.naturalWidth : 0) ||
+        224;
+      const h =
+        ('videoHeight' in videoEl ? videoEl.videoHeight : 0) ||
+        ('naturalHeight' in videoEl ? videoEl.naturalHeight : 0) ||
+        224;
 
       // Torso-relative frame: origin at mid-hip/shoulder, scale by torso length.
       // This makes the same pose look similar whether the student stands near or
@@ -171,13 +190,35 @@ class PoseTrainerEngine {
 
   // ── Training ──────────────────────────────────────────────────────────────
 
-  async captureFrame(videoEl: HTMLVideoElement, label: string): Promise<boolean> {
+  async captureFrame(
+    videoEl: HTMLVideoElement | HTMLImageElement,
+    label: string,
+    requirePerson = false,
+  ): Promise<boolean> {
     if (!this.classifier) throw new Error('Pose engine not initialised');
-    const feat = await this.extractFeatures(videoEl);
+    const feat = await this.extractFeatures(videoEl, requirePerson);
     if (!feat) return false;
     this.classifier.addExample(feat, label);
     feat.dispose();
     return true;
+  }
+
+  /**
+   * Add a still photo as one pose sample. Returns false when no person was
+   * found in it.
+   *
+   * MoveNet keeps a tracker between calls (it smooths keypoints and narrows
+   * its search to where the body was last frame) because it expects video. A
+   * photo has no relation to the previous one, so the tracker is reset first;
+   * otherwise the pose would be dragged toward the previous picture.
+   */
+  async captureImage(img: HTMLImageElement, label: string): Promise<boolean> {
+    try {
+      this.detector?.reset?.();
+    } catch {
+      // Older detector builds have no reset — carry on.
+    }
+    return this.captureFrame(img, label, true);
   }
 
   getExampleCounts(): Record<string, number> {

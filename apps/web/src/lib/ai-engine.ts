@@ -20,6 +20,10 @@
  */
 
 import type * as tf from '@tensorflow/tfjs';
+// Type-only: erased at build time, so naming these does not pull either
+// package into the bundle that loads them lazily below.
+import type * as poseDetection from '@tensorflow-models/pose-detection';
+import type * as speechCommands from '@tensorflow-models/speech-commands';
 
 // Lazy-loaded module references — set by init() on first use.
 let tfRef: any = null;
@@ -85,8 +89,11 @@ class AIEngine {
   private classifier: KNNClassifier | null = null;
 
   // Phase 3 models
-  private poseDetector: any = null; // poseDetection.PoseDetector
-  private speechRecognizer: any = null; // speechCommands.SpeechCommandRecognizer
+  private poseDetector: poseDetection.PoseDetector | null = null;
+  private speechRecognizer: speechCommands.SpeechCommandRecognizer | null = null;
+  /** In-flight lazy loads, so concurrent callers share one download. */
+  private poseDetectorPromise: Promise<poseDetection.PoseDetector> | null = null;
+  private speechRecognizerPromise: Promise<speechCommands.SpeechCommandRecognizer> | null = null;
 
   private videoStream: MediaStream | null = null;
   private predictionLoopId: number | null = null;
@@ -114,24 +121,44 @@ class AIEngine {
 
   // ── Lifecycle ─────────────────────────────────────────────────────────────
 
-  /** Idempotent. Dynamically imports TF.js + MobileNet + KNN on first call. */
+  /**
+   * Loads TF.js and waits for a backend. Split out of init() so the pose and
+   * speech paths can get a working backend without also pulling MobileNet —
+   * the Pose trainer needs MoveNet, not an image classifier.
+   */
+  private async ensureTf(): Promise<void> {
+    if (tfRef) return;
+    const tfModule = await import('@tensorflow/tfjs');
+    tfRef = tfModule;
+    // Awaited through the typed module handle, not the untyped tfRef.
+    await tfModule.ready();
+  }
+
+  /**
+   * Idempotent. Dynamically imports TF.js + MobileNet + KNN on first call.
+   *
+   * Pose (MoveNet) and speech-commands are deliberately NOT loaded here. They
+   * used to be, which meant opening the Image/Video trainer — the only thing
+   * that awaits this before rendering — pulled the 569KB pose-detection
+   * bundle, the speech-commands bundle and both of their model weights
+   * (speech alone is ~5.6MB) before the student saw anything, even though the
+   * image classifier touches none of it. That was the multi-second wait on
+   * opening an AI project when hardware/software projects opened instantly.
+   * Both now load on first actual use — see ensurePoseDetector() and
+   * ensureSpeechRecognizer().
+   */
   async init(): Promise<void> {
     if (this._isInitialised) return;
 
     // Dynamic imports keep the main bundle lean — TF.js is only loaded when
-    // the student actually opens the AI Studio.
-    const [tfModule, mobilenetModule, knnModule, poseModule, speechModule] = await Promise.all([
-      import('@tensorflow/tfjs'),
+    // the student actually opens the AI Studio. ensureTf() both loads it and
+    // waits for the WebGL/WebGPU backend, and is shared with the pose and
+    // speech paths so the three never load TF.js twice.
+    const [, mobilenetModule, knnModule] = await Promise.all([
+      this.ensureTf(),
       import('@tensorflow-models/mobilenet'),
       import('@tensorflow-models/knn-classifier'),
-      import('@tensorflow-models/pose-detection'),
-      import('@tensorflow-models/speech-commands'),
     ]);
-
-    tfRef = tfModule;
-
-    // Ensure the WebGL/WebGPU backend is initialized
-    await tfRef.ready();
 
     // alpha 0.5 keeps embedding size compatible with existing saved projects.
     // Accuracy gains come from L2-normalisation, adaptive k, and temporal
@@ -143,18 +170,52 @@ class AIEngine {
 
     this.classifier = knnModule.create() as unknown as KNNClassifier;
 
-    // Initialize Pose Detector (MoveNet Lightning - very fast on WebGL)
-    const detectorConfig = { modelType: poseModule.movenet.modelType.SINGLEPOSE_LIGHTNING };
-    this.poseDetector = await poseModule.createDetector(
-      poseModule.SupportedModels.MoveNet,
-      detectorConfig,
-    );
-
-    // Initialize Speech Commands
-    this.speechRecognizer = speechModule.create('BROWSER_FFT');
-    await this.speechRecognizer.ensureModelLoaded();
-
     this._isInitialised = true;
+  }
+
+  /**
+   * Loads MoveNet Lightning on first use: the pose blocks in the simulators,
+   * and the Pose trainer tab, which borrows this detector instead of creating
+   * a second one. Safe to call repeatedly — concurrent callers await the same
+   * download, and a failure clears the guard so a later call can retry.
+   */
+  async ensurePoseDetector(): Promise<poseDetection.PoseDetector> {
+    if (this.poseDetector) return this.poseDetector;
+    if (!this.poseDetectorPromise) {
+      this.poseDetectorPromise = (async () => {
+        await this.ensureTf();
+        const poseModule = await import('@tensorflow-models/pose-detection');
+        const detectorConfig = { modelType: poseModule.movenet.modelType.SINGLEPOSE_LIGHTNING };
+        this.poseDetector = await poseModule.createDetector(
+          poseModule.SupportedModels.MoveNet,
+          detectorConfig,
+        );
+        return this.poseDetector;
+      })().catch((err) => {
+        this.poseDetectorPromise = null;
+        throw err;
+      });
+    }
+    return this.poseDetectorPromise;
+  }
+
+  /** Loads the speech-commands model on first use (see ensurePoseDetector). */
+  async ensureSpeechRecognizer(): Promise<speechCommands.SpeechCommandRecognizer> {
+    if (this.speechRecognizer) return this.speechRecognizer;
+    if (!this.speechRecognizerPromise) {
+      this.speechRecognizerPromise = (async () => {
+        await this.ensureTf();
+        const speechModule = await import('@tensorflow-models/speech-commands');
+        const recognizer = speechModule.create('BROWSER_FFT');
+        await recognizer.ensureModelLoaded();
+        this.speechRecognizer = recognizer;
+        return recognizer;
+      })().catch((err) => {
+        this.speechRecognizerPromise = null;
+        throw err;
+      });
+    }
+    return this.speechRecognizerPromise;
   }
 
   get isInitialised(): boolean {
@@ -175,6 +236,8 @@ class AIEngine {
     this.mobilenet = null;
     this.poseDetector = null;
     this.speechRecognizer = null;
+    this.poseDetectorPromise = null;
+    this.speechRecognizerPromise = null;
     this._isInitialised = false;
   }
 
@@ -182,7 +245,17 @@ class AIEngine {
 
   /** @param deviceId  Optional specific camera to use (from `enumerateDevices()`). */
   async startWebcam(videoEl: HTMLVideoElement, deviceId?: string): Promise<void> {
-    if (this.videoStream) return; // already running
+    if (this.videoStream) {
+      // Already running — but for a DIFFERENT element the caller just mounted
+      // (AI Studio opening while a simulator program still holds the camera,
+      // or a remounted preview). Returning here left that <video> with no
+      // srcObject at all: a black square, and no frames for the model.
+      if (videoEl.srcObject !== this.videoStream) {
+        videoEl.srcObject = this.videoStream;
+        await videoEl.play().catch(() => {});
+      }
+      return;
+    }
 
     // Request a sharper feed than 224² — MobileNet resizes internally, and the
     // extra pixels improve fine details (glasses, pens, earpods).
@@ -488,6 +561,11 @@ class AIEngine {
     this.enablePose = enablePose;
     this.recentConfidences = [];
 
+    // Pose is lazy now. The loop below already skips it until the detector
+    // exists, so image prediction starts immediately either way; callers that
+    // need a pose on the very first frame await ensurePoseDetector() first.
+    if (enablePose && !this.poseDetector) void this.ensurePoseDetector();
+
     if (this.predictionLoopId !== null) return; // already running
 
     const loop = async () => {
@@ -543,11 +621,7 @@ class AIEngine {
           if (this.enablePose && this.poseDetector) {
             try {
               const poses = await this.poseDetector.estimatePoses(videoEl);
-              if (poses && poses.length > 0) {
-                this.latestPose = poses[0].keypoints;
-              } else {
-                this.latestPose = [];
-              }
+              this.latestPose = poses[0]?.keypoints ?? [];
             } catch (err) {
               console.error('Pose estimation error:', err);
             }
@@ -655,12 +729,18 @@ class AIEngine {
   }
 
   async startAudioListening(): Promise<void> {
-    if (!this.speechRecognizer || this.speechRecognizer.isListening()) return;
+    const recognizer = await this.ensureSpeechRecognizer();
+    if (recognizer.isListening()) return;
 
-    await this.speechRecognizer.listen(
-      (result: any) => {
-        const words = this.speechRecognizer.wordLabels();
-        const scores: number[] = Array.from(result.scores);
+    await recognizer.listen(
+      // eslint-disable-next-line @typescript-eslint/require-await
+      async (result) => {
+        const words = recognizer.wordLabels();
+        // `scores` is one Float32Array per frame, or an array of them when the
+        // recognizer batches — either way the newest frame is what we score.
+        const raw = result.scores;
+        const frame = Array.isArray(raw) ? (raw[0] ?? new Float32Array()) : raw;
+        const scores: number[] = Array.from(frame);
         // Find highest score
         let bestScore = -1;
         let bestIdx = 0;
@@ -672,6 +752,7 @@ class AIEngine {
         }
 
         const word = words[bestIdx];
+        if (!word) return;
         this.latestSpeechCommand = { word: word, score: bestScore };
 
         // Notify listeners if confidence > 0.8

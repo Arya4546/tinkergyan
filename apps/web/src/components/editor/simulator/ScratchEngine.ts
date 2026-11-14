@@ -898,6 +898,9 @@ export class ScratchEngine {
         // ── AI Vision ────────────────────────────────────────────────────
         aiStartVision: async () => {
           if (!aiEngine.isInitialised) await aiEngine.init();
+          // These blocks read pose keypoints, and MoveNet is loaded on demand
+          // now — wait for it here so "nose x" isn't 0 on the first frames.
+          await aiEngine.ensurePoseDetector();
           useAIStore.getState().setModelLoaded(true);
 
           // Create a hidden video element for the inference loop

@@ -61,7 +61,10 @@ export const listProjects = catchAsync(async (req: Request, res: Response) => {
   const projects = await ProjectService.findAll(req.user!.id, {
     search: typeof search === 'string' ? search : undefined,
     type: type === 'BLOCK' || type === 'CODE' ? type : undefined,
-    category: category === 'HARDWARE' || category === 'SOFTWARE' ? category : undefined,
+    category:
+      category === 'HARDWARE' || category === 'SOFTWARE' || category === 'AI'
+        ? category
+        : undefined,
     boardTarget: typeof boardTarget === 'string' ? boardTarget : undefined,
   });
   res.status(200).json({ success: true, data: { projects } });

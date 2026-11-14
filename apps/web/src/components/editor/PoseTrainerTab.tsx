@@ -18,6 +18,7 @@ import {
   Square,
   Camera,
   Check,
+  Upload,
 } from 'lucide-react';
 import { poseTrainerEngine } from '../../lib/pose-trainer-engine';
 import { useAIStore } from '../../stores/ai.store';
@@ -61,6 +62,44 @@ function resolvePoseClasses(): string[] {
   return [...DEFAULT_POSE_CLASSES];
 }
 
+/** Photo types accepted for upload — the ones every browser decodes natively. */
+const POSE_IMAGE_EXTS = ['jpg', 'jpeg', 'png', 'webp', 'bmp', 'gif'];
+const POSE_IMAGE_ACCEPT = POSE_IMAGE_EXTS.map((e) => `.${e}`).join(',');
+const MAX_POSE_IMAGE_BYTES = 15 * 1024 * 1024;
+
+function checkPoseImage(file: File): string | null {
+  const ext = file.name.includes('.') ? file.name.split('.').pop()!.toLowerCase() : '';
+  const type = (file.type || '').toLowerCase();
+  if (type.startsWith('video/') || type.startsWith('audio/')) {
+    return 'is not a photo — upload a JPG, PNG, WEBP, BMP or GIF image';
+  }
+  const typeOk = /^image\/(jpeg|png|webp|bmp|gif)$/.test(type);
+  if (!typeOk && !POSE_IMAGE_EXTS.includes(ext)) {
+    return 'is not a supported image (use JPG, PNG, WEBP, BMP or GIF)';
+  }
+  if (file.size === 0) return 'is empty';
+  if (file.size > MAX_POSE_IMAGE_BYTES) {
+    return `is too large (${(file.size / 1024 / 1024).toFixed(0)} MB, max ${MAX_POSE_IMAGE_BYTES / 1024 / 1024} MB)`;
+  }
+  return null;
+}
+
+function loadImage(file: File): Promise<HTMLImageElement> {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      resolve(img);
+    };
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+      reject(new Error('decode failed'));
+    };
+    img.src = url;
+  });
+}
+
 export function PoseTrainerTab() {
   const [classes, setClasses] = useState<string[]>(() => resolvePoseClasses());
   const [editingClass, setEditingClass] = useState<string | null>(null);
@@ -68,6 +107,9 @@ export function PoseTrainerTab() {
   const [isIniting, setIsIniting] = useState(false);
   const [isWebcamOn, setIsWebcamOn] = useState(false);
   const [isCapturing, setIsCapturing] = useState<string | null>(null);
+  const [uploadingClass, setUploadingClass] = useState<string | null>(null);
+  const [uploadProgress, setUploadProgress] = useState('');
+  const [notice, setNotice] = useState<string | null>(null);
   const [isTesting, setIsTesting] = useState(false);
   const [prediction, setPrediction] = useState<{
     label: string;
@@ -88,6 +130,7 @@ export function PoseTrainerTab() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const captureIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const animFrameRef = useRef<number | null>(null);
+  const fileInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
 
   const syncCounts = useCallback(() => {
     if (poseTrainerEngine.isInitialised) {
@@ -166,11 +209,9 @@ export function PoseTrainerTab() {
     setIsIniting(true);
     setError(null);
     try {
-      if (!aiEngine.isInitialised) {
-        await aiEngine.init();
-      }
-      // Expose the shared detector to the pose trainer
-      const sharedDetector = (aiEngine as any).poseDetector;
+      // Only MoveNet is needed here — aiEngine.init() would also fetch
+      // MobileNet, an image classifier this tab never calls.
+      const sharedDetector = await aiEngine.ensurePoseDetector();
       await poseTrainerEngine.init(sharedDetector);
 
       if (videoRef.current) {
@@ -250,6 +291,80 @@ export function PoseTrainerTab() {
     setIsTesting(false);
     setPrediction(null);
   }, []);
+
+  /**
+   * Adds uploaded photos to a class — one pose sample per photo, found by the
+   * same detector the webcam uses. A photo with no person in it is skipped and
+   * reported rather than silently counted.
+   */
+  const handlePoseUpload = useCallback(
+    async (className: string, files: File[]) => {
+      if (files.length === 0 || uploadingClass || isCapturing) return;
+      setError(null);
+      setNotice(null);
+      // Refuse unsupported files first — no need to load the pose model for them.
+      const problems: string[] = [];
+      const valid: File[] = [];
+      for (const file of files) {
+        const problem = checkPoseImage(file);
+        if (problem) problems.push(`"${file.name}" ${problem}`);
+        else valid.push(file);
+      }
+      if (valid.length === 0) {
+        const shown = problems.slice(0, 3).join('. ');
+        setError(problems.length > 3 ? `${shown} (+${problems.length - 3} more)` : shown);
+        return;
+      }
+      setUploadingClass(className);
+      // The detector is shared with live tracking and prediction; keep them
+      // off it while photos are processed so their state cannot interleave.
+      stopTesting();
+      poseTrainerEngine.stopTracking();
+      const noPerson: string[] = [];
+      let added = 0;
+      try {
+        const detector = await aiEngine.ensurePoseDetector();
+        await poseTrainerEngine.init(detector);
+        for (let i = 0; i < valid.length; i++) {
+          const file = valid[i]!;
+          setUploadProgress(`${i + 1} / ${valid.length}`);
+          try {
+            const img = await loadImage(file);
+            if (await poseTrainerEngine.captureImage(img, className)) added += 1;
+            else noPerson.push(file.name);
+          } catch {
+            problems.push(`"${file.name}" could not be opened as an image`);
+          }
+        }
+      } catch (e) {
+        problems.push(`Pose model error: ${e instanceof Error ? e.message : String(e)}`);
+      } finally {
+        syncCounts();
+        if (added > 0) invalidatePoseTraining();
+        setUploadingClass(null);
+        setUploadProgress('');
+        // Resume the live skeleton if the camera is still on.
+        if (isWebcamOn && videoRef.current) {
+          poseTrainerEngine.startTracking(videoRef.current, (keypoints) => {
+            setLatestKeypoints(keypoints);
+          });
+        }
+      }
+      const messages = [...problems];
+      if (noPerson.length > 0) {
+        const names = noPerson.slice(0, 2).join(', ');
+        messages.push(
+          `No person found in ${noPerson.length} photo${noPerson.length === 1 ? '' : 's'} (${names}${noPerson.length > 2 ? ', …' : ''}) — use photos where the whole body is visible`,
+        );
+      }
+      if (messages.length > 0) {
+        const shown = messages.slice(0, 3).join('. ');
+        setError(messages.length > 3 ? `${shown} (+${messages.length - 3} more)` : shown);
+      }
+      if (added > 0) setNotice(`Added ${added} pose sample${added === 1 ? '' : 's'}.`);
+    },
+    [uploadingClass, isCapturing, isWebcamOn, stopTesting, syncCounts, invalidatePoseTraining],
+  );
 
   const handleToggleTest = useCallback(() => {
     if (!isWebcamOn || !videoRef.current) return;
@@ -534,6 +649,36 @@ export function PoseTrainerTab() {
                         <Camera size={20} />
                         <span className="text-[11px] font-medium">Webcam</span>
                       </button>
+                      <button
+                        onClick={() => fileInputRefs.current[className]?.click()}
+                        onDragOver={(e) => e.preventDefault()}
+                        onDrop={(e) => {
+                          e.preventDefault();
+                          void handlePoseUpload(className, Array.from(e.dataTransfer.files));
+                        }}
+                        disabled={isIniting || uploadingClass !== null}
+                        title="Upload photos of this pose (JPG, PNG, WEBP, BMP, GIF)"
+                        className={tile}
+                      >
+                        <Upload size={20} />
+                        <span className="text-[11px] font-medium tabular-nums">
+                          {uploadingClass === className ? uploadProgress || '…' : 'Upload'}
+                        </span>
+                      </button>
+                      <input
+                        ref={(el) => {
+                          fileInputRefs.current[className] = el;
+                        }}
+                        type="file"
+                        accept={POSE_IMAGE_ACCEPT}
+                        multiple
+                        className="hidden"
+                        onChange={(e) => {
+                          const picked = Array.from(e.target.files ?? []);
+                          e.target.value = '';
+                          if (picked.length) void handlePoseUpload(className, picked);
+                        }}
+                      />
                     </div>
                   </div>
                 )}
@@ -683,6 +828,9 @@ export function PoseTrainerTab() {
                 )}
               </div>
               {error && <p className="text-xs text-red-600 dark:text-red-400">{error}</p>}
+              {notice && !error && (
+                <p className="text-xs text-emerald-600 dark:text-emerald-400">{notice}</p>
+              )}
               {isWebcamOn && isTrained && (
                 <button
                   onClick={handleToggleTest}

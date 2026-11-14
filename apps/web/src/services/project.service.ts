@@ -41,7 +41,7 @@ export interface UpdateProjectInput {
 export interface ProjectFilterParams {
   search?: string | undefined;
   type?: 'BLOCK' | 'CODE' | undefined;
-  category?: 'HARDWARE' | 'SOFTWARE' | undefined;
+  category?: 'HARDWARE' | 'SOFTWARE' | 'AI' | undefined;
   boardTarget?: string | undefined;
 }
 

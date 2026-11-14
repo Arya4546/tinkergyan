@@ -71,7 +71,7 @@ import { MonacoEditor, type MonacoEditorHandle } from '../components/editor/Mona
 import { Button } from '../components/ui/Button';
 import { useEditorStore, STARTER_TEMPLATES, type StarterTemplate } from '../stores/editor.store';
 import { useUIStore } from '../stores/ui.store';
-import { useUser } from '../stores/auth.store';
+import { useAuthStore, useUser } from '../stores/auth.store';
 import { useSimulatorStore } from '../stores/simulator.store';
 import { CartoonRocket } from '../components/illustrations/CartoonRocket';
 import { scratchEngine } from '../components/editor/simulator/ScratchEngine';
@@ -510,9 +510,24 @@ export default function Editor() {
   // ── Load project on mount if URL has an ID ─────────────────────────────
   useEffect(() => {
     if (routeProjectId) {
-      if (projectId !== routeProjectId) {
+      // Read the store directly, not this render's `projectId`. Coming back
+      // from AI Studio, this page renders while the store still holds the
+      // project, then AI Studio's unmount resets the store before this effect
+      // runs. The stale value said "already loaded", so the project was never
+      // reloaded: no saved classes in the AI blocks, and the next autosave
+      // created a brand-new project from the empty editor.
+      if (useEditorStore.getState().projectId !== routeProjectId) {
         loadProject(routeProjectId).catch((err: any) => {
           console.error('Failed to load project:', err);
+          // Signed-out sessions are handled by the login redirect; for any
+          // other failure, tell the student instead of showing an empty
+          // editor that looks like their work vanished.
+          if (!useAuthStore.getState().accessToken) return;
+          addToast({
+            type: 'error',
+            title: "Couldn't open project",
+            message: 'Please reload the page. Nothing was saved, so your project is unchanged.',
+          });
         });
         useSimulatorStore.getState().resetSimulator();
       }
@@ -577,10 +592,34 @@ export default function Editor() {
 
   // ── Auto-save on changes ───────────────────────────────────────────────
   useEffect(() => {
+    // Never autosave while the project in the URL isn't the one open: saving
+    // with no projectId creates a NEW project, which is how a sign-out
+    // mid-load produced a stray "New_Project" with a different id.
+    if (isLoading || (routeProjectId && projectId !== routeProjectId)) return;
     if (isDirty) {
       scheduleAutoSave(() => blocklyRef.current?.getXml() ?? '');
     }
-  }, [isDirty, generatedCode, manualCode, projectTitle, board, scheduleAutoSave]);
+  }, [
+    isDirty,
+    generatedCode,
+    manualCode,
+    projectTitle,
+    board,
+    scheduleAutoSave,
+    isLoading,
+    routeProjectId,
+    projectId,
+  ]);
+
+  // A pending autosave must not outlive this page (e.g. the sign-out
+  // redirect to /login) — it would fire later against a reset store.
+  useEffect(() => {
+    return () => {
+      const timer = useEditorStore.getState()._autoSaveTimer;
+      if (timer) clearTimeout(timer);
+      useEditorStore.setState({ _autoSaveTimer: null });
+    };
+  }, []);
 
   // ── Confetti Gamification ───────────────────────────────────────────────
   useEffect(() => {
@@ -1571,13 +1610,20 @@ export default function Editor() {
           {/* AI Studio Button — opens the dedicated AI Trainer page, not a modal */}
           <Tooltip content="Open AI Model Studio" position="bottom">
             <button
-              onClick={() =>
+              onClick={() => {
+                // The URL is the authority for which project this page shows.
+                // `projectId` comes from the shared editor store, which still
+                // holds the PREVIOUS project while this one is loading (and
+                // keeps it for good if that load failed) — so clicking AI
+                // Studio early opened a different project's studio, and
+                // anything trained there was saved into that other project.
+                const target = routeProjectId ?? projectId;
                 navigate(
-                  projectId
-                    ? `/ai-trainer/${projectId}?engine=${engineMode}`
+                  target
+                    ? `/ai-trainer/${target}?engine=${engineMode}`
                     : `/ai-trainer?engine=${engineMode}`,
-                )
-              }
+                );
+              }}
               className="h-9 px-4 rounded-full font-sans font-bold text-sm flex items-center gap-1.5 transition-all focus-visible:ring-2 focus-visible:ring-white focus-visible:outline-none bg-purple-600 text-white hover:bg-purple-500 shadow-sm"
             >
               <Brain size={15} />

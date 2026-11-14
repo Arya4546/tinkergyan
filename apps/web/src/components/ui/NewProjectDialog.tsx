@@ -30,17 +30,62 @@ const CATEGORY_LABELS: Record<ProjectCategory, string> = {
  * that trainer, which is what stops one project's image/audio/pose data and
  * "already trained" flags from showing up in another.
  */
-const AI_KINDS: Array<{
-  id: AITrainerTab;
+/**
+ * One row per coding mode. These used to be three vertical cards in a
+ * three-column grid inside a 512px dialog, which left each card ~145px wide —
+ * the titles wrapped mid-phrase and the blurbs stretched into seven-line
+ * ribbons. A full-width row fits the icon, the name and a one-line blurb at
+ * any dialog width.
+ */
+const MODES: Array<{
+  id: ProjectCategory;
   label: string;
-  hint: string;
-  icon: typeof Camera;
+  blurb: string;
+  icon: typeof Play;
+  tint: { icon: string; active: string; check: string };
 }> = [
-  { id: 'image', label: 'Image / Video', hint: 'Webcam or uploaded pictures', icon: Camera },
-  { id: 'audio', label: 'Audio', hint: 'Sounds and spoken words', icon: Mic },
-  { id: 'pose', label: 'Pose', hint: 'Body positions from the webcam', icon: PersonStanding },
-  { id: 'text', label: 'Text', hint: 'Sentences and phrases', icon: TypeIcon },
-  { id: 'numbers', label: 'Numbers', hint: 'Rows of numeric data', icon: Table2 },
+  {
+    id: 'software',
+    label: 'Software Coding',
+    blurb: 'Blocks or text, run in the browser simulator.',
+    icon: Play,
+    tint: {
+      icon: 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400',
+      active:
+        'border-emerald-500 ring-2 ring-emerald-500/20 bg-emerald-50/20 dark:bg-emerald-950/10',
+      check: 'text-emerald-500',
+    },
+  },
+  {
+    id: 'hardware',
+    label: 'Hardware Coding',
+    blurb: 'Blocks or C++, upload to Arduino & ESP boards.',
+    icon: Cpu,
+    tint: {
+      icon: 'bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400',
+      active: 'border-purple-500 ring-2 ring-purple-500/20 bg-purple-50/20 dark:bg-purple-950/10',
+      check: 'text-purple-500',
+    },
+  },
+  {
+    id: 'ai',
+    label: 'AI Model Training',
+    blurb: 'Train a model from your own examples.',
+    icon: Brain,
+    tint: {
+      icon: 'bg-[#FFEDEA] dark:bg-[#FF6F61]/20 text-[#FF6F61]',
+      active: 'border-[#FF6F61] ring-2 ring-[#FF6F61]/20 bg-[#FFEDEA]/40 dark:bg-[#FF6F61]/10',
+      check: 'text-[#FF6F61]',
+    },
+  },
+];
+
+const AI_KINDS: Array<{ id: AITrainerTab; label: string; icon: typeof Camera }> = [
+  { id: 'image', label: 'Image / Video', icon: Camera },
+  { id: 'audio', label: 'Audio', icon: Mic },
+  { id: 'pose', label: 'Pose', icon: PersonStanding },
+  { id: 'text', label: 'Text', icon: TypeIcon },
+  { id: 'numbers', label: 'Numbers', icon: Table2 },
 ];
 
 interface NewProjectDialogProps {
@@ -54,7 +99,7 @@ export function NewProjectDialog({ open, onClose, preSelectedCategory }: NewProj
   const [title, setTitle] = useState('');
   const [category, setCategory] = useState<ProjectCategory | null>(null);
   const [board, setBoard] = useState<string>(BOARDS[0]!.fqbn);
-  const [aiKind, setAiKind] = useState<AITrainerTab | null>(null);
+  const [aiKind, setAiKind] = useState<AITrainerTab>('audio');
   const [isCreating, setIsCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -74,7 +119,7 @@ export function NewProjectDialog({ open, onClose, preSelectedCategory }: NewProj
       setTitle('');
       setCategory(preSelectedCategory || null);
       setBoard(BOARDS[0]!.fqbn);
-      setAiKind(null);
+      setAiKind('audio');
       setError(null);
       setIsCreating(false);
     }
@@ -92,10 +137,6 @@ export function NewProjectDialog({ open, onClose, preSelectedCategory }: NewProj
       setError('Please select a coding mode');
       return;
     }
-    if (category === 'ai' && !aiKind) {
-      setError('Please choose what this AI model learns from');
-      return;
-    }
 
     setIsCreating(true);
     setError(null);
@@ -109,7 +150,7 @@ export function NewProjectDialog({ open, onClose, preSelectedCategory }: NewProj
         // Stamp the chosen modality into the project's own saved state at
         // creation, so every later open (direct URL, Projects list, Gallery)
         // knows which single trainer to show without guessing.
-        ...(category === 'ai' && aiKind
+        ...(category === 'ai'
           ? { blockState: JSON.stringify({ blockXml: '', aiKind, aiTab: aiKind }) }
           : {}),
       });
@@ -119,7 +160,7 @@ export function NewProjectDialog({ open, onClose, preSelectedCategory }: NewProj
 
       navigate(
         category === 'ai'
-          ? `/ai-trainer/${project.id}?kind=${aiKind!}`
+          ? `/ai-trainer/${project.id}?kind=${aiKind}`
           : `/editor/${project.id}?engine=${category}`,
       );
       onClose();
@@ -139,7 +180,7 @@ export function NewProjectDialog({ open, onClose, preSelectedCategory }: NewProj
     >
       <form
         onSubmit={handleSubmit}
-        className="bg-white dark:bg-[#15152b] border border-slate-200 dark:border-white/10 rounded-3xl max-w-lg w-full shadow-2xl p-6 relative flex flex-col gap-5"
+        className="bg-white dark:bg-[#15152b] border border-slate-200 dark:border-white/10 rounded-3xl max-w-xl w-full max-h-[90vh] overflow-y-auto shadow-2xl p-6 relative flex flex-col gap-5"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Close Button */}
@@ -188,75 +229,33 @@ export function NewProjectDialog({ open, onClose, preSelectedCategory }: NewProj
             <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-3">
               Choose Coding Mode <span className="text-red-500">*</span>
             </label>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              {/* Software Coding Card */}
-              <button
-                type="button"
-                onClick={() => setCategory('software')}
-                disabled={isCreating}
-                className={`flex flex-col items-center text-center p-5 rounded-2xl border shadow-sm dark:shadow-[0_2px_12px_rgba(0,0,0,0.3)] bg-slate-50 dark:bg-[#1b1b33] hover:shadow-md hover:scale-[1.02] active:scale-95 transition-all duration-200 group ${
-                  category === 'software'
-                    ? 'border-emerald-500 ring-2 ring-emerald-500/20 bg-emerald-50/20 dark:bg-emerald-950/10'
-                    : 'border-slate-200 dark:border-white/10'
-                }`}
-              >
-                <div className="w-12 h-12 rounded-2xl bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
-                  <Play size={22} className="fill-current" />
-                </div>
-                <h4 className="font-bold text-base text-slate-900 dark:text-white mb-2">
-                  Software Coding
-                </h4>
-                <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
-                  Code using blockly logic or text and run/test inside the interactive browser
-                  simulator.
-                </p>
-              </button>
-
-              {/* Hardware Coding Card */}
-              <button
-                type="button"
-                onClick={() => setCategory('hardware')}
-                disabled={isCreating}
-                className={`flex flex-col items-center text-center p-5 rounded-2xl border shadow-sm dark:shadow-[0_2px_12px_rgba(0,0,0,0.3)] bg-slate-50 dark:bg-[#1b1b33] hover:shadow-md hover:scale-[1.02] active:scale-95 transition-all duration-200 group ${
-                  category === 'hardware'
-                    ? 'border-purple-500 ring-2 ring-purple-500/20 bg-purple-50/20 dark:bg-purple-950/10'
-                    : 'border-slate-200 dark:border-white/10'
-                }`}
-              >
-                <div className="w-12 h-12 rounded-2xl bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
-                  <Cpu size={22} />
-                </div>
-                <h4 className="font-bold text-base text-slate-900 dark:text-white mb-2">
-                  Hardware Coding
-                </h4>
-                <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
-                  Code using blocks or C++ text and compile/upload directly to real Arduino & ESP
-                  boards.
-                </p>
-              </button>
-
-              {/* AI Model Card */}
-              <button
-                type="button"
-                onClick={() => setCategory('ai')}
-                disabled={isCreating}
-                className={`flex flex-col items-center text-center p-5 rounded-2xl border shadow-sm dark:shadow-[0_2px_12px_rgba(0,0,0,0.3)] bg-slate-50 dark:bg-[#1b1b33] hover:shadow-md hover:scale-[1.02] active:scale-95 transition-all duration-200 group ${
-                  category === 'ai'
-                    ? 'border-[#FF6F61] ring-2 ring-[#FF6F61]/20 bg-[#FFEDEA]/40 dark:bg-[#FF6F61]/10'
-                    : 'border-slate-200 dark:border-white/10'
-                }`}
-              >
-                <div className="w-12 h-12 rounded-2xl bg-[#FFEDEA] dark:bg-[#FF6F61]/20 text-[#FF6F61] flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
-                  <Brain size={22} />
-                </div>
-                <h4 className="font-bold text-base text-slate-900 dark:text-white mb-2">
-                  AI Model Training
-                </h4>
-                <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
-                  Train an image, sound, or pose classifier with your own examples, then export or
-                  use it in a project.
-                </p>
-              </button>
+            <div className="flex flex-col gap-2">
+              {MODES.map(({ id, label, blurb, icon: Icon, tint }) => (
+                <button
+                  key={id}
+                  type="button"
+                  onClick={() => setCategory(id)}
+                  disabled={isCreating}
+                  className={`flex items-center gap-3.5 p-3.5 rounded-2xl border text-left bg-slate-50 dark:bg-[#1b1b33] hover:bg-slate-100 dark:hover:bg-white/5 active:scale-[0.99] transition-all duration-150 ${
+                    category === id ? tint.active : 'border-slate-200 dark:border-white/10'
+                  }`}
+                >
+                  <span
+                    className={`w-10 h-10 shrink-0 rounded-xl flex items-center justify-center ${tint.icon}`}
+                  >
+                    <Icon size={19} className={id === 'software' ? 'fill-current' : ''} />
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block font-bold text-sm text-slate-900 dark:text-white">
+                      {label}
+                    </span>
+                    <span className="block text-xs text-slate-500 dark:text-slate-400 leading-snug">
+                      {blurb}
+                    </span>
+                  </span>
+                  {category === id && <Check size={17} className={`shrink-0 ${tint.check}`} />}
+                </button>
+              ))}
             </div>
           </div>
         )}
@@ -268,41 +267,33 @@ export function NewProjectDialog({ open, onClose, preSelectedCategory }: NewProj
               What does this model learn from? <span className="text-red-500">*</span>
             </label>
             <p className="text-xs text-slate-500 dark:text-slate-400 mb-3">
-              Pick one — the studio opens just that trainer, so this project stays separate from
-              your other AI projects.
+              This tab opens first. You can still use all the other model types inside the project.
             </p>
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-              {AI_KINDS.map(({ id, label, hint, icon: Icon }) => (
+              {AI_KINDS.map(({ id, label, icon: Icon }) => (
                 <button
                   key={id}
                   type="button"
                   onClick={() => setAiKind(id)}
                   disabled={isCreating}
-                  className={`flex flex-col items-start gap-1 px-3 py-2.5 rounded-xl border text-left transition-all duration-150 ${
+                  className={`flex items-center gap-2 h-11 px-3 rounded-xl border text-left transition-all duration-150 ${
                     aiKind === id
                       ? 'border-[#FF6F61] ring-2 ring-[#FF6F61]/20 bg-[#FFEDEA]/40 dark:bg-[#FF6F61]/10'
                       : 'border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-[#1b1b33] hover:bg-slate-100 dark:hover:bg-white/5'
                   }`}
                 >
-                  <span className="flex items-center gap-1.5 w-full">
-                    <Icon
-                      size={14}
-                      className={`shrink-0 ${aiKind === id ? 'text-[#FF6F61]' : 'text-slate-400'}`}
-                    />
-                    <span
-                      className={`text-sm font-semibold truncate ${
-                        aiKind === id ? 'text-[#FF6F61]' : 'text-slate-700 dark:text-slate-200'
-                      }`}
-                    >
-                      {label}
-                    </span>
-                    {aiKind === id && (
-                      <Check size={13} className="ml-auto shrink-0 text-[#FF6F61]" />
-                    )}
+                  <Icon
+                    size={15}
+                    className={`shrink-0 ${aiKind === id ? 'text-[#FF6F61]' : 'text-slate-400'}`}
+                  />
+                  <span
+                    className={`text-sm font-semibold truncate ${
+                      aiKind === id ? 'text-[#FF6F61]' : 'text-slate-700 dark:text-slate-200'
+                    }`}
+                  >
+                    {label}
                   </span>
-                  <span className="text-[11px] leading-snug text-slate-500 dark:text-slate-400">
-                    {hint}
-                  </span>
+                  {aiKind === id && <Check size={14} className="ml-auto shrink-0 text-[#FF6F61]" />}
                 </button>
               ))}
             </div>
@@ -342,7 +333,7 @@ export function NewProjectDialog({ open, onClose, preSelectedCategory }: NewProj
         {/* Submit Button */}
         <button
           type="submit"
-          disabled={isCreating || !title.trim() || !category || (category === 'ai' && !aiKind)}
+          disabled={isCreating || !title.trim() || !category}
           className={`w-full h-11 rounded-xl text-white font-sans font-bold text-sm flex items-center justify-center gap-2 shadow-md transition-all duration-200 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed ${
             category === 'software'
               ? 'bg-emerald-500 hover:bg-emerald-600 shadow-emerald-500/10'

@@ -31,7 +31,7 @@ export interface UpdateProjectDto {
 export interface ListProjectsFilterDto {
   search?: string | undefined;
   type?: 'BLOCK' | 'CODE' | undefined;
-  category?: 'HARDWARE' | 'SOFTWARE' | undefined;
+  category?: 'HARDWARE' | 'SOFTWARE' | 'AI' | undefined;
   boardTarget?: string | undefined;
 }
 
@@ -64,6 +64,10 @@ export class ProjectService {
       where.boardTarget = { notIn: ['software', 'ai'] };
     } else if (filter?.category === 'SOFTWARE') {
       where.boardTarget = 'software';
+    } else if (filter?.category === 'AI') {
+      // AI Studio projects are the ones targeting the 'ai' pseudo-board — the
+      // same value HARDWARE excludes above.
+      where.boardTarget = 'ai';
     }
 
     return prisma.project.findMany({

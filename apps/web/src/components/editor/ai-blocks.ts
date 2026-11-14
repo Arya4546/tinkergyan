@@ -19,7 +19,17 @@ const COLOR_AI = '#FF6F61';
 // Reads the student's trained class labels from the AI store at render time.
 
 const getClassLabels = function (this: Blockly.FieldDropdown): [string, string][] {
-  const labels = useAIStore.getState().classLabels;
+  // Text classes have their own blocks and their own dropdown below; they are
+  // stored in the same list with a `text:` prefix, so keep them out of here.
+  const labels = useAIStore.getState().classLabels.filter((l) => !l.startsWith('text:'));
+  // Keep whatever this block is already set to, even when the store has not
+  // caught up (project still loading, or its model failed to restore).
+  // Blockly drops a saved field value that is not among the options, which
+  // silently rewrote "when AI sees Class 1" to "(no classes trained)".
+  const current = this?.getValue?.();
+  if (current && current !== '__none__' && !labels.includes(current)) {
+    labels.push(current);
+  }
   if (labels.length === 0) {
     return [['(no classes trained)', '__none__']];
   }

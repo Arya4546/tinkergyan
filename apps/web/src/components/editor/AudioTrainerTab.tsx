@@ -17,8 +17,14 @@ import {
   Play,
   Square,
   Check,
+  Upload,
 } from 'lucide-react';
 import { audioTrainerEngine } from '../../lib/audio-trainer-engine';
+import {
+  audioAcceptAttribute,
+  checkAudioFile,
+  supportedAudioLabels,
+} from '../../lib/audio-file-types';
 import { useAIStore } from '../../stores/ai.store';
 import { RobotMascot } from '../illustrations/RobotMascot';
 
@@ -27,17 +33,28 @@ const COLOR = '#FF6F61';
 const DEFAULT_AUDIO_CLASSES = ['Class 1', 'Class 2'];
 
 /**
- * One tap records a fixed-length clip and banks the whole batch of samples in
- * one go. Recording used to be hold-to-record at one sample per tick, which
- * made collecting a class feel like a sample-per-second crawl and left the
- * class short whenever the student let go early.
+ * Every SAMPLE_MS of sound is ONE sample, like one photo on the Image tab.
  *
- * 2000ms / 100ms = 20 samples per take, which clears both minimums below
- * (8 for a normal class, 20 for a background-noise class) in a single tap.
+ *  - Tap the mic:   records one SAMPLE_MS take  -> 1 sample.
+ *  - Hold the mic:  keeps recording while held  -> 1 sample per SAMPLE_MS.
+ *  - Upload a file: split the same way          -> 1 sample per SAMPLE_MS.
+ *
+ * During a take the mic is read every FRAME_EVERY_MS and the snapshots are
+ * combined into a single sample (see addTakeExample), so the counter goes up
+ * by exactly one per SAMPLE_MS. The minimums below (8 for a normal class, 20
+ * for a background-noise class) are therefore samples.
  */
-const RECORD_MS = 2000;
+const RECORD_MS = 5000;
 const SAMPLE_EVERY_MS = 100;
-const SAMPLES_PER_TAKE = Math.floor(RECORD_MS / SAMPLE_EVERY_MS);
+const FRAMES_PER_TAKE = Math.floor(RECORD_MS / SAMPLE_EVERY_MS);
+/** Pressing longer than this means "hold to record" rather than a tap. */
+const HOLD_MS = 350;
+/** Safety stop so a stuck pointer can never record forever. */
+const MAX_HOLD_MS = 60_000;
+/** The last, shorter piece of a hold is kept only if it is at least this long. */
+const MIN_TAIL_FRAMES = Math.floor(1000 / SAMPLE_EVERY_MS);
+/** Longest part of an uploaded file that is used (in samples). */
+const MAX_FILE_TAKES = 12;
 
 function resolveAudioClasses(): string[] {
   // ONLY audio-specific names — never Image's savedImageClasses.
@@ -61,7 +78,14 @@ export function AudioTrainerTab() {
   const [isRecording, setIsRecording] = useState<string | null>(null);
   /** Class whose mic is still warming up — its take has not started yet. */
   const [isStartingRecord, setIsStartingRecord] = useState<string | null>(null);
-  const [recordMsLeft, setRecordMsLeft] = useState(0);
+  const [recordElapsedMs, setRecordElapsedMs] = useState(0);
+  const [recordHolding, setRecordHolding] = useState(false);
+  /** Samples already added by the recording in progress (a hold adds several). */
+  const [recordSamplesAdded, setRecordSamplesAdded] = useState(0);
+  /** Class an upload is being processed for, with a "2 / 5" style progress. */
+  const [uploadingClass, setUploadingClass] = useState<string | null>(null);
+  const [uploadProgress, setUploadProgress] = useState('');
+  const [notice, setNotice] = useState<string | null>(null);
   const [isTesting, setIsTesting] = useState(false);
   const [prediction, setPrediction] = useState<{
     label: string;
@@ -88,6 +112,10 @@ export function AudioTrainerTab() {
   const isTakeActiveRef = useRef(false);
   /** Mirrors the class being recorded, readable from handlers synchronously. */
   const recordingClassRef = useRef<string | null>(null);
+  /** Frames of the take in progress; disposed here if the take is abandoned. */
+  const framesRef = useRef<Array<{ feat: unknown; energy: number }>>([]);
+  const pressRef = useRef<{ pressedAt: number; releasedAt: number | null } | null>(null);
+  const fileInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const animFrameRef = useRef<number | null>(null);
 
@@ -158,6 +186,11 @@ export function AudioTrainerTab() {
     setIsTrained(audioModelLoaded);
   }, [syncCounts, audioModelLoaded, savedAudioClasses]);
 
+  const releaseFrames = useCallback(() => {
+    for (const f of framesRef.current) (f.feat as { dispose: () => void }).dispose();
+    framesRef.current = [];
+  }, []);
+
   const handleStartMic = useCallback(async () => {
     setIsIniting(true);
     setError(null);
@@ -183,15 +216,19 @@ export function AudioTrainerTab() {
       clearInterval(captureIntervalRef.current);
       captureIntervalRef.current = null;
     }
+    pressRef.current = null;
+    releaseFrames();
     setIsRecording(null);
     setIsStartingRecord(null);
-    setRecordMsLeft(0);
+    setRecordElapsedMs(0);
+    setRecordHolding(false);
+    setRecordSamplesAdded(0);
     audioTrainerEngine.stopPredicting();
     audioTrainerEngine.stopMic();
     setIsMicOn(false);
     setIsTesting(false);
     setPrediction(null);
-  }, []);
+  }, [releaseFrames]);
 
   // Do NOT auto-start the mic on mount — browsers block getUserMedia /
   // AudioContext without a gesture, which left Input OFF until students
@@ -204,6 +241,8 @@ export function AudioTrainerTab() {
       recordTokenRef.current += 1;
       isTakeActiveRef.current = false;
       recordingClassRef.current = null;
+      pressRef.current = null;
+      releaseFrames();
       if (captureIntervalRef.current) {
         clearInterval(captureIntervalRef.current);
         captureIntervalRef.current = null;
@@ -211,7 +250,7 @@ export function AudioTrainerTab() {
       audioTrainerEngine.stopPredicting();
       audioTrainerEngine.stopMic();
     };
-  }, []);
+  }, [releaseFrames]);
 
   const startListening = useCallback(() => {
     if (!audioTrainerEngine.isInitialised) return;
@@ -261,41 +300,47 @@ export function AudioTrainerTab() {
       captureIntervalRef.current = null;
     }
     recordingClassRef.current = null;
+    pressRef.current = null;
+    releaseFrames();
     setIsRecording(null);
     setIsStartingRecord(null);
-    setRecordMsLeft(0);
+    setRecordElapsedMs(0);
+    setRecordHolding(false);
+    setRecordSamplesAdded(0);
+  }, [releaseFrames]);
+
+  /** The pointer / key was released. The take loop reads this on its next tick. */
+  const handlePressEnd = useCallback(() => {
+    const press = pressRef.current;
+    if (press && press.releasedAt === null) press.releasedAt = Date.now();
   }, []);
 
   /**
-   * Records one RECORD_MS clip for `className` and adds SAMPLES_PER_TAKE
-   * samples from it — the whole batch in one tap.
-   *
-   * This replaces hold-to-record, which had two problems: the student had to
-   * keep the button pressed while the counter rose one sample at a time, and
-   * the very first press awaited getUserMedia *inside* mousedown — so letting
-   * go while the browser's permission prompt was open ran mouseup before the
-   * interval existed, leaving a capture loop that nothing ever cleared.
+   * Starts recording on press. A quick tap gives one RECORD_MS take (1 sample);
+   * holding past HOLD_MS keeps recording until release and adds a sample for
+   * every RECORD_MS of sound. A press while a take is running cancels it.
    */
-  const handleRecordBatch = useCallback(
+  const handlePressStart = useCallback(
     async (className: string) => {
-      // A second tap (this class or another) cancels the take in progress and
-      // keeps whatever was captured so far.
       if (isTakeActiveRef.current) {
+        pressRef.current = null;
         stopRecording();
         return;
       }
+      const press = { pressedAt: Date.now(), releasedAt: null as number | null };
+      pressRef.current = press;
       isTakeActiveRef.current = true;
       recordingClassRef.current = className;
       const micWasOn = isMicOn;
       const token = recordTokenRef.current + 1;
       recordTokenRef.current = token;
       setError(null);
+      setNotice(null);
       setIsStartingRecord(className);
       try {
         if (!audioTrainerEngine.isInitialised) await audioTrainerEngine.init();
         // Resume (or rebuild) the AudioContext under this click. A suspended
-        // context reads as pure silence, which would bank a whole take of
-        // dead samples that quietly poison the class.
+        // context reads as pure silence, which would bank a dead sample.
         await audioTrainerEngine.forceResumeMic();
       } catch (e) {
         if (token === recordTokenRef.current) {
@@ -309,57 +354,162 @@ export function AudioTrainerTab() {
 
       setIsMicOn(true);
       if (!micWasOn) {
-        // First tap only turns the microphone on. The student is probably
-        // still looking at the browser's permission prompt, so starting the
-        // clip here would record two seconds of them reading it. The next tap
-        // records, with the mic already live.
+        // First press only turns the microphone on: the student is probably
+        // still looking at the browser's permission prompt.
         stopRecording();
         return;
       }
       if (audioTrainerEngine.isPredicting) audioTrainerEngine.stopPredicting();
       setIsTesting(false);
       setPrediction(null);
-      // New samples invalidate the trained model, same as before.
+      // A new sample invalidates the trained model, same as before.
       invalidateAudioTraining();
       setIsStartingRecord(null);
       setIsRecording(className);
-      setRecordMsLeft(RECORD_MS);
+      setRecordElapsedMs(0);
+      setRecordSamplesAdded(0);
 
       const startedAt = Date.now();
-      const endAt = startedAt + RECORD_MS;
-      let captured = 0;
+      const steady = className.toLowerCase().includes('background');
+      let added = 0;
+      framesRef.current = [];
+
+      /** Turns the frames collected so far into ONE sample. */
+      const flush = () => {
+        const batch = framesRef.current;
+        if (batch.length === 0) return;
+        framesRef.current = []; // ownership passes to the engine
+        if (audioTrainerEngine.addTakeExample(className, batch as never, steady)) {
+          added += 1;
+          setRecordSamplesAdded(added);
+          syncCounts();
+        }
+      };
+
       const tick = () => {
         if (token !== recordTokenRef.current) return;
-        let ok = false;
+        const now = Date.now();
+        let failed = false;
+        let done = false;
         try {
-          ok = audioTrainerEngine.captureExample(className);
+          const frame = audioTrainerEngine.grabFrame();
+          if (frame) framesRef.current.push(frame);
+          if (framesRef.current.length >= FRAMES_PER_TAKE) flush();
+
+          const released = press.releasedAt !== null;
+          const heldMs = (press.releasedAt ?? now) - press.pressedAt;
+          const isHold = heldMs >= HOLD_MS;
+          setRecordHolding(!released && isHold);
+          setRecordElapsedMs(now - startedAt);
+
+          if (released && !isHold) {
+            // A tap: exactly one RECORD_MS take.
+            done = added >= 1;
+          } else if (released || now - startedAt >= MAX_HOLD_MS) {
+            // Hold ended (or hit the safety cap). Keep the last piece only if
+            // it is long enough to mean something.
+            const tail = framesRef.current.length;
+            if (tail >= MIN_TAIL_FRAMES || (added === 0 && tail >= 3)) flush();
+            done = true;
+          } else if (!isHold && now - startedAt > RECORD_MS * 3) {
+            done = true; // backstop for a take that never completes
+          }
         } catch {
-          // Engine disposed mid-take (project switch / tab change).
-          stopRecording();
-          setError('Recording stopped unexpectedly. Try again.');
-          return;
+          failed = true;
+          done = true;
         }
-        if (ok) captured += 1;
-        syncCounts();
-        setRecordMsLeft(Math.max(0, endAt - Date.now()));
-        // The take ends on the sample count, not on the clock: a busy or
-        // backgrounded tab skips interval ticks, and a take that quietly
-        // banked 17 of the 20 samples it promised would leave a
-        // background-noise class (minimum 20) short through no fault of the
-        // student. The elapsed cap is only a backstop so a mic that yields
-        // nothing can't keep the take running forever.
-        const timedOut = Date.now() - startedAt > RECORD_MS * 3;
-        if (captured >= SAMPLES_PER_TAKE || timedOut) {
+        if (done) {
+          if (captureIntervalRef.current) {
+            clearInterval(captureIntervalRef.current);
+            captureIntervalRef.current = null;
+          }
           stopRecording();
-          if (captured === 0) {
-            setError('The microphone stopped before anything was recorded. Try again.');
+          syncCounts();
+          if (failed) setError('Recording stopped unexpectedly. Try again.');
+          else if (added === 0) {
+            setError(
+              `Nothing was recorded. Tap once to record ${RECORD_MS / 1000} seconds, or hold the button while you make the sound.`,
+            );
+          } else {
+            setNotice(`Added ${added} sample${added === 1 ? '' : 's'}.`);
           }
         }
       };
-      // First capture one tick in, so the mic has settled before sample #1.
       captureIntervalRef.current = setInterval(tick, SAMPLE_EVERY_MS);
     },
     [isMicOn, stopRecording, syncCounts, invalidateAudioTraining],
+  );
+
+  /**
+   * Adds uploaded audio files to a class. Each file is decoded and cut into
+   * RECORD_MS samples (see addSamplesFromAudioFile). Files that are not a
+   * supported audio type are refused with a reason; the rest still go in.
+   */
+  const handleAudioUpload = useCallback(
+    async (className: string, files: File[]) => {
+      if (files.length === 0 || isTakeActiveRef.current || uploadingClass) return;
+      setError(null);
+      setNotice(null);
+      setUploadingClass(className);
+      const problems: string[] = [];
+      let addedTotal = 0;
+      let filesUsed = 0;
+      let truncated = false;
+      try {
+        if (!audioTrainerEngine.isInitialised) await audioTrainerEngine.init();
+        if (audioTrainerEngine.isPredicting) audioTrainerEngine.stopPredicting();
+        setIsTesting(false);
+        setPrediction(null);
+        for (let i = 0; i < files.length; i++) {
+          const file = files[i]!;
+          setUploadProgress(`${i + 1} / ${files.length}`);
+          const check = checkAudioFile(file);
+          if (!check.ok) {
+            problems.push(`"${file.name}" ${check.reason}`);
+            continue;
+          }
+          try {
+            const result = await audioTrainerEngine.addSamplesFromAudioFile(
+              className,
+              await file.arrayBuffer(),
+              {
+                takeMs: RECORD_MS,
+                frameMs: SAMPLE_EVERY_MS,
+                maxTakes: MAX_FILE_TAKES,
+                steady: className.toLowerCase().includes('background'),
+              },
+            );
+            addedTotal += result.added;
+            if (result.added > 0) filesUsed += 1;
+            if (result.truncated) truncated = true;
+          } catch {
+            problems.push(
+              `"${file.name}" could not be read as audio (it may be damaged, or this browser cannot decode it)`,
+            );
+          }
+        }
+      } catch (e) {
+        problems.push(e instanceof Error ? e.message : String(e));
+      } finally {
+        syncCounts();
+        if (addedTotal > 0) invalidateAudioTraining();
+        setUploadingClass(null);
+        setUploadProgress('');
+      }
+      if (problems.length > 0) {
+        const shown = problems.slice(0, 3).join('. ');
+        setError(problems.length > 3 ? `${shown} (+${problems.length - 3} more)` : shown);
+      }
+      if (addedTotal > 0) {
+        setNotice(
+          `Added ${addedTotal} sample${addedTotal === 1 ? '' : 's'} from ${filesUsed} file${filesUsed === 1 ? '' : 's'}.` +
+            (truncated
+              ? ` Only the first ${(MAX_FILE_TAKES * RECORD_MS) / 1000} seconds of a long file are used.`
+              : ''),
+        );
+      }
+    },
+    [uploadingClass, syncCounts, invalidateAudioTraining],
   );
 
   const handleToggleTest = useCallback(() => {
@@ -472,7 +622,10 @@ export function AudioTrainerTab() {
             const count = exampleCounts[className] ?? 0;
             const needed = minSamples(className);
             const classColor = CLASS_COLORS[classIdx % CLASS_COLORS.length];
-            const isBusyElsewhere = recordingClass !== null && recordingClass !== className;
+            const isBusyElsewhere =
+              (recordingClass !== null && recordingClass !== className) ||
+              (uploadingClass !== null && uploadingClass !== className);
+            const isUploadingHere = uploadingClass === className;
             return (
               <div
                 key={className}
@@ -619,49 +772,112 @@ export function AudioTrainerTab() {
                   </p>
                   <div className="flex items-center gap-2">
                     <button
-                      onClick={() => void handleRecordBatch(className)}
+                      onPointerDown={(e) => {
+                        if (e.button !== 0) return;
+                        // Keep receiving pointerup even if the finger/mouse drifts off.
+                        e.currentTarget.setPointerCapture?.(e.pointerId);
+                        void handlePressStart(className);
+                      }}
+                      onPointerUp={handlePressEnd}
+                      onPointerCancel={handlePressEnd}
+                      onKeyDown={(e) => {
+                        // Keyboard users: Enter / Space is a tap.
+                        if ((e.key === 'Enter' || e.key === ' ') && !e.repeat) {
+                          e.preventDefault();
+                          void handlePressStart(className);
+                          handlePressEnd();
+                        }
+                      }}
+                      onContextMenu={(e) => e.preventDefault()}
                       disabled={isIniting || isBusyElsewhere}
                       title={
                         isRecording === className
-                          ? 'Stop recording (keeps what was captured)'
+                          ? recordHolding
+                            ? 'Release to stop'
+                            : 'Press again to cancel this recording'
                           : isMicOn
-                            ? `Record ${RECORD_SECONDS_LABEL}s and add ${SAMPLES_PER_TAKE} samples`
+                            ? `Tap: record ${RECORD_SECONDS_LABEL}s (1 sample). Hold: keep recording.`
                             : 'Click to turn on your microphone'
                       }
-                      className={`${tile} select-none ${isRecording === className ? '!bg-red-500 !text-white !border-red-500' : ''}`}
+                      className={`${tile} select-none touch-none ${isRecording === className ? '!bg-red-500 !text-white !border-red-500' : ''}`}
                     >
                       {isRecording === className ? <Square size={18} /> : <Mic size={20} />}
                       <span className="text-[11px] font-medium tabular-nums">
                         {isRecording === className
-                          ? `${(recordMsLeft / 1000).toFixed(1)}s`
+                          ? `${(recordElapsedMs / 1000).toFixed(1)}s`
                           : isStartingRecord === className
                             ? 'Starting…'
                             : isMicOn
-                              ? `Record ${RECORD_SECONDS_LABEL}s`
+                              ? 'Record'
                               : 'Enable Mic'}
                       </span>
                     </button>
+                    <button
+                      onClick={() => fileInputRefs.current[className]?.click()}
+                      onDragOver={(e) => e.preventDefault()}
+                      onDrop={(e) => {
+                        e.preventDefault();
+                        if (isBusyElsewhere || isUploadingHere || isRecording) return;
+                        void handleAudioUpload(className, Array.from(e.dataTransfer.files));
+                      }}
+                      disabled={isIniting || isBusyElsewhere || isUploadingHere || !!recordingClass}
+                      title={`Upload audio (${supportedAudioLabels()}). Long files are cut into ${RECORD_MS / 1000}-second samples.`}
+                      className={`${tile} select-none`}
+                    >
+                      <Upload size={20} />
+                      <span className="text-[11px] font-medium tabular-nums">
+                        {isUploadingHere ? uploadProgress || '…' : 'Upload'}
+                      </span>
+                    </button>
+                    <input
+                      ref={(el) => {
+                        fileInputRefs.current[className] = el;
+                      }}
+                      type="file"
+                      accept={audioAcceptAttribute()}
+                      multiple
+                      className="hidden"
+                      onChange={(e) => {
+                        const picked = Array.from(e.target.files ?? []);
+                        e.target.value = '';
+                        if (picked.length) void handleAudioUpload(className, picked);
+                      }}
+                    />
                     <div className="flex-1 min-w-0 text-xs text-slate-500 dark:text-white/50">
                       {isRecording === className ? (
                         <>
-                          Keep making the sound — capturing {SAMPLES_PER_TAKE} samples.
+                          {recordHolding
+                            ? `Recording — release to stop. ${recordSamplesAdded} sample${recordSamplesAdded === 1 ? '' : 's'} added so far.`
+                            : `Say or make the sound now — recording 1 sample.`}
                           <span className="mt-1.5 block h-1 rounded-full bg-slate-200 dark:bg-white/10 overflow-hidden">
                             <span
                               className="block h-full bg-[#FF6F61] transition-[width] duration-100 ease-linear"
                               style={{
-                                width: `${Math.round(((RECORD_MS - recordMsLeft) / RECORD_MS) * 100)}%`,
+                                width: `${Math.max(
+                                  0,
+                                  Math.min(
+                                    100,
+                                    Math.round(
+                                      ((recordElapsedMs - recordSamplesAdded * RECORD_MS) /
+                                        RECORD_MS) *
+                                        100,
+                                    ),
+                                  ),
+                                )}%`,
                               }}
                             />
                           </span>
                         </>
                       ) : isStartingRecord === className ? (
                         'Starting microphone…'
+                      ) : isUploadingHere ? (
+                        'Reading your audio file…'
                       ) : isBusyElsewhere ? (
-                        `Recording "${isRecording ?? isStartingRecord}" — finish that first.`
+                        `Busy with "${recordingClass ?? uploadingClass}" — finish that first.`
                       ) : isMicOn ? (
-                        `One tap records ${RECORD_SECONDS_LABEL} seconds and adds ${SAMPLES_PER_TAKE} samples at once.`
+                        `Tap to record ${RECORD_SECONDS_LABEL} seconds (1 sample), or hold the button to keep recording — every ${RECORD_SECONDS_LABEL} seconds is a sample. You can also upload audio.`
                       ) : (
-                        'Turn on your microphone, then tap once to record.'
+                        'Turn on your microphone, then tap to record — or upload an audio file.'
                       )}
                       {count > 0 && count < needed && isRecording !== className && (
                         <p className="mt-1 text-amber-600 dark:text-amber-400">
@@ -797,11 +1013,14 @@ export function AudioTrainerTab() {
                 )}
                 {isRecording && (
                   <div className="absolute bottom-2 left-1/2 -translate-x-1/2 px-2.5 py-0.5 rounded-full bg-red-500 text-white text-[11px] font-semibold tabular-nums">
-                    Recording: {isRecording} · {(recordMsLeft / 1000).toFixed(1)}s
+                    Recording: {isRecording} · {(recordElapsedMs / 1000).toFixed(1)}s
                   </div>
                 )}
               </div>
               {error && <p className="text-xs text-red-600 dark:text-red-400">{error}</p>}
+              {notice && !error && (
+                <p className="text-xs text-emerald-600 dark:text-emerald-400">{notice}</p>
+              )}
               {isMicOn && isTrained && (
                 <button
                   onClick={handleToggleTest}
