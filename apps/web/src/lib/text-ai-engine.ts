@@ -23,27 +23,49 @@ class TextAIEngine {
   private classifier: any = null;
   private tfRef: any = null;
   private _isInitialised = false;
+  private initPromise: Promise<void> | null = null;
 
   // Stored text training examples: { className: [sentence, sentence, ...] }
   private textExamples: Record<string, string[]> = {};
 
   // ── Lifecycle ─────────────────────────────────────────────────────────────
 
+  /**
+   * Loads the sentence encoder and creates the classifier. Safe to call from
+   * several places at once (the warm-up on the first typed sentence, the Train
+   * button, restoring a saved project): every caller awaits the SAME load.
+   *
+   * It used to start a second load per caller, and whichever finished last
+   * replaced `this.classifier` with a brand-new empty one — so a model that had
+   * just been trained and tested correctly failed on the next test with "You
+   * have not added any examples to the KNN classifier".
+   */
   async init(): Promise<void> {
     if (this._isInitialised) return;
+    if (!this.initPromise) {
+      this.initPromise = this.load().catch((err) => {
+        // Let a later call retry instead of caching the failure forever.
+        this.initPromise = null;
+        throw err;
+      });
+    }
+    await this.initPromise;
+  }
 
+  private async load(): Promise<void> {
     const [tfModule, useModule, knnModule] = await Promise.all([
       import('@tensorflow/tfjs'),
       import('@tensorflow-models/universal-sentence-encoder'),
       import('@tensorflow-models/knn-classifier'),
     ]);
 
+    await tfModule.ready();
+    const useModel = await useModule.load();
+
+    // Publish everything together, only once the whole load has succeeded.
     this.tfRef = tfModule;
-    await this.tfRef.ready();
-
-    this.useModel = await useModule.load();
+    this.useModel = useModel;
     this.classifier = knnModule.create();
-
     this._isInitialised = true;
   }
 
