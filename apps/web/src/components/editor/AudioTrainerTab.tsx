@@ -87,6 +87,9 @@ export function AudioTrainerTab() {
   const [uploadProgress, setUploadProgress] = useState('');
   const [notice, setNotice] = useState<string | null>(null);
   const [isTesting, setIsTesting] = useState(false);
+  // True once the student presses "Stop listening". Without it, the effect that
+  // auto-starts listening saw `isTesting === false` and restarted it instantly.
+  const [listeningPaused, setListeningPaused] = useState(false);
   const [prediction, setPrediction] = useState<{
     label: string;
     confs: Record<string, number>;
@@ -226,6 +229,7 @@ export function AudioTrainerTab() {
     audioTrainerEngine.stopPredicting();
     audioTrainerEngine.stopMic();
     setIsMicOn(false);
+    setListeningPaused(false);
     setIsTesting(false);
     setPrediction(null);
   }, [releaseFrames]);
@@ -276,10 +280,25 @@ export function AudioTrainerTab() {
 
   // When model is trained and microphone is on, automatically keep listening active
   useEffect(() => {
-    if (isTrained && isMicOn && !isRecording && !isStartingRecord && !isTesting) {
+    if (
+      isTrained &&
+      isMicOn &&
+      !isRecording &&
+      !isStartingRecord &&
+      !isTesting &&
+      !listeningPaused
+    ) {
       startListening();
     }
-  }, [isTrained, isMicOn, isRecording, isStartingRecord, isTesting, startListening]);
+  }, [
+    isTrained,
+    isMicOn,
+    isRecording,
+    isStartingRecord,
+    isTesting,
+    listeningPaused,
+    startListening,
+  ]);
 
   // If samples are deleted such that there are fewer than 2 classes with data, invalidate trained state
   useEffect(() => {
@@ -515,8 +534,10 @@ export function AudioTrainerTab() {
   const handleToggleTest = useCallback(() => {
     if (!isMicOn) return;
     if (isTesting) {
+      setListeningPaused(true);
       stopListening();
     } else {
+      setListeningPaused(false);
       startListening();
     }
   }, [isMicOn, isTesting, stopListening, startListening]);
@@ -1047,6 +1068,9 @@ export function AudioTrainerTab() {
                 </p>
               ) : (
                 <div className="space-y-2">
+                  {prediction.label === '' && (
+                    <p className={`text-xs ${muted}`}>No sound heard — make a sound to test.</p>
+                  )}
                   {classes.map((label, idx) => {
                     const conf = prediction.confs[label] ?? 0;
                     const color = CLASS_COLORS[idx % CLASS_COLORS.length]!;

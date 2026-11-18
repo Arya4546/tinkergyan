@@ -54,6 +54,10 @@ class AudioTrainerEngine {
   /** Rolling confidences for temporal smoothing. */
   private recentConfidences: Array<Record<string, number>> = [];
   private readonly SMOOTH_WINDOW = 4;
+  /** Below this loudness (RMS, 0–1) the mic is hearing silence, not a sound. */
+  private readonly SILENCE_RMS = 0.008;
+  /** Consecutive quiet polls (~120 ms each) before we call it silence, so the gaps inside a word don't flicker. */
+  private readonly SILENCE_POLLS = 3;
 
   // ── Lifecycle ─────────────────────────────────────────────────────────────
 
@@ -402,11 +406,43 @@ class AudioTrainerEngine {
 
   // ── Inference ─────────────────────────────────────────────────────────────
 
+  /** Current mic loudness as RMS (0–1), or null if the mic isn't running. */
+  private currentRms(): number | null {
+    if (!this.analyser) return null;
+    const buf = new Float32Array(this.analyser.fftSize);
+    this.analyser.getFloatTimeDomainData(buf);
+    let sum = 0;
+    for (const v of buf) sum += v * v;
+    return Math.sqrt(sum / buf.length);
+  }
+
   startPredicting(callback: AudioPredictionCallback, k = 5): void {
     if (this.predictionInterval !== null) return;
     this.recentConfidences = [];
+    let quietPolls = 0;
     this.predictionInterval = setInterval(async () => {
       if (!this.classifier || this.classifier.getNumClasses() < 2) return;
+
+      // A KNN classifier always returns its nearest class, even for a spectrum
+      // that is just mic hiss — which showed "Clap 100%" with nothing playing.
+      // So when it is quiet we report "no sound" instead of guessing. A class
+      // the student named "background…" is meant to model quiet, so then we
+      // classify as usual.
+      const labels = Object.keys(this.classifier.getClassExampleCount());
+      const hasBackgroundClass = labels.some((l) => l.toLowerCase().includes('background'));
+      const rms = this.currentRms();
+      if (!hasBackgroundClass && rms !== null) {
+        quietPolls = rms < this.SILENCE_RMS ? quietPolls + 1 : 0;
+        if (quietPolls >= this.SILENCE_POLLS) {
+          this.recentConfidences = [];
+          callback({
+            label: '',
+            confidence: 0,
+            allConfidences: Object.fromEntries(labels.map((l) => [l, 0])),
+          });
+          return;
+        }
+      }
       const feat = this.extractFeatures();
       if (!feat) return;
       try {
