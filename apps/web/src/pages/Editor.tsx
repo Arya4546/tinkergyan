@@ -582,15 +582,22 @@ export default function Editor() {
 
   // ── Load blockXml into Blockly after project loads ─────────────────────
   const hasLoadedProjectXml = useRef<string | null>(null);
+  // True once the Blockly canvas itself exists. The project's data can arrive
+  // before it does (e.g. coming back from AI Studio, where the request is fast
+  // and the canvas is rebuilt from scratch). Without waiting for this, the
+  // blocks were never put on the canvas — it kept its default empty program —
+  // and the next change then auto-saved that empty canvas over the real blocks.
+  const [blocklyReady, setBlocklyReady] = useState(false);
 
   useEffect(() => {
-    if (blockXml && blocklyRef.current && !isLoading) {
-      if (hasLoadedProjectXml.current !== projectId) {
-        blocklyRef.current.loadXml(blockXml);
-        hasLoadedProjectXml.current = projectId;
-      }
+    if (!blockXml || !blocklyReady || isLoading) return;
+    if (hasLoadedProjectXml.current === projectId) return;
+    // Only remember the project as loaded if the canvas really took the XML,
+    // so a failed attempt is retried instead of silently skipped.
+    if (blocklyRef.current?.loadXml(blockXml)) {
+      hasLoadedProjectXml.current = projectId;
     }
-  }, [blockXml, isLoading, projectId]);
+  }, [blockXml, isLoading, projectId, blocklyReady]);
 
   // ── Auto-save on changes ───────────────────────────────────────────────
   useEffect(() => {
@@ -679,7 +686,6 @@ export default function Editor() {
   // Each sprite owns its own program. The canvas always shows the selected sprite's program:
   // switching saves the one on the canvas and loads the next (also on first load and after a project opens).
   const activeSpriteId = useSimulatorStore((s) => s.activeSpriteId);
-  const [blocklyReady, setBlocklyReady] = useState(false);
   useEffect(() => {
     // A project load replaces the sprites, so whatever is on the canvas is stale afterwards.
     if (isLoading) {
@@ -1612,14 +1618,33 @@ export default function Editor() {
           {/* AI Studio Button — opens the dedicated AI Trainer page, not a modal */}
           <Tooltip content="Open AI Model Studio" position="bottom">
             <button
-              onClick={() => {
+              onClick={async () => {
+                // AI Studio and this editor share ONE saved project, and AI
+                // Studio's Save writes the store's copy of the blocks — which
+                // is only refreshed on load and on a save here. Coming back
+                // also reloads the project from the server. So blocks edited
+                // since the last save (auto-save is 5 s behind, or switched
+                // off) must be saved NOW, or they vanish on the way through.
+                const liveXml = blocklyRef.current?.getXml() ?? '';
+                if (liveXml && liveXml !== useEditorStore.getState().blockXml) {
+                  try {
+                    await saveProject(liveXml);
+                  } catch {
+                    addToast({
+                      type: 'error',
+                      title: "Couldn't save your blocks",
+                      message: 'Save failed, so AI Studio was not opened. Try again in a moment.',
+                    });
+                    return;
+                  }
+                }
                 // The URL is the authority for which project this page shows.
                 // `projectId` comes from the shared editor store, which still
                 // holds the PREVIOUS project while this one is loading (and
                 // keeps it for good if that load failed) — so clicking AI
                 // Studio early opened a different project's studio, and
                 // anything trained there was saved into that other project.
-                const target = routeProjectId ?? projectId;
+                const target = routeProjectId ?? useEditorStore.getState().projectId;
                 navigate(
                   target
                     ? `/ai-trainer/${target}?engine=${engineMode}`
