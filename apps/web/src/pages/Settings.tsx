@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Settings2, Sun, Moon, Monitor, Save, Loader2, RotateCcw, Lock } from 'lucide-react';
 import { api } from '../services/api';
 import { useUIStore } from '../stores/ui.store';
+import { usePreferencesStore } from '../stores/preferences.store';
 import { PageHeader } from '../components/ui/PageHeader';
 import { Loader } from '../components/ui/Loader';
 import { CustomSelect } from '../components/ui/CustomSelect';
@@ -85,6 +86,7 @@ export default function Settings() {
           codeCompletion: p.codeCompletion ?? true,
           emailNotifications: p.emailNotifications ?? true,
         });
+        usePreferencesStore.getState().applyServerValues({ autoSave: p.autoSave ?? true });
       } catch {
         /* use defaults */
       } finally {
@@ -98,6 +100,7 @@ export default function Settings() {
     void (async () => {
       try {
         await api.put('/user/preferences', prefs);
+        usePreferencesStore.getState().applyServerValues({ autoSave: prefs.autoSave });
         setGlobalTheme(prefs.theme.toLowerCase() as 'light' | 'dark' | 'system');
         addToast({
           type: 'success',
@@ -114,6 +117,29 @@ export default function Settings() {
 
   const updatePref = <K extends keyof Preferences>(key: K, value: Preferences[K]) =>
     setPrefs((prev) => ({ ...prev, [key]: value }));
+
+  // On/off switches take effect immediately. They used to wait for the
+  // separate "Save Settings" button, so switching Auto Save off and leaving the
+  // page quietly stored nothing — and it was back on at the next visit.
+  const toggleBehavior = (
+    key: 'autoSave' | 'codeCompletion' | 'emailNotifications',
+    value: boolean,
+  ) => {
+    const previous = prefs[key];
+    updatePref(key, value);
+    void (async () => {
+      try {
+        if (key === 'autoSave') {
+          await usePreferencesStore.getState().setAutoSave(value);
+        } else {
+          await api.put('/user/preferences', { [key]: value });
+        }
+      } catch {
+        updatePref(key, previous);
+        addToast({ type: 'error', title: 'Error', message: 'Could not save that setting.' });
+      }
+    })();
+  };
 
   const handleChangePassword = (e: React.FormEvent) => {
     e.preventDefault();
@@ -239,19 +265,19 @@ export default function Settings() {
                 label="Auto Save"
                 description="Save your workbench code and blocks automatically"
                 checked={prefs.autoSave}
-                onChange={(v) => updatePref('autoSave', v)}
+                onChange={(v) => toggleBehavior('autoSave', v)}
               />
               <ToggleSwitch
                 label="Code Completion"
                 description="Show C++ suggestions and pin tooltips while typing"
                 checked={prefs.codeCompletion}
-                onChange={(v) => updatePref('codeCompletion', v)}
+                onChange={(v) => toggleBehavior('codeCompletion', v)}
               />
               <ToggleSwitch
                 label="Email Notifications"
                 description="Receive alerts about new courses, quest progress, and badges"
                 checked={prefs.emailNotifications}
-                onChange={(v) => updatePref('emailNotifications', v)}
+                onChange={(v) => toggleBehavior('emailNotifications', v)}
               />
             </div>
           </section>

@@ -99,6 +99,7 @@ class AIEngine {
   private predictionLoopId: number | null = null;
   private lastPredictionTime = 0;
   private _isInitialised = false;
+  private initPromise: Promise<void> | null = null;
 
   // Active prediction modes
   private enableImageKNN = false;
@@ -149,7 +150,17 @@ class AIEngine {
    */
   async init(): Promise<void> {
     if (this._isInitialised) return;
+    // Concurrent callers share one load; see TextAIEngine.init for why.
+    if (!this.initPromise) {
+      this.initPromise = this.loadModels().catch((err) => {
+        this.initPromise = null;
+        throw err;
+      });
+    }
+    await this.initPromise;
+  }
 
+  private async loadModels(): Promise<void> {
     // Dynamic imports keep the main bundle lean — TF.js is only loaded when
     // the student actually opens the AI Studio. ensureTf() both loads it and
     // waits for the WebGL/WebGPU backend, and is shared with the pose and
@@ -239,6 +250,7 @@ class AIEngine {
     this.poseDetectorPromise = null;
     this.speechRecognizerPromise = null;
     this._isInitialised = false;
+    this.initPromise = null;
   }
 
   // ── Webcam ────────────────────────────────────────────────────────────────

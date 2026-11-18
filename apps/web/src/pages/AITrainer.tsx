@@ -33,6 +33,9 @@ import {
   Pencil,
 } from 'lucide-react';
 import { aiEngine, type TrainingConfig, DEFAULT_TRAINING_CONFIG } from '../lib/ai-engine';
+import { audioTrainerEngine } from '../lib/audio-trainer-engine';
+import { poseTrainerEngine } from '../lib/pose-trainer-engine';
+import { usePreferencesStore } from '../stores/preferences.store';
 import { useAIStore } from '../stores/ai.store';
 import { useEditorStore } from '../stores/editor.store';
 import { TextTrainerModal } from '../components/editor/TextTrainerModal';
@@ -896,6 +899,25 @@ export default function AITrainer() {
     }
   }, []);
 
+  // A cheap fingerprint of everything Save would write. `hasUnsavedChanges`
+  // used to be flipped only by Image-tab actions, so recording audio, poses or
+  // text sentences never marked the project as changed — no unsaved dot, no
+  // leave warning, and nothing for an auto-save to act on.
+  const lastSavedSigRef = useRef<string | null>(null);
+  const computeSignature = useCallback(() => {
+    const ai = useAIStore.getState();
+    return JSON.stringify([
+      projectTitle,
+      classes,
+      aiEngine.isInitialised ? aiEngine.getExampleCounts() : null,
+      audioTrainerEngine.isInitialised ? audioTrainerEngine.getExampleCounts() : null,
+      poseTrainerEngine.isInitialised ? poseTrainerEngine.getExampleCounts() : null,
+      ai.savedAudioClasses,
+      ai.savedPoseClasses,
+      ai.savedTextData,
+    ]);
+  }, [projectTitle, classes]);
+
   // Persists the trained KNN dataset into the project's saved blockState —
   // the same mechanism the Editor's own Save button uses, so a model
   // trained here survives a refresh or a closed tab.
@@ -914,6 +936,9 @@ export default function AITrainer() {
     }
     setIsSavingAI(true);
     setError(null);
+    // Taken before writing, so anything recorded while the save is in flight
+    // still counts as unsaved afterwards.
+    const signatureAtStart = computeSignature();
     try {
       const { blockXml, saveProject } = useEditorStore.getState();
 
@@ -939,6 +964,7 @@ export default function AITrainer() {
         thumbnails: compactThumbs,
         textData: latest.savedTextData ?? undefined,
       });
+      lastSavedSigRef.current = signatureAtStart;
       setHasUnsavedChanges(false);
       setJustSaved(true);
       setTimeout(() => setJustSaved(false), 2000);
@@ -947,7 +973,63 @@ export default function AITrainer() {
     } finally {
       setIsSavingAI(false);
     }
-  }, [activeTab, classes, sampleThumbnails, projectId]);
+  }, [activeTab, classes, sampleThumbnails, projectId, computeSignature]);
+
+  // The poll below must not restart (and re-baseline) every time a class is
+  // renamed, so it calls the latest computeSignature through a ref.
+  const computeSignatureRef = useRef(computeSignature);
+  computeSignatureRef.current = computeSignature;
+
+  // Detect changes made in ANY tab. The first reading after the project has
+  // finished opening (and its saved samples have been restored) is the
+  // baseline; later differences mean unsaved work.
+  useEffect(() => {
+    lastSavedSigRef.current = null;
+    let settled = false;
+    const settleTimer = setTimeout(() => {
+      settled = true;
+    }, 2500);
+    const poll = setInterval(() => {
+      const editor = useEditorStore.getState();
+      if (editor.isLoading || (projectId && editor.projectId !== projectId)) return;
+      const sig = computeSignatureRef.current();
+      if (!settled) {
+        lastSavedSigRef.current = sig;
+        return;
+      }
+      if (lastSavedSigRef.current === null) lastSavedSigRef.current = sig;
+      if (sig !== lastSavedSigRef.current) setHasUnsavedChanges(true);
+    }, 1000);
+    return () => {
+      clearTimeout(settleTimer);
+      clearInterval(poll);
+    };
+  }, [projectId]);
+
+  // Auto-save, honouring the Auto Save switch in Settings. Waits 5 s after the
+  // last change (same as the Editor) so a burst of recording is one save.
+  const autoSaveEnabled = usePreferencesStore((s) => s.autoSave);
+  useEffect(() => {
+    void usePreferencesStore.getState().ensureLoaded();
+  }, []);
+  useEffect(() => {
+    // Only ever auto-save INTO an existing project — creating a new one is a
+    // deliberate act (the Save button), not something to do behind the scenes.
+    if (!projectId || !hasUnsavedChanges || !autoSaveEnabled || isSavingAI) return;
+    const timer = setTimeout(() => {
+      if (!usePreferencesStore.getState().autoSave) return;
+      void handleSaveAI();
+    }, 5000);
+    return () => clearTimeout(timer);
+  }, [
+    projectId,
+    hasUnsavedChanges,
+    autoSaveEnabled,
+    isSavingAI,
+    handleSaveAI,
+    classes,
+    projectTitle,
+  ]);
 
   const handleSaveAndLeave = useCallback(async () => {
     await handleSaveAI();

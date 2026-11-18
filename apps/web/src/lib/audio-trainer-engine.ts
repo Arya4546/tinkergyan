@@ -41,8 +41,10 @@ export type AudioPredictionCallback = (result: AudioPrediction) => void;
 
 class AudioTrainerEngine {
   private classifier: KNNClassifier | null = null;
+  private initPromise: Promise<void> | null = null;
   private audioCtx: AudioContext | null = null;
   private analyser: AnalyserNode | null = null;
+  private levelAnalyser: AnalyserNode | null = null;
   private micStream: MediaStream | null = null;
   private predictionInterval: ReturnType<typeof setInterval> | null = null;
   private _isInitialised = false;
@@ -56,13 +58,26 @@ class AudioTrainerEngine {
   private readonly SMOOTH_WINDOW = 4;
   /** Below this loudness (RMS, 0–1) the mic is hearing silence, not a sound. */
   private readonly SILENCE_RMS = 0.008;
+  /** …or a peak this high within the window (brief sounds like claps and snaps). */
+  private readonly SILENCE_PEAK = 0.03;
   /** Consecutive quiet polls (~120 ms each) before we call it silence, so the gaps inside a word don't flicker. */
   private readonly SILENCE_POLLS = 3;
 
   // ── Lifecycle ─────────────────────────────────────────────────────────────
 
+  /** Concurrent callers share one load; see TextAIEngine.init for why. */
   async init(): Promise<void> {
     if (this._isInitialised) return;
+    if (!this.initPromise) {
+      this.initPromise = this.load().catch((err) => {
+        this.initPromise = null;
+        throw err;
+      });
+    }
+    await this.initPromise;
+  }
+
+  private async load(): Promise<void> {
     const [tfModule, knnModule] = await Promise.all([
       import('@tensorflow/tfjs'),
       import('@tensorflow-models/knn-classifier'),
@@ -85,6 +100,7 @@ class AudioTrainerEngine {
     this.audioCtx?.close();
     this.audioCtx = null;
     this._isInitialised = false;
+    this.initPromise = null;
   }
 
   // ── Mic ───────────────────────────────────────────────────────────────────
@@ -106,6 +122,15 @@ class AudioTrainerEngine {
     this.analyser.fftSize = this.FFT_SIZE;
     this.analyser.smoothingTimeConstant = 0.3;
     source.connect(this.analyser);
+
+    // A second, longer window used only to decide "is anything audible?". The
+    // 256-sample analyser above spans ~5 ms, so polling it every 120 ms could
+    // land between the hits of a clap or snap (tens of ms long) and call it
+    // silence. 8192 samples (~170 ms) always overlaps the whole poll interval.
+    this.levelAnalyser = this.audioCtx.createAnalyser();
+    this.levelAnalyser.fftSize = 8192;
+    this.levelAnalyser.smoothingTimeConstant = 0;
+    source.connect(this.levelAnalyser);
   }
 
   stopMic(): void {
@@ -113,6 +138,7 @@ class AudioTrainerEngine {
     this.micStream?.getTracks().forEach((t) => t.stop());
     this.micStream = null;
     this.analyser = null;
+    this.levelAnalyser = null;
     if (this.audioCtx) {
       this.audioCtx.close().catch(() => {});
       this.audioCtx = null;
@@ -406,14 +432,24 @@ class AudioTrainerEngine {
 
   // ── Inference ─────────────────────────────────────────────────────────────
 
-  /** Current mic loudness as RMS (0–1), or null if the mic isn't running. */
-  private currentRms(): number | null {
-    if (!this.analyser) return null;
-    const buf = new Float32Array(this.analyser.fftSize);
-    this.analyser.getFloatTimeDomainData(buf);
+  /**
+   * Is the mic hearing a sound right now (over the last ~170 ms)? Loud on
+   * average (RMS) OR a sharp peak — a clap is brief, so its average is low but
+   * its peak is large. Returns null if the mic isn't running.
+   */
+  private isAudible(): boolean | null {
+    const a = this.levelAnalyser;
+    if (!a) return null;
+    const buf = new Float32Array(a.fftSize);
+    a.getFloatTimeDomainData(buf);
     let sum = 0;
-    for (const v of buf) sum += v * v;
-    return Math.sqrt(sum / buf.length);
+    let peak = 0;
+    for (const v of buf) {
+      sum += v * v;
+      const m = Math.abs(v);
+      if (m > peak) peak = m;
+    }
+    return Math.sqrt(sum / buf.length) >= this.SILENCE_RMS || peak >= this.SILENCE_PEAK;
   }
 
   startPredicting(callback: AudioPredictionCallback, k = 5): void {
@@ -430,9 +466,9 @@ class AudioTrainerEngine {
       // classify as usual.
       const labels = Object.keys(this.classifier.getClassExampleCount());
       const hasBackgroundClass = labels.some((l) => l.toLowerCase().includes('background'));
-      const rms = this.currentRms();
-      if (!hasBackgroundClass && rms !== null) {
-        quietPolls = rms < this.SILENCE_RMS ? quietPolls + 1 : 0;
+      const audible = this.isAudible();
+      if (!hasBackgroundClass && audible !== null) {
+        quietPolls = audible ? 0 : quietPolls + 1;
         if (quietPolls >= this.SILENCE_POLLS) {
           this.recentConfidences = [];
           callback({

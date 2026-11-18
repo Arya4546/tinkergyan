@@ -394,14 +394,22 @@ export function PoseTrainerTab() {
 
   const CLASS_COLORS = ['#f59e0b', '#e11d48', '#10b981', '#6366f1', '#0ea5e9', '#a855f7'];
   const totalSamples = classes.reduce((sum, c) => sum + (exampleCounts[c] ?? 0), 0);
-  // Progressive reveal — don't show Training until there is something to train
-  // on. Preview stays visible even with zero samples: its camera picker and
-  // on/off switch are shared across every class, so hiding the panel would
-  // hide the only way to turn the webcam on in the first place.
+  // Progressive reveal, like the Image tab: Training appears once there is
+  // something to train on, and Preview once a model is trained. The one
+  // exception is while the camera is on (or starting): the live video that
+  // shows the student their own pose is drawn inside Preview, so hiding it
+  // then would leave them recording blind. It stays mounted (just hidden) so
+  // the <video> element exists when the camera starts.
   const showTraining = totalSamples > 0;
-  const gridCols = showTraining
-    ? 'grid-cols-[minmax(0,1fr)_280px_340px]'
-    : 'grid-cols-[minmax(0,1fr)_340px]';
+  const showPreview = isTrained || isWebcamOn || isIniting;
+  const gridCols =
+    showTraining && showPreview
+      ? 'grid-cols-[minmax(0,1fr)_280px_340px]'
+      : showTraining
+        ? 'grid-cols-[minmax(0,1fr)_280px]'
+        : showPreview
+          ? 'grid-cols-[minmax(0,1fr)_340px]'
+          : 'grid-cols-[minmax(0,1fr)]';
 
   const card =
     'bg-white dark:bg-[#1b1b33] rounded-xl shadow-[0_2px_12px_rgba(20,20,40,0.06)] dark:shadow-[0_2px_12px_rgba(0,0,0,0.35)] border border-slate-100 dark:border-white/5';
@@ -723,8 +731,8 @@ export function PoseTrainerTab() {
             <div className="flex flex-col items-center gap-2 py-6 text-center">
               <RobotMascot className="w-24 opacity-90" />
               <p className={`text-sm max-w-xs ${muted}`}>
-                Turn on the webcam in Preview, then record a few poses for each class. Once you have
-                some, I&apos;ll help you train it! 🎉
+                Click Webcam on a class, then record a few poses for each class. Once you have some,
+                I&apos;ll help you train it! 🎉
               </p>
             </div>
           )}
@@ -775,7 +783,7 @@ export function PoseTrainerTab() {
         )}
 
         {/* ── Preview ── */}
-        <section className="flex flex-col pt-1 h-full">
+        <section className={`flex flex-col pt-1 h-full ${showPreview ? '' : 'hidden'}`}>
           <div className={`${card} overflow-hidden h-full flex flex-col`}>
             <div className="px-5 py-4">
               <h2 className="text-lg font-semibold">Preview</h2>

@@ -45,6 +45,7 @@ export type PosePredictionCallback = (result: PosePrediction) => void;
 
 class PoseTrainerEngine {
   private classifier: KNNClassifier | null = null;
+  private initPromise: Promise<void> | null = null;
   private detector: any = null; // MoveNet detector shared from aiEngine
   private predictionInterval: ReturnType<typeof setInterval> | null = null;
   private trackingInterval: ReturnType<typeof setInterval> | null = null;
@@ -62,15 +63,24 @@ class PoseTrainerEngine {
       if (sharedDetector && !this.detector) this.detector = sharedDetector;
       return;
     }
-    const [tfModule, knnModule] = await Promise.all([
-      import('@tensorflow/tfjs'),
-      import('@tensorflow-models/knn-classifier'),
-    ]);
-    tfRef = tfModule;
-    await tfRef.ready();
-    this.classifier = knnModule.create() as unknown as KNNClassifier;
-    this.detector = sharedDetector ?? null;
-    this._isInitialised = true;
+    // Concurrent callers share one load; see TextAIEngine.init for why.
+    if (!this.initPromise) {
+      this.initPromise = (async () => {
+        const [tfModule, knnModule] = await Promise.all([
+          import('@tensorflow/tfjs'),
+          import('@tensorflow-models/knn-classifier'),
+        ]);
+        tfRef = tfModule;
+        await tfRef.ready();
+        this.classifier = knnModule.create() as unknown as KNNClassifier;
+        this._isInitialised = true;
+      })().catch((err) => {
+        this.initPromise = null;
+        throw err;
+      });
+    }
+    await this.initPromise;
+    if (sharedDetector && !this.detector) this.detector = sharedDetector;
   }
 
   get isInitialised(): boolean {
@@ -84,6 +94,7 @@ class PoseTrainerEngine {
     this.classifier = null;
     this.detector = null;
     this._isInitialised = false;
+    this.initPromise = null;
   }
 
   // ── Feature Extraction ────────────────────────────────────────────────────

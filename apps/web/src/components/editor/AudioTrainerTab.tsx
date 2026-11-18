@@ -544,15 +544,19 @@ export function AudioTrainerTab() {
 
   const CLASS_COLORS = ['#f59e0b', '#e11d48', '#10b981', '#6366f1', '#0ea5e9', '#a855f7'];
   const totalSamples = classes.reduce((sum, c) => sum + (exampleCounts[c] ?? 0), 0);
-  // Progressive reveal — don't show Training until there is something to train
-  // on. Preview can't be hidden the same way: it's not just a test panel here,
-  // it's where the one shared microphone gets turned on, and every class's
-  // record button is disabled until that happens. Hiding it before training
-  // would mean there's no way to ever record a first sample.
+  // Progressive reveal, same as the Image tab: Training appears once there is
+  // something to train on, and Preview only once a model is trained. The mic
+  // is switched on from the class's own Record button, so Preview is not
+  // needed for recording. It stays mounted (just hidden) so its waveform
+  // canvas exists when the mic starts.
   const showTraining = totalSamples > 0;
-  const gridCols = showTraining
-    ? 'grid-cols-[minmax(0,1fr)_280px_340px]'
-    : 'grid-cols-[minmax(0,1fr)_340px]';
+  const showPreview = isTrained;
+  const gridCols =
+    showTraining && showPreview
+      ? 'grid-cols-[minmax(0,1fr)_280px_340px]'
+      : showTraining
+        ? 'grid-cols-[minmax(0,1fr)_280px]'
+        : 'grid-cols-[minmax(0,1fr)]';
 
   const card =
     'bg-white dark:bg-[#1b1b33] rounded-xl shadow-[0_2px_12px_rgba(20,20,40,0.06)] dark:shadow-[0_2px_12px_rgba(0,0,0,0.35)] border border-slate-100 dark:border-white/5';
@@ -1002,7 +1006,7 @@ export function AudioTrainerTab() {
         )}
 
         {/* ── Preview ── */}
-        <section className="flex flex-col pt-1 h-full">
+        <section className={`flex flex-col pt-1 h-full ${showPreview ? '' : 'hidden'}`}>
           <div className={`${card} overflow-hidden h-full flex flex-col`}>
             <div className="px-5 py-4">
               <h2 className="text-lg font-semibold">Preview</h2>

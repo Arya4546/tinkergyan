@@ -13,6 +13,7 @@
  *   - Font size controls
  *   - Starter templates
  */
+import { usePreferencesStore } from './preferences.store';
 import { create } from 'zustand';
 import { api } from '../services/api';
 import { aiEngine } from '../lib/ai-engine';
@@ -966,6 +967,10 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
     if (timer) clearTimeout(timer);
 
     const newTimer = setTimeout(async () => {
+      // Respect the Auto Save switch in Settings, checked when the timer fires
+      // (not when it was scheduled) so turning it off cancels a pending save.
+      await usePreferencesStore.getState().ensureLoaded();
+      if (!usePreferencesStore.getState().autoSave) return;
       const state = get();
       if (!state.isDirty || state.isSaving || state.isCompiling || state.isLoading) return;
       if (!state.projectId && state.unresolvedProjectId) return;
