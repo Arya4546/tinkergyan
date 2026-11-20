@@ -643,6 +643,24 @@ export function AudioTrainerTab() {
       <div className={`w-full max-w-[1400px] grid ${gridCols} gap-9 items-stretch`}>
         {/* ── Classes ── */}
         <section className="min-w-0 flex flex-col gap-5">
+          <div className="rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-900 dark:border-sky-400/30 dark:bg-sky-400/10 dark:text-sky-100">
+            <p className="font-semibold">💡 Tips for a smarter sound model</p>
+            <ul className="mt-1 list-disc space-y-0.5 pl-5">
+              <li>
+                The computer learns from the sounds you record. If only <b>one person</b> records,
+                it will mostly understand <b>that person</b>.
+              </li>
+              <li>
+                Ask friends or family to record the same sounds too, so it learns many voices.
+              </li>
+              <li>Record near and far from the mic, and loud and soft.</li>
+              <li>Record about 20 samples for each sound. More samples means better guesses.</li>
+              <li>
+                Add a <b>Background Noise</b> class and record the quiet room, so it knows when
+                nobody is making a sound.
+              </li>
+            </ul>
+          </div>
           {classes.map((className, classIdx) => {
             const count = exampleCounts[className] ?? 0;
             const needed = minSamples(className);

@@ -18,6 +18,18 @@ export interface TextClassificationResult {
   allConfidences: Record<string, number>;
 }
 
+function cosineSimilarity(a: number[], b: number[]): number {
+  let dot = 0;
+  let na = 0;
+  let nb = 0;
+  for (let i = 0; i < a.length; i++) {
+    dot += a[i]! * b[i]!;
+    na += a[i]! * a[i]!;
+    nb += b[i]! * b[i]!;
+  }
+  return na === 0 || nb === 0 ? 0 : dot / Math.sqrt(na * nb);
+}
+
 class TextAIEngine {
   private useModel: any = null;
   private classifier: any = null;
@@ -27,6 +39,9 @@ class TextAIEngine {
 
   // Stored text training examples: { className: [sentence, sentence, ...] }
   private textExamples: Record<string, string[]> = {};
+
+  // Sentence vectors from the last training run: { className: [vector, ...] }
+  private embeddings: Record<string, number[][]> = {};
 
   // ── Lifecycle ─────────────────────────────────────────────────────────────
 
@@ -83,6 +98,7 @@ class TextAIEngine {
 
   removeTextExamplesForClass(label: string): void {
     delete this.textExamples[label];
+    delete this.embeddings[label];
     this.classifier?.clearClass(label);
   }
 
@@ -102,6 +118,7 @@ class TextAIEngine {
     if (!this.useModel || !this.classifier) throw new Error('Text engine not initialised');
 
     this.classifier.clearAllClasses();
+    this.embeddings = {};
 
     for (const [label, sentences] of Object.entries(this.textExamples)) {
       if (sentences.length === 0) continue;
@@ -110,6 +127,8 @@ class TextAIEngine {
       const embeddings = await this.useModel.embed(sentences);
       const embeddingArray = (await embeddings.array()) as number[][];
       embeddings.dispose();
+
+      this.embeddings[label] = embeddingArray;
 
       // Add each embedding vector to the KNN
       for (const vector of embeddingArray) {
@@ -136,26 +155,44 @@ class TextAIEngine {
     const flatEmbedding = ((await embedding.array()) as number[][])[0]!;
     embedding.dispose();
 
-    const tensor = this.tfRef.tensor1d(flatEmbedding);
+    // Score every class by how SIMILAR the sentence is to that class's examples.
+    //
+    // This used to be a k-nearest-neighbour vote with k = min(3, smallest class
+    // size). With 2 examples per class that is k = 2, so the two nearest
+    // neighbours were often one from each class → a 50/50 tie → the first class
+    // won, even for a sentence typed exactly as a training example ("i am
+    // feeling sad" → "Class 1, 50%"). Comparing similarities has no ties.
+    const labels = Object.keys(this.embeddings);
+    if (labels.length === 0) return { label: '', confidence: 0, allConfidences: {} };
 
-    try {
-      const counts: Record<string, number> = this.classifier.getClassExampleCount();
-      const minSamples = Math.min(...Object.values(counts));
-      const k = Math.min(3, Math.max(1, minSamples));
-
-      const result = await this.classifier.predictClass(tensor, k);
-      const allConfidences: Record<string, number> = {};
-      for (const [lbl, conf] of Object.entries(result.confidences)) {
-        allConfidences[lbl] = Math.round((conf as number) * 100);
-      }
-      return {
-        label: result.label as string,
-        confidence: allConfidences[result.label as string] ?? 0,
-        allConfidences,
-      };
-    } finally {
-      tensor.dispose();
+    const scores: Record<string, number> = {};
+    for (const label of labels) {
+      const sims = (this.embeddings[label] ?? [])
+        .map((v) => cosineSimilarity(flatEmbedding, v))
+        .sort((x, y) => y - x);
+      // Average of the best two matches: one lucky near-duplicate cannot
+      // outvote a class that is similar overall.
+      const top = sims.slice(0, 2);
+      scores[label] = top.reduce((sum, v) => sum + v, 0) / Math.max(1, top.length);
     }
+
+    // Turn similarities into percentages that add up to 100 (softmax). The
+    // factor spreads out the small gaps that sentence vectors give.
+    const SHARPNESS = 12;
+    const max = Math.max(...Object.values(scores));
+    const exps: Record<string, number> = {};
+    let total = 0;
+    for (const label of labels) {
+      exps[label] = Math.exp(SHARPNESS * ((scores[label] ?? 0) - max));
+      total += exps[label];
+    }
+    const allConfidences: Record<string, number> = {};
+    let best = labels[0]!;
+    for (const label of labels) {
+      allConfidences[label] = Math.round((exps[label]! / total) * 100);
+      if ((scores[label] ?? -1) > (scores[best] ?? -1)) best = label;
+    }
+    return { label: best, confidence: allConfidences[best] ?? 0, allConfidences };
   }
 
   // ── Persistence ────────────────────────────────────────────────────────────
@@ -171,6 +208,7 @@ class TextAIEngine {
 
   clearAll(): void {
     this.textExamples = {};
+    this.embeddings = {};
     this.classifier?.clearAllClasses();
   }
 }

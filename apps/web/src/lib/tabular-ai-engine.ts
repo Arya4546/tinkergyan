@@ -47,6 +47,9 @@ export const DEFAULT_TABULAR_CONFIG: TabularTrainingConfig = {
   learningRate: 0.001,
 };
 
+/** Fewest learning steps a training run may use (see train()). */
+const MIN_LEARNING_STEPS = 600;
+
 // ─── TabularAIEngine ──────────────────────────────────────────────────────────
 
 class TabularAIEngine {
@@ -101,7 +104,7 @@ class TabularAIEngine {
     await this.ensureTF();
     if (!tfRef) throw new Error('TensorFlow not loaded');
 
-    const { targetColumn, epochs, batchSize, learningRate } = config;
+    const { targetColumn, batchSize, learningRate } = config;
     if (!targetColumn) throw new Error('No target column selected');
 
     // Feature columns = all numeric headers except the target
@@ -149,6 +152,14 @@ class TabularAIEngine {
       loss: 'categoricalCrossentropy',
       metrics: ['accuracy'],
     });
+
+    // A "practice round" is one pass over the data, and the model learns once
+    // per batch. A small table (27 rows, batch 32) is ONE step per round, so the
+    // default 50 rounds were only 50 tiny steps: the model stayed near a coin
+    // flip (~33% per class) and called almost everything the same answer.
+    // Always allow at least MIN_LEARNING_STEPS steps, however small the table.
+    const stepsPerEpoch = Math.max(1, Math.ceil(rawX.length / Math.max(1, batchSize)));
+    const epochs = Math.max(config.epochs, Math.ceil(MIN_LEARNING_STEPS / stepsPerEpoch));
 
     await this.model.fit(xTensor, yTensor, {
       epochs,
