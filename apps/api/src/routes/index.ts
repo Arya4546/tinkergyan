@@ -6,12 +6,14 @@ import { projectRouter } from './project.routes';
 import { compileRouter } from './compile.routes';
 import { userRouter } from './user.routes';
 import { courseRouter } from './course.routes';
+import { adminRouter } from './admin.routes';
 
 export const apiRouter = Router();
 
 apiRouter.use(healthRouter);
-apiRouter.use('/auth',     authRouter);
+apiRouter.use('/auth', authRouter);
 apiRouter.use('/projects', projectRouter);
-apiRouter.use('/compile',  compileRouter);
-apiRouter.use('/user',     userRouter);
-apiRouter.use('/courses',  courseRouter);
+apiRouter.use('/compile', compileRouter);
+apiRouter.use('/user', userRouter);
+apiRouter.use('/courses', courseRouter);
+apiRouter.use('/admin', adminRouter);

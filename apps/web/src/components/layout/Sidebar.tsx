@@ -16,8 +16,10 @@ import {
   Cpu,
   MonitorPlay,
   Brain,
+  ShieldCheck,
 } from 'lucide-react';
 import { useUIStore } from '../../stores/ui.store';
+import { useAuthStore } from '../../stores/auth.store';
 import { NewProjectDialog } from '../ui/NewProjectDialog';
 
 const NAV_ITEMS = [
@@ -32,6 +34,7 @@ const NAV_ITEMS = [
 
 export function Sidebar() {
   const location = useLocation();
+  const isSuperAdmin = useAuthStore((s) => s.user?.role === 'SUPER_ADMIN');
   const mobileMenuOpen = useUIStore((s) => s.mobileMenuOpen);
   const setMobileMenuOpen = useUIStore((s) => s.setMobileMenuOpen);
   const isEngineActive =
@@ -175,6 +178,16 @@ export function Sidebar() {
         </nav>
 
         <div className="mt-auto px-3 flex flex-col gap-1.5 pt-3 border-t border-slate-100 dark:border-slate-800/80">
+          {isSuperAdmin && (
+            <Link
+              to="/admin"
+              onClick={() => setMobileMenuOpen(false)}
+              className="h-11 w-full flex items-center px-4 rounded-xl transition-all duration-200 text-rose-600 dark:text-rose-300 hover:bg-rose-50 dark:hover:bg-rose-500/10 font-semibold text-sm"
+            >
+              <ShieldCheck size={20} className="shrink-0" />
+              <span className="text-sm tracking-wide ml-3.5">Admin Portal</span>
+            </Link>
+          )}
           <Link
             to="/profile"
             onClick={() => setMobileMenuOpen(false)}

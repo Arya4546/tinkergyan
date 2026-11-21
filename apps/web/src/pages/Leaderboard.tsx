@@ -63,7 +63,7 @@ export default function Leaderboard() {
         subtitle="Top makers ranked by experience points"
       />
 
-      <div className="flex-1 overflow-y-auto p-6 lg:p-10 bg-transparent">
+      <div className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-10 bg-transparent">
         {users.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-20 text-center">
             <div className="w-16 h-16 bg-amber-50 dark:bg-amber-950/40 text-amber-500 border border-amber-200/60 dark:border-amber-800/60 rounded-3xl flex items-center justify-center mb-4">

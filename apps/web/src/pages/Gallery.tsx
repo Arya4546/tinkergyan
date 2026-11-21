@@ -75,7 +75,7 @@ export default function Gallery() {
     <div className="w-full h-full flex flex-col font-playful bg-transparent">
       <PageHeader icon={Globe} title="Gallery" subtitle="Browse and remix community projects" />
 
-      <div className="flex-1 overflow-y-auto p-6 lg:p-10 bg-transparent">
+      <div className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-10 bg-transparent">
         {/* Search */}
         <div className="relative mb-6 max-w-2xl">
           <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />

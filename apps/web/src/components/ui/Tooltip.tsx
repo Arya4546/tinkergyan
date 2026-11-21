@@ -72,6 +72,9 @@ export function Tooltip({
   }, [position]);
 
   const handleMouseEnter = () => {
+    // Touch screens have no hover: a tap fires mouseenter and the bubble would
+    // then sit on top of the toolbar until the next tap elsewhere.
+    if (window.matchMedia('(hover: none)').matches) return;
     if (timeoutRef.current) clearTimeout(timeoutRef.current);
     timeoutRef.current = setTimeout(() => {
       setIsVisible(true);

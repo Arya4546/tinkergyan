@@ -116,6 +116,8 @@ export class UserService {
    */
   static async getLeaderboard() {
     return prisma.user.findMany({
+      // Staff accounts are not students; keep them off the public ranking.
+      where: { role: 'USER' },
       orderBy: { xp: 'desc' },
       take: 50,
       select: { id: true, name: true, avatar: true, xp: true, level: true },

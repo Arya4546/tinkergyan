@@ -159,7 +159,7 @@ export default function Profile() {
                     <input
                       value={editName}
                       onChange={(e) => setEditName(e.target.value)}
-                      className="flex-1 h-11 px-4 rounded-xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-[#11141E] text-sm font-bold text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-playful-primary transition-all"
+                      className="flex-1 min-w-0 h-11 px-4 rounded-xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-[#11141E] text-sm font-bold text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-playful-primary transition-all"
                     />
                     <button
                       onClick={() => {

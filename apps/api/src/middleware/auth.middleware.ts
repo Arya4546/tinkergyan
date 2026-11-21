@@ -17,10 +17,10 @@ export const requireAuth = async (req: Request, res: Response, next: NextFunctio
     }
 
     const secret = new TextEncoder().encode(env.JWT_SECRET);
-    
+
     try {
       const { payload } = await jwtVerify(token, secret);
-      
+
       if (!payload.sub) {
         throw new Error('No user ID in token');
       }
@@ -35,7 +35,7 @@ export const requireAuth = async (req: Request, res: Response, next: NextFunctio
 
       req.user = user;
       next();
-    } catch (e) {
+    } catch {
       throw new AppError('UNAUTHORIZED', 'Invalid or expired token', 401);
     }
   } catch (error) {
@@ -69,6 +69,17 @@ export const optionalAuth = async (req: Request, _res: Response, next: NextFunct
     }
   } catch {
     // Silently ignore invalid tokens
+  }
+  next();
+};
+
+/**
+ * Only the super admin gets through. Must run after requireAuth.
+ * Deliberately NOT open to the plain ADMIN role: this guards every user's data.
+ */
+export const requireSuperAdmin = (req: Request, _res: Response, next: NextFunction) => {
+  if (req.user?.role !== 'SUPER_ADMIN') {
+    return next(new AppError('FORBIDDEN', 'Super admin access required', 403));
   }
   next();
 };

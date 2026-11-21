@@ -28,14 +28,14 @@ export default function LandingPage() {
     <div className="min-h-screen bg-playful-light-bg dark:bg-[#050B14] font-playful text-tg-dark dark:text-white flex flex-col overflow-x-hidden transition-colors duration-500">
       {/* Navbar - Floating Glass Pill */}
       <div className="pt-6 px-4 md:px-8 w-full mx-auto absolute top-0 left-0 right-0 z-50">
-        <header className="h-16 max-w-7xl mx-auto flex items-center justify-between px-6 bg-white/80 dark:bg-[#0B1121]/70 backdrop-blur-xl border border-white/40 dark:border-white/10 rounded-full shadow-[0_8px_30px_rgba(0,0,0,0.06)] dark:shadow-[0_8px_30px_rgba(0,0,0,0.4)] transition-all">
-          <div className="flex items-center gap-3">
-            <CartoonRocket className="w-10 h-10" />
-            <span className="font-heading font-black text-2xl tracking-tight text-playful-primary dark:text-playful-highlight pt-1 drop-shadow-sm">
+        <header className="h-16 max-w-7xl mx-auto flex items-center justify-between gap-2 px-3 sm:px-6 bg-white/80 dark:bg-[#0B1121]/70 backdrop-blur-xl border border-white/40 dark:border-white/10 rounded-full shadow-[0_8px_30px_rgba(0,0,0,0.06)] dark:shadow-[0_8px_30px_rgba(0,0,0,0.4)] transition-all">
+          <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+            <CartoonRocket className="w-8 h-8 sm:w-10 sm:h-10 shrink-0" />
+            <span className="font-heading font-black text-base min-[400px]:text-lg sm:text-2xl truncate tracking-tight text-playful-primary dark:text-playful-highlight pt-1 drop-shadow-sm">
               Code - Tinkergyan
             </span>
           </div>
-          <div className="flex items-center gap-2 sm:gap-4">
+          <div className="flex items-center gap-1 sm:gap-4 shrink-0">
             <button
               onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
               className="w-10 h-10 rounded-full flex items-center justify-center text-slate-500 dark:text-playful-highlight hover:bg-slate-100 dark:hover:bg-white/10 transition-colors shadow-sm"
@@ -45,13 +45,13 @@ export default function LandingPage() {
             </button>
             <Link
               to="/login"
-              className="text-base font-bold text-slate-500 dark:text-slate-300 hover:text-playful-primary dark:hover:text-white transition-colors px-4 py-2 hidden md:block"
+              className="text-sm sm:text-base font-bold text-slate-500 dark:text-slate-300 hover:text-playful-primary dark:hover:text-white transition-colors px-2 sm:px-4 py-2"
             >
               Log In
             </Link>
             <Link
               to="/register"
-              className="group flex items-center gap-2 text-base font-bold bg-gradient-to-r from-playful-primary to-[#A855F7] hover:from-playful-primary-hover hover:to-[#9333EA] dark:from-playful-highlight dark:to-amber-500 dark:text-playful-dark-bg text-white px-6 py-2.5 rounded-full transition-all hover:scale-105 active:scale-95 shadow-[0_6px_0_#7C3AED] dark:shadow-[0_6px_0_#D97706] hover:translate-y-[2px] hover:shadow-[0_4px_0_#6D28D9] dark:hover:shadow-[0_4px_0_#B45309]"
+              className="group flex items-center gap-2 text-sm sm:text-base font-bold bg-gradient-to-r from-playful-primary to-[#A855F7] hover:from-playful-primary-hover hover:to-[#9333EA] dark:from-playful-highlight dark:to-amber-500 dark:text-playful-dark-bg text-white px-3 sm:px-6 py-2 sm:py-2.5 whitespace-nowrap rounded-full transition-all hover:scale-105 active:scale-95 shadow-[0_6px_0_#7C3AED] dark:shadow-[0_6px_0_#D97706] hover:translate-y-[2px] hover:shadow-[0_4px_0_#6D28D9] dark:hover:shadow-[0_4px_0_#B45309]"
             >
               Get Started!
             </Link>

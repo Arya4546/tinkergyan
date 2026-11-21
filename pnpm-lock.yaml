@@ -216,6 +216,9 @@ importers:
       util:
         specifier: ^0.12.5
         version: 0.12.5
+      web-serial-polyfill:
+        specifier: 1.0.15
+        version: 1.0.15
       zod:
         specifier: 3.23.8
         version: 3.23.8
@@ -3435,6 +3438,9 @@ packages:
   w3c-xmlserializer@5.0.0:
     resolution: {integrity: sha512-o8qghlI8NZHU1lLPrpi2+Uq7abh4GGPpYANlalzWxyWteJOCsr/P+oPBA49TOLu5FTZO4d3F9MnWJfiMo4BkmA==}
     engines: {node: '>=18'}
+
+  web-serial-polyfill@1.0.15:
+    resolution: {integrity: sha512-usZN7kGRkEWr8DzRWxW+og55L1fHo4hNIwxCSCfWKpM+i0L+2AwzupMvkDFxnJNqUFOhLaD3PlgAOJxUOUrAoA==}
 
   webidl-conversions@3.0.1:
     resolution: {integrity: sha512-2JAn3z8AR6rjK8Sm8orRC0h/bcl/DqL7tRPdGZ4I1CjdF+EaMLmYxBHyXuKL849eucPFhvBoxMsflfOb8kxaeQ==}
@@ -6799,6 +6805,8 @@ snapshots:
   w3c-xmlserializer@5.0.0:
     dependencies:
       xml-name-validator: 5.0.0
+
+  web-serial-polyfill@1.0.15: {}
 
   webidl-conversions@3.0.1: {}
 

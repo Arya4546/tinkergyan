@@ -452,3 +452,33 @@ html.dark .blocklyTooltipDiv {
   color: #f8fafc !important;
   border: 1px solid rgba(71, 85, 105, 0.8) !important;
 }
+
+/* ── Phones: a compact Blockly toolbox ────────────────────────────────────
+   The desktop category rows (big padding, 15px labels, hover bounce) take
+   ~200px of a 390px screen, leaving the canvas a sliver. Shrink them so the
+   student can see the blocks they are building. */
+@media (max-width: 767px), (max-height: 500px) {
+  .blocklyToolboxDiv {
+    padding: 6px 4px !important;
+    border-radius: 0 12px 12px 0 !important;
+  }
+  .blocklyTreeRow {
+    padding: 8px 8px 8px 6px !important;
+    margin-bottom: 4px !important;
+    gap: 6px !important;
+    border-radius: 12px !important;
+    border-left-width: 4px !important;
+  }
+  .blocklyTreeRow:hover:not(.blocklyTreeSelected) {
+    animation: none !important;
+    box-shadow: none !important;
+  }
+  .blocklyTreeRow.blocklyTreeSelected,
+  html.dark .blocklyTreeRow.blocklyTreeSelected {
+    transform: none !important;
+  }
+  .blocklyTreeLabel {
+    font-size: 12px !important;
+    letter-spacing: 0 !important;
+  }
+}

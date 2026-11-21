@@ -99,9 +99,9 @@ export function TabularTrainerTab() {
   const featureColumns = dataset?.numericHeaders.filter((h) => h !== targetColumn) ?? [];
 
   return (
-    <div className="flex-1 flex overflow-hidden">
+    <div className="flex-1 flex flex-col md:flex-row md:overflow-hidden">
       {/* Left: Upload + Train */}
-      <div className="flex-1 flex flex-col p-6 gap-4 border-r border-slate-200 dark:border-white/10 overflow-y-auto">
+      <div className="flex-1 flex flex-col p-4 sm:p-6 gap-4 md:border-r border-slate-200 dark:border-white/10 md:overflow-y-auto">
         {/* CSV Upload */}
         {!dataset ? (
           <div
@@ -204,7 +204,7 @@ export function TabularTrainerTab() {
               <span className="text-slate-600 dark:text-white/60 text-xs font-bold uppercase tracking-widest">
                 Hyperparameters
               </span>
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div>
                   <label className="text-slate-600 dark:text-white/60 text-[11px] block mb-1 font-medium">
                     Practice rounds
@@ -340,7 +340,7 @@ export function TabularTrainerTab() {
       </div>
 
       {/* Right: Test predictions */}
-      <div className="w-[320px] flex flex-col p-6 gap-4 overflow-y-auto">
+      <div className="w-full md:w-[320px] flex flex-col p-4 sm:p-6 gap-4 border-t md:border-t-0 border-slate-200 dark:border-white/10 md:overflow-y-auto">
         <span className="text-slate-600 dark:text-white/60 text-xs font-bold uppercase tracking-widest">
           Test Prediction
         </span>

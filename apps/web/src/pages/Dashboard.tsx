@@ -62,12 +62,12 @@ export default function Dashboard() {
         </button>
       </div>
 
-      <div className="flex-1 flex flex-col lg:flex-row min-h-0">
+      <div className="flex-1 flex flex-col lg:flex-row lg:min-h-0">
         {/* Main: Projects */}
-        <div className="flex-1 px-6 md:px-10 py-8 overflow-y-auto border-r border-slate-200/80 dark:border-white/10">
+        <div className="flex-1 px-4 sm:px-6 md:px-10 py-6 sm:py-8 shrink-0 lg:shrink lg:flex-1 lg:overflow-y-auto lg:border-r border-slate-200/80 dark:border-white/10">
           {/* Stats Row */}
-          <div className="grid grid-cols-3 gap-4 mb-8">
-            <div className="bg-white/80 dark:bg-[#141824]/90 border border-slate-200/80 dark:border-white/10 rounded-3xl p-5 shadow-2xs hover:shadow-lg transition-all duration-300 hover:-translate-y-1">
+          <div className="grid grid-cols-3 gap-2 sm:gap-4 mb-6 sm:mb-8">
+            <div className="bg-white/80 dark:bg-[#141824]/90 border border-slate-200/80 dark:border-white/10 rounded-2xl sm:rounded-3xl p-3 sm:p-5 shadow-2xs hover:shadow-lg transition-all duration-300 hover:-translate-y-1">
               <div className="w-10 h-10 bg-purple-100 dark:bg-purple-950/50 text-playful-primary dark:text-playful-highlight rounded-2xl flex items-center justify-center mb-3">
                 <FolderCode size={20} />
               </div>
@@ -76,7 +76,7 @@ export default function Dashboard() {
               </p>
               <p className="text-xs font-semibold text-slate-500 mt-0.5">Projects Built</p>
             </div>
-            <div className="bg-white/80 dark:bg-[#141824]/90 border border-slate-200/80 dark:border-white/10 rounded-3xl p-5 shadow-2xs hover:shadow-lg transition-all duration-300 hover:-translate-y-1">
+            <div className="bg-white/80 dark:bg-[#141824]/90 border border-slate-200/80 dark:border-white/10 rounded-2xl sm:rounded-3xl p-3 sm:p-5 shadow-2xs hover:shadow-lg transition-all duration-300 hover:-translate-y-1">
               <div className="w-10 h-10 bg-amber-100 dark:bg-amber-950/50 text-amber-600 dark:text-amber-400 rounded-2xl flex items-center justify-center mb-3">
                 <TrendingUp size={20} />
               </div>
@@ -85,7 +85,7 @@ export default function Dashboard() {
               </p>
               <p className="text-xs font-semibold text-slate-500 mt-0.5">XP Earned</p>
             </div>
-            <div className="bg-white/80 dark:bg-[#141824]/90 border border-slate-200/80 dark:border-white/10 rounded-3xl p-5 shadow-2xs hover:shadow-lg transition-all duration-300 hover:-translate-y-1">
+            <div className="bg-white/80 dark:bg-[#141824]/90 border border-slate-200/80 dark:border-white/10 rounded-2xl sm:rounded-3xl p-3 sm:p-5 shadow-2xs hover:shadow-lg transition-all duration-300 hover:-translate-y-1">
               <div className="w-10 h-10 bg-rose-100 dark:bg-rose-950/50 text-playful-secondary rounded-2xl flex items-center justify-center mb-3">
                 <Zap size={20} />
               </div>
@@ -169,7 +169,7 @@ export default function Dashboard() {
         </div>
 
         {/* Right: Quick Actions / Info Panel */}
-        <div className="w-full lg:w-72 xl:w-80 px-6 py-8 shrink-0 flex flex-col gap-6">
+        <div className="w-full lg:w-72 xl:w-80 px-4 sm:px-6 py-6 sm:py-8 shrink-0 flex flex-col gap-6">
           <div>
             <h2 className="font-heading font-black text-xs text-slate-400 dark:text-slate-500 mb-4 uppercase tracking-wider">
               Quick Actions

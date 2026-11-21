@@ -1063,8 +1063,8 @@ export default function AITrainer() {
     visiblePanels === 1
       ? 'grid-cols-[minmax(0,1fr)]'
       : visiblePanels === 2
-        ? 'grid-cols-[minmax(0,1fr)_280px]'
-        : 'grid-cols-[minmax(0,1fr)_280px_340px]';
+        ? 'grid-cols-1 md:grid-cols-[minmax(0,1fr)_280px]'
+        : 'grid-cols-1 lg:grid-cols-[minmax(0,1fr)_280px_340px]';
 
   // Kid-friendly "How careful should it be?" — maps to the engine's threshold.
   const CAREFUL_LEVELS: Array<{ label: string; emoji: string; value: number; help: string }> = [
@@ -1112,8 +1112,8 @@ export default function AITrainer() {
       </div>
 
       {/* ── Top bar ── */}
-      <header className="relative z-20 sticky top-0 px-5 pt-4 flex items-start justify-between gap-5">
-        <div className="flex items-center gap-3 bg-white dark:bg-[#15152b] rounded-xl shadow-[0_2px_12px_rgba(20,20,40,0.08)] dark:shadow-[0_2px_12px_rgba(0,0,0,0.4)] px-4 py-2.5">
+      <header className="relative z-20 sticky top-0 px-3 sm:px-5 pt-3 sm:pt-4 flex flex-col md:flex-row md:items-start justify-between gap-2 md:gap-5">
+        <div className="flex items-center gap-3 min-w-0 bg-white dark:bg-[#15152b] rounded-xl shadow-[0_2px_12px_rgba(20,20,40,0.08)] dark:shadow-[0_2px_12px_rgba(0,0,0,0.4)] px-3 sm:px-4 py-2.5">
           <button
             onClick={goBackToEditor}
             title={backEngine ? 'Back to Editor' : 'Back to Dashboard'}
@@ -1127,7 +1127,7 @@ export default function AITrainer() {
               Tinkergyan
             </span>
           </div>
-          <h1 className="font-heading font-bold text-xl text-[#FF6F61] flex items-center gap-2">
+          <h1 className="font-heading font-bold text-lg sm:text-xl text-[#FF6F61] flex items-center gap-2 whitespace-nowrap shrink-0">
             <Brain size={18} /> Train AI
             {hasUnsavedChanges && (
               <span className="w-1.5 h-1.5 rounded-full bg-amber-400" title="Not saved yet" />
@@ -1141,11 +1141,11 @@ export default function AITrainer() {
               setHasUnsavedChanges(true);
             }}
             placeholder="Project name"
-            className="font-heading font-semibold text-sm bg-transparent outline-none max-w-[150px] truncate rounded px-1 -ml-1 border border-transparent hover:border-slate-300 dark:hover:border-white/20 focus:border-[#FF6F61] transition-colors"
+            className="font-heading font-semibold text-sm bg-transparent outline-none min-w-0 flex-1 md:flex-none md:max-w-[150px] truncate rounded px-1 -ml-1 border border-transparent hover:border-slate-300 dark:hover:border-white/20 focus:border-[#FF6F61] transition-colors"
           />
         </div>
 
-        <div className="flex items-center gap-2 bg-white dark:bg-[#15152b] rounded-xl shadow-[0_2px_12px_rgba(20,20,40,0.08)] dark:shadow-[0_2px_12px_rgba(0,0,0,0.4)] px-2 py-2">
+        <div className="flex items-center gap-2 max-w-full overflow-x-auto md:overflow-visible [&>*]:shrink-0 [&>*]:whitespace-nowrap bg-white dark:bg-[#15152b] rounded-xl shadow-[0_2px_12px_rgba(20,20,40,0.08)] dark:shadow-[0_2px_12px_rgba(0,0,0,0.4)] px-2 py-2">
           {isAwaitingKind ? (
             <span className="px-3 py-1.5 text-sm font-medium text-slate-400 dark:text-white/30">
               Loading…
@@ -1241,7 +1241,7 @@ export default function AITrainer() {
             <p className="text-sm font-semibold">Opening your project…</p>
           </div>
         ) : activeTab === 'text' ? (
-          <div className="flex-1 flex justify-center py-10 px-6 min-h-[calc(100vh-96px)]">
+          <div className="flex-1 flex justify-center py-4 px-3 sm:py-10 sm:px-6 min-h-[calc(100vh-96px)]">
             <div className="w-full max-w-2xl">
               <TextTrainerModal />
             </div>
@@ -1271,7 +1271,7 @@ export default function AITrainer() {
             )}
 
             {!isLoading && (
-              <div className="flex-1 flex flex-col items-center py-10 px-6 min-h-[calc(100vh-96px)]">
+              <div className="flex-1 flex flex-col items-center py-4 px-3 sm:py-10 sm:px-6 min-h-[calc(100vh-96px)]">
                 {isModelWarming && (
                   <div className="w-full max-w-[1400px] mb-5 flex items-center gap-2.5 px-4 py-2.5 rounded-xl bg-[#FFEDEA] dark:bg-[#FF6F61]/10 border border-[#FF6F61]/30 text-[#FF6F61] text-sm font-medium">
                     <Loader2 size={15} className="animate-spin shrink-0" />
@@ -1280,7 +1280,7 @@ export default function AITrainer() {
                   </div>
                 )}
                 <div
-                  className={`w-full max-w-[1400px] flex-1 grid ${gridCols} gap-9 items-stretch`}
+                  className={`w-full max-w-[1400px] flex-1 grid ${gridCols} gap-5 md:gap-9 items-stretch`}
                 >
                   {/* ── Classes ── */}
                   <section className="min-w-0 flex flex-col gap-5">

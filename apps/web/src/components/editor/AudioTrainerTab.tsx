@@ -553,9 +553,9 @@ export function AudioTrainerTab() {
   const showPreview = isTrained;
   const gridCols =
     showTraining && showPreview
-      ? 'grid-cols-[minmax(0,1fr)_280px_340px]'
+      ? 'grid-cols-1 lg:grid-cols-[minmax(0,1fr)_280px_340px]'
       : showTraining
-        ? 'grid-cols-[minmax(0,1fr)_280px]'
+        ? 'grid-cols-1 md:grid-cols-[minmax(0,1fr)_280px]'
         : 'grid-cols-[minmax(0,1fr)]';
 
   const card =
@@ -639,8 +639,8 @@ export function AudioTrainerTab() {
   };
 
   return (
-    <div className="flex-1 flex justify-center items-stretch py-10 px-6 min-h-[calc(100vh-96px)]">
-      <div className={`w-full max-w-[1400px] grid ${gridCols} gap-9 items-stretch`}>
+    <div className="flex-1 flex justify-center items-stretch py-4 px-3 sm:py-10 sm:px-6 min-h-[calc(100vh-96px)]">
+      <div className={`w-full max-w-[1400px] grid ${gridCols} gap-5 md:gap-9 items-stretch`}>
         {/* ── Classes ── */}
         <section className="min-w-0 flex flex-col gap-5">
           <div className="rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-900 dark:border-sky-400/30 dark:bg-sky-400/10 dark:text-sky-100">

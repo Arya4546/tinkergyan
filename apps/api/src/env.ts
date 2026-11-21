@@ -22,6 +22,13 @@ const envSchema = z.object({
   /** Path to the arduino-cli binary. Required only when COMPILER_MODE=arduino. */
   ARDUINO_CLI_PATH: z.string().optional(),
   /** Compiler strategy: 'wandbox' (default, remote C++ executor), 'arduino' (local CLI), 'mock' (offline dev). */
+  /**
+   * Super admin account, created on server start when it does not exist yet.
+   * All three must be set for that to happen; otherwise it is skipped.
+   */
+  ADMIN_EMAIL: z.string().email().optional().or(z.literal('')),
+  ADMIN_FULL_NAME: z.string().max(50).optional(),
+  ADMIN_PASSWORD: z.string().min(8).optional().or(z.literal('')),
   COMPILER_MODE: z.enum(['wandbox', 'arduino', 'mock']).default('wandbox'),
 });
 

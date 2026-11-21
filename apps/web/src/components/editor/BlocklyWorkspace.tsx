@@ -318,7 +318,7 @@ export const BlocklyWorkspace = forwardRef<BlocklyWorkspaceHandle, BlocklyWorksp
           controls: true,
           wheel: true,
           // Slightly smaller default so the workspace feels less dense for kids.
-          startScale: 0.85,
+          startScale: window.matchMedia('(max-width: 767px)').matches ? 0.7 : 0.85,
           maxScale: 3,
           minScale: 0.3,
           scaleSpeed: 1.2,

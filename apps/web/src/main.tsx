@@ -69,6 +69,14 @@ const LessonView = lazy(() => import('@/pages/LessonView'));
 const Gallery = lazy(() => import('@/pages/Gallery'));
 const Leaderboard = lazy(() => import('@/pages/Leaderboard'));
 const Badges = lazy(() => import('@/pages/Badges'));
+const AdminLayout = lazy(() =>
+  import('@/components/admin/AdminLayout').then((m) => ({ default: m.AdminLayout })),
+);
+const AdminOverview = lazy(() => import('@/pages/admin/AdminOverview'));
+const AdminUsers = lazy(() => import('@/pages/admin/AdminUsers'));
+const AdminUserDetail = lazy(() => import('@/pages/admin/AdminUserDetail'));
+const AdminProjects = lazy(() => import('@/pages/admin/AdminProjects'));
+const AdminProjectDetail = lazy(() => import('@/pages/admin/AdminProjectDetail'));
 
 const queryClient = new QueryClient();
 
@@ -118,6 +126,14 @@ const ProtectedLayout = () => {
   return <Outlet />;
 };
 
+// The server enforces this too (403 on every /api/admin call); this only keeps
+// everyone else from landing on an empty portal.
+const SuperAdminRoute = () => {
+  const role = useAuthStore((s) => s.user?.role);
+  if (role !== 'SUPER_ADMIN') return <Navigate to="/dashboard" replace />;
+  return <Outlet />;
+};
+
 const router = createBrowserRouter([
   {
     path: '/',
@@ -153,6 +169,22 @@ const router = createBrowserRouter([
           { path: 'ai-trainer', element: <AITrainer /> },
           { path: 'ai-trainer/:id', element: <AITrainer /> },
           { path: 'courses/:slug/lessons/:lessonId', element: <LessonView /> },
+          {
+            path: 'admin',
+            element: <SuperAdminRoute />,
+            children: [
+              {
+                element: <AdminLayout />,
+                children: [
+                  { index: true, element: <AdminOverview /> },
+                  { path: 'users', element: <AdminUsers /> },
+                  { path: 'users/:id', element: <AdminUserDetail /> },
+                  { path: 'projects', element: <AdminProjects /> },
+                  { path: 'projects/:id', element: <AdminProjectDetail /> },
+                ],
+              },
+            ],
+          },
         ],
       },
       {

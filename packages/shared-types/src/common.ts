@@ -8,7 +8,7 @@ export type Cuid = string;
 export type AppTheme = 'light' | 'dark' | 'system';
 
 /** Supported user roles. */
-export type UserRole = 'USER' | 'ADMIN';
+export type UserRole = 'USER' | 'ADMIN' | 'SUPER_ADMIN';
 
 /** Difficulty levels for course content. */
 export type Difficulty = 'BEGINNER' | 'INTERMEDIATE' | 'ADVANCED';

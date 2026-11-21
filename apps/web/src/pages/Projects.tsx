@@ -259,7 +259,7 @@ export default function Projects() {
       </div>
 
       {/* Content */}
-      <div className="flex-1 overflow-y-auto p-6 lg:p-10 bg-transparent">
+      <div className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-10 bg-transparent">
         {isLoading && (
           <div className="flex justify-center py-16">
             <Loader message="Loading your projects..." />

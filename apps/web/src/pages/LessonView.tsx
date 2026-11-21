@@ -179,7 +179,7 @@ export default function LessonView() {
   return (
     <div className="w-full h-full flex flex-col font-playful overflow-hidden bg-transparent">
       {/* Top bar */}
-      <div className="border-b border-slate-200/80 dark:border-white/10 bg-white/80 dark:bg-[#0B1121]/80 backdrop-blur-xl px-6 py-4 flex items-center gap-3 shrink-0 shadow-2xs z-10">
+      <div className="border-b border-slate-200/80 dark:border-white/10 bg-white/80 dark:bg-[#0B1121]/80 backdrop-blur-xl px-3 sm:px-6 py-3 sm:py-4 flex items-center gap-2 sm:gap-3 shrink-0 shadow-2xs z-10">
         <Link
           to={`/courses/${course.slug}`}
           className="flex items-center gap-1.5 text-xs font-bold text-slate-500 hover:text-playful-primary dark:hover:text-playful-highlight transition-colors group"
@@ -204,10 +204,12 @@ export default function LessonView() {
       </div>
 
       {/* Main content */}
-      <div className={`flex-1 flex ${isCoding ? 'flex-row' : 'flex-col'} overflow-hidden`}>
+      <div
+        className={`flex-1 min-h-0 flex ${isCoding ? 'flex-col md:flex-row overflow-y-auto md:overflow-hidden' : 'flex-col overflow-hidden'}`}
+      >
         {/* Lesson content (markdown) */}
         <div
-          className={`${isCoding ? 'w-1/2 border-r border-slate-200/80 dark:border-white/10' : 'flex-1 max-w-4xl mx-auto'} overflow-y-auto p-6 lg:p-10 bg-transparent`}
+          className={`${isCoding ? 'w-full md:w-1/2 shrink-0 md:shrink md:border-r border-b md:border-b-0 border-slate-200/80 dark:border-white/10 md:overflow-y-auto' : 'flex-1 w-full max-w-4xl mx-auto overflow-y-auto'} p-4 sm:p-6 lg:p-10 bg-transparent`}
         >
           <div
             className="lesson-content prose prose-invert max-w-none"
@@ -217,7 +219,7 @@ export default function LessonView() {
 
         {/* Code editor panel (CODING lessons only) */}
         {isCoding && (
-          <div className="w-1/2 flex flex-col bg-[#141824]">
+          <div className="w-full md:w-1/2 min-h-[22rem] md:min-h-0 shrink-0 md:shrink flex flex-col bg-[#141824]">
             {/* Editor toolbar */}
             <div className="h-12 border-b border-slate-800 bg-[#0B1121] flex items-center px-4 gap-3 shrink-0">
               <Code2 size={16} className="text-playful-primary dark:text-playful-highlight" />
@@ -263,7 +265,7 @@ export default function LessonView() {
       </div>
 
       {/* Bottom navigation + complete */}
-      <div className="border-t border-slate-200/80 dark:border-white/10 bg-white/80 dark:bg-[#0B1121]/80 backdrop-blur-xl px-6 py-4 flex items-center justify-between shrink-0 shadow-2xs z-10">
+      <div className="border-t border-slate-200/80 dark:border-white/10 bg-white/80 dark:bg-[#0B1121]/80 backdrop-blur-xl px-3 sm:px-6 py-3 sm:py-4 flex items-center justify-between gap-2 shrink-0 shadow-2xs z-10">
         {/* Prev */}
         {prevLesson ? (
           <Link

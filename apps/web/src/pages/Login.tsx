@@ -74,7 +74,8 @@ export default function Login() {
       try {
         await login({ email: formData.email, password: formData.password });
         addToast({ type: 'success', title: 'Welcome back!', message: 'Logged in successfully.' });
-        navigate(searchParams.get('returnTo') || '/dashboard');
+        const isSuperAdmin = useAuthStore.getState().user?.role === 'SUPER_ADMIN';
+        navigate(searchParams.get('returnTo') || (isSuperAdmin ? '/admin' : '/dashboard'));
       } catch (err: unknown) {
         const error = err as { response?: { data?: { error?: { message?: string } } } };
         const message = error.response?.data?.error?.message || 'Invalid email or password.';

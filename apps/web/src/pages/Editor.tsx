@@ -44,6 +44,7 @@ import {
   ChevronDown,
   Check,
   Brain,
+  ArrowLeft,
 } from 'lucide-react';
 
 import { CompileConsole } from '../components/editor/CompileConsole';
@@ -60,6 +61,12 @@ import { CostumesPanel } from '../components/editor/simulator/CostumesPanel';
 import { SoundsPanel } from '../components/editor/simulator/SoundsPanel';
 import { AIWebcamOverlay } from '../components/editor/AIWebcamOverlay';
 import { WebSerialFlasher } from '../lib/web-serial-flasher';
+import {
+  isHardwareSupported,
+  requestHardwarePort,
+  onHardwareDisconnect,
+  hardwareUnsupportedMessage,
+} from '../lib/usb-serial';
 import type { FlashBoard } from '../lib/web-serial-flasher';
 import confetti from 'canvas-confetti';
 
@@ -112,6 +119,7 @@ function compileSpriteProgram(xml: string): string {
     workspace.dispose();
   }
 }
+import { useIsMobile, isMobileNow } from '../lib/use-media-query';
 import { Tooltip } from '../components/ui/Tooltip';
 import { BOARDS, getBoardLabel } from '../lib/boards';
 import { Loader } from '../components/ui/Loader';
@@ -248,14 +256,14 @@ function BoardSelect({ value, onChange }: { value: string; onChange: (fqbn: stri
   }, [open]);
 
   return (
-    <div ref={rootRef} className="relative hidden sm:block">
+    <div ref={rootRef} className="relative">
       <Tooltip content="Select Target Microcontroller Board" position="bottom">
         <button
           onClick={() => setOpen(!open)}
           className="h-9 pl-3 pr-2.5 rounded-full font-sans text-sm font-bold flex items-center gap-1.5 bg-white/20 text-white hover:bg-white/30 transition-colors focus-visible:ring-2 focus-visible:ring-white focus-visible:outline-none shadow-sm"
         >
           <Cpu size={16} className="text-white shrink-0" />
-          <span className="max-w-[130px] truncate">{getBoardLabel(value)}</span>
+          <span className="max-w-[130px] truncate hidden sm:inline">{getBoardLabel(value)}</span>
           <ChevronDown
             size={14}
             className={`shrink-0 text-white/80 transition-transform duration-150 ${open ? 'rotate-180' : ''}`}
@@ -301,6 +309,7 @@ export default function Editor() {
   const [showTemplates, setShowTemplates] = useState(false);
   const [showMoreMenu, setShowMoreMenu] = useState(false);
   const [hardwarePort, setHardwarePort] = useState<any>(null);
+  const disconnectListenerRef = useRef<(() => void) | null>(null);
   const [isFlashing, setIsFlashing] = useState(false);
   // `isFlashing` state doesn't block a second click until React re-renders —
   // a fast double-click (or a near-simultaneous second call) lands before
@@ -318,11 +327,14 @@ export default function Editor() {
   // immediately afterward on some boards. Cleared on any manual toggle/close
   // so a later, user-initiated reopen still gets the normal nudge.
   const [justFlashed, setJustFlashed] = useState(false);
+  // On a phone the stage/output panel is a full-screen sheet, so it must not
+  // start open: the student would land on the Stage with no blocks in sight.
+  const isMobile = useIsMobile();
   const [showCodePanel, setShowCodePanel] = useState(
-    () => searchParams.get('engine') === 'software',
+    () => searchParams.get('engine') === 'software' && !isMobileNow(),
   );
   const [showSimulator, setShowSimulator] = useState(
-    () => searchParams.get('engine') === 'software',
+    () => searchParams.get('engine') === 'software' && !isMobileNow(),
   );
   const [terminalWidth, setTerminalWidth] = useState(() => (window.innerWidth < 1024 ? 340 : 420));
   // Code / Costumes / Sounds tabs — software (Scratch) engine only.
@@ -556,7 +568,7 @@ export default function Editor() {
   useEffect(() => {
     if (appliedEngineRef.current === engineMode) return;
     appliedEngineRef.current = engineMode;
-    const isSoftware = engineMode === 'software';
+    const isSoftware = engineMode === 'software' && !isMobileNow();
     setShowCodePanel(isSoftware);
     setShowSimulator(isSoftware);
   }, [engineMode]);
@@ -898,11 +910,11 @@ export default function Editor() {
   }, [togglePublic, addToast]);
 
   const handleConnectHardware = async () => {
-    if (!('serial' in navigator)) {
+    if (!isHardwareSupported()) {
       addToast({
         type: 'info',
-        title: 'Use Chrome or Edge for hardware',
-        message: `Connecting to your ${boardLabel} needs Chrome or Edge. You can still build and save your project here!`,
+        title: "This browser can't reach your board",
+        message: hardwareUnsupportedMessage(boardLabel),
       });
       return;
     }
@@ -914,13 +926,15 @@ export default function Editor() {
         } catch {
           /* may already be closed */
         }
+        disconnectListenerRef.current?.();
+        disconnectListenerRef.current = null;
         setHardwarePort(null);
         setShowSerialMonitor(false);
         addToast({ type: 'info', title: 'Disconnected', message: `${boardLabel} disconnected.` });
         return;
       }
 
-      const port = await (navigator as any).serial.requestPort();
+      const port = await requestHardwarePort();
       // Don't open yet — let Serial Monitor or Flasher open with the right baud
       setHardwarePort(port);
 
@@ -932,19 +946,20 @@ export default function Editor() {
       });
 
       // Listen for disconnect
-      (navigator as any).serial.addEventListener('disconnect', (e: any) => {
-        if (e.target === port) {
-          setHardwarePort(null);
-          setShowSerialMonitor(false);
-          addToast({
-            type: 'warning',
-            title: 'Cable disconnected',
-            message: 'Check your USB cable and reconnect.',
-          });
-        }
+      disconnectListenerRef.current?.();
+      disconnectListenerRef.current = onHardwareDisconnect(port, () => {
+        disconnectListenerRef.current?.();
+        disconnectListenerRef.current = null;
+        setHardwarePort(null);
+        setShowSerialMonitor(false);
+        addToast({
+          type: 'warning',
+          title: 'Cable disconnected',
+          message: 'Check your USB cable and reconnect.',
+        });
       });
     } catch (err: any) {
-      if (err.name === 'NotFoundError') return; // User cancelled
+      if (err.name === 'NotFoundError' || err.name === 'AbortError') return; // User cancelled
       addToast({
         type: 'error',
         title: "Couldn't connect",
@@ -1126,6 +1141,9 @@ export default function Editor() {
       // Shared with the green flag above the stage so the two Run affordances
       // cannot diverge.
       runArduinoSketchFromWorkspace();
+      // The output lives in the side panel; on a phone that panel is a sheet
+      // that stays closed until asked for, so open it or Run shows nothing.
+      if (isMobileNow()) setShowCodePanel(true);
       return;
     }
 
@@ -1269,10 +1287,37 @@ export default function Editor() {
   }
 
   // ─────────────────────────────────────────────────────────────────────────
+  const renderRunButton = (extraClass: string) => (
+    <Tooltip
+      className={extraClass}
+      content={isSimRunning ? 'Stop the running program' : 'Run Code (Ctrl+Enter)'}
+      position="bottom"
+    >
+      <button
+        onClick={isSimRunning ? handleStopSim : handleCompile}
+        disabled={isCompiling || isFlashing}
+        className={`h-10 px-6 rounded-full font-sans font-bold text-sm flex items-center gap-2 transition-all focus-visible:ring-2 focus-visible:ring-white focus-visible:outline-none shadow-md ${
+          isSimRunning
+            ? 'bg-rose-500 hover:bg-rose-400 text-white'
+            : 'bg-[#10B981] hover:bg-[#059669] text-white'
+        }`}
+      >
+        {isCompiling ? (
+          <Loader2 size={16} className="animate-spin" />
+        ) : isSimRunning ? (
+          <Square size={15} fill="currentColor" />
+        ) : (
+          <Play size={15} fill="currentColor" />
+        )}
+        <span>{isCompiling ? 'Running...' : isSimRunning ? 'Stop' : 'Run'}</span>
+      </button>
+    </Tooltip>
+  );
+
   return (
     <div className="flex flex-col h-screen bg-white dark:bg-[#080E1A] font-playful overflow-hidden">
       {/* ── Top Control Bar ─────────────────────────────────────── */}
-      <div className="shrink-0 w-full h-[72px] flex justify-between items-center z-30 px-4 sm:px-6 gap-2 bg-gradient-to-r from-indigo-600 via-indigo-700 to-blue-700 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900 shadow-[0_8px_30px_-4px_rgba(79,70,229,0.4)] dark:shadow-[0_8px_30px_-4px_rgba(0,0,0,0.5)]">
+      <div className="shrink-0 w-full min-h-14 lg:min-h-0 lg:h-[72px] flex flex-wrap lg:flex-nowrap justify-between items-center z-30 px-3 sm:px-6 py-1.5 lg:py-0 gap-x-2 gap-y-1.5 relative bg-gradient-to-r from-indigo-600 via-indigo-700 to-blue-700 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900 shadow-[0_8px_30px_-4px_rgba(79,70,229,0.4)] dark:shadow-[0_8px_30px_-4px_rgba(0,0,0,0.5)]">
         {/* Left: Back + project title + dirty indicator */}
         {/*
           overflow-hidden is a deliberate safety net: this group's children
@@ -1284,7 +1329,11 @@ export default function Editor() {
           without clipping here, the overflowing title visually painted over
           the Blocks/C++ toggle and board selector instead of just shrinking.
         */}
-        <div className="flex items-center gap-2 min-w-0 overflow-hidden">
+        <div
+          className={`flex items-center gap-2 min-w-0 overflow-hidden lg:basis-auto ${
+            engineMode === 'hardware' ? 'basis-[calc(100%-104px)]' : 'basis-full'
+          }`}
+        >
           <Tooltip content="Dashboard" position="bottom">
             <button
               onClick={handleNavigateHome}
@@ -1315,7 +1364,7 @@ export default function Editor() {
                 e.currentTarget.blur();
               }
             }}
-            className="font-sans font-extrabold text-lg sm:text-xl text-white bg-transparent border-none outline-none w-32 sm:w-64 min-w-[70px] truncate hover:bg-white/10 focus:bg-white/20 rounded-xl px-3 py-1.5 transition-all placeholder-white/70"
+            className="font-sans font-extrabold text-lg sm:text-xl text-white bg-transparent border-none outline-none flex-1 lg:flex-none lg:w-64 min-w-[70px] truncate hover:bg-white/10 focus:bg-white/20 rounded-xl px-3 py-1.5 transition-all placeholder-white/70"
             spellCheck={false}
             placeholder="Untitled Project"
           />
@@ -1345,13 +1394,16 @@ export default function Editor() {
           )}
         </div>
 
+        {/* Phones: Run sits in the first row beside the title, always reachable. */}
+        {engineMode === 'hardware' && renderRunButton('lg:hidden w-24 shrink-0')}
+
         {engineMode === 'hardware' && (
           <div className="flex items-center gap-2 shrink-0">
             <div className="flex items-center bg-white/20 rounded-xl p-1 shadow-inner backdrop-blur-md">
               <Tooltip content="Visual Block Editor" position="bottom">
                 <button
                   onClick={switchToBlock}
-                  className={`flex items-center gap-2 h-9 px-5 rounded-lg font-sans font-bold text-[14px] transition-all focus-visible:ring-4 focus-visible:ring-white/50 focus-visible:outline-none ${
+                  className={`flex items-center gap-2 h-9 px-3 sm:px-5 rounded-lg font-sans font-bold text-[14px] transition-all focus-visible:ring-4 focus-visible:ring-white/50 focus-visible:outline-none ${
                     mode === 'block'
                       ? 'bg-white text-indigo-600 shadow-sm scale-105'
                       : 'text-white hover:bg-white/20'
@@ -1364,7 +1416,7 @@ export default function Editor() {
               <Tooltip content="C++ Text Code Editor" position="bottom">
                 <button
                   onClick={switchToCode}
-                  className={`flex items-center gap-2 h-9 px-4 rounded-lg font-sans font-extrabold text-[14px] transition-all focus-visible:ring-4 focus-visible:ring-white/50 focus-visible:outline-none ${
+                  className={`flex items-center gap-2 h-9 px-3 sm:px-4 rounded-lg font-sans font-extrabold text-[14px] transition-all focus-visible:ring-4 focus-visible:ring-white/50 focus-visible:outline-none ${
                     mode === 'code'
                       ? 'bg-white text-indigo-600 shadow-sm scale-105'
                       : 'text-white/80 hover:text-white hover:bg-white/20'
@@ -1396,8 +1448,9 @@ export default function Editor() {
           </div>
         )}
 
-        {/* Right: Board + controls + primary actions */}
-        <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+        {/* Right: Board + controls + primary actions. Wraps onto its own row on
+            a phone so nothing is pushed off-screen. */}
+        <div className="flex flex-wrap lg:flex-nowrap items-center justify-end gap-1.5 sm:gap-2 lg:shrink-0 flex-1 lg:flex-none">
           {engineMode === 'hardware' && <BoardSelect value={board} onChange={setBoard} />}
 
           {/* Font size controls (code mode only) */}
@@ -1533,9 +1586,7 @@ export default function Editor() {
               {/* Connect Board — second-highest prominence */}
               <Tooltip
                 content={
-                  hardwarePort
-                    ? 'Disconnect Hardware Board'
-                    : `Connect ${boardLabel} via Web Serial`
+                  hardwarePort ? 'Disconnect Hardware Board' : `Connect ${boardLabel} via USB`
                 }
                 position="bottom"
               >
@@ -1604,7 +1655,7 @@ export default function Editor() {
                   setShowCodePanel(!showCodePanel);
                   if (showSimulator && showCodePanel) setShowSimulator(false);
                 }}
-                className={`w-9 h-9 rounded-full flex items-center justify-center transition-all focus-visible:ring-2 focus-visible:ring-white focus-visible:outline-none hidden sm:flex ${
+                className={`w-9 h-9 rounded-full flex items-center justify-center transition-all focus-visible:ring-2 focus-visible:ring-white focus-visible:outline-none ${
                   showCodePanel && !showSimulator
                     ? 'bg-white text-[#6366F1] shadow-sm'
                     : 'bg-white/20 text-white hover:bg-white/30'
@@ -1674,44 +1725,20 @@ export default function Editor() {
                     setShowCodePanel(false);
                   }
                 }}
-                className={`h-9 px-4 rounded-full font-sans font-bold text-sm items-center gap-1.5 transition-all focus-visible:ring-2 focus-visible:ring-white focus-visible:outline-none hidden sm:flex ${
+                className={`h-9 px-4 rounded-full font-sans font-bold text-sm flex items-center gap-1.5 transition-all focus-visible:ring-2 focus-visible:ring-white focus-visible:outline-none ${
                   showSimulator
                     ? 'bg-white text-emerald-600 shadow-md'
                     : 'text-white bg-white/20 hover:bg-white/30'
                 }`}
               >
                 <Gamepad2 size={15} />
-                <span className="hidden md:inline">Stage</span>
+                <span className="hidden sm:inline">Stage</span>
               </button>
             </Tooltip>
           )}
 
-          {/* Run / Stop Button */}
-          {engineMode === 'hardware' && (
-            <Tooltip
-              content={isSimRunning ? 'Stop the running program' : 'Run Code (Ctrl+Enter)'}
-              position="bottom"
-            >
-              <button
-                onClick={isSimRunning ? handleStopSim : handleCompile}
-                disabled={isCompiling || isFlashing}
-                className={`h-10 px-6 rounded-full font-sans font-bold text-sm flex items-center gap-2 transition-all focus-visible:ring-2 focus-visible:ring-white focus-visible:outline-none shadow-md ${
-                  isSimRunning
-                    ? 'bg-rose-500 hover:bg-rose-400 text-white'
-                    : 'bg-[#10B981] hover:bg-[#059669] text-white'
-                }`}
-              >
-                {isCompiling ? (
-                  <Loader2 size={16} className="animate-spin" />
-                ) : isSimRunning ? (
-                  <Square size={15} fill="currentColor" />
-                ) : (
-                  <Play size={15} fill="currentColor" />
-                )}
-                <span>{isCompiling ? 'Running...' : isSimRunning ? 'Stop' : 'Run'}</span>
-              </button>
-            </Tooltip>
-          )}
+          {/* Run / Stop Button (desktop). Phones get a copy in the first row. */}
+          {engineMode === 'hardware' && renderRunButton('hidden lg:inline-block')}
         </div>
 
         {/* Flash progress bar */}
@@ -1803,7 +1830,7 @@ export default function Editor() {
           </div>
 
           {/* ── Resizer ─────────────────────────────────────────────────── */}
-          {showCodePanel && (
+          {showCodePanel && !isMobile && (
             <div className="py-4 flex flex-col justify-center bg-transparent">
               <div
                 className="w-1.5 h-16 bg-slate-200 hover:bg-primary-400 cursor-col-resize transition-colors shrink-0 z-10 mx-2 rounded-full"
@@ -1818,9 +1845,28 @@ export default function Editor() {
 
           {/* ── Output / Compiler Terminal Pane ─────────────────────────── */}
           {showCodePanel && (
-            <div style={{ width: terminalWidth }} className="flex flex-col shrink-0 py-4 pr-4">
+            <div
+              style={isMobile ? undefined : { width: terminalWidth }}
+              className={
+                isMobile
+                  ? 'absolute inset-0 z-[60] flex flex-col gap-2 p-2 bg-white dark:bg-[#080E1A]'
+                  : 'flex flex-col shrink-0 py-4 pr-4'
+              }
+            >
+              {isMobile && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowCodePanel(false);
+                    setShowSimulator(false);
+                  }}
+                  className="self-start h-10 px-4 rounded-full bg-indigo-600 text-white font-sans font-bold text-sm flex items-center gap-2 shadow-sm active:scale-95 transition-transform"
+                >
+                  <ArrowLeft size={16} /> Back to {mode === 'block' ? 'blocks' : 'code'}
+                </button>
+              )}
               <div
-                className={`flex-1 flex flex-col rounded-[32px] overflow-hidden shadow-[0_20px_50px_-10px_rgba(0,0,0,0.2)] dark:shadow-[0_20px_50px_-10px_rgba(0,0,0,0.5)] border-[6px] transition-all duration-300 relative ${
+                className={`flex-1 min-h-0 flex flex-col rounded-2xl md:rounded-[32px] overflow-hidden shadow-[0_20px_50px_-10px_rgba(0,0,0,0.2)] dark:shadow-[0_20px_50px_-10px_rgba(0,0,0,0.5)] border-4 md:border-[6px] transition-all duration-300 relative ${
                   showSimulator
                     ? 'border-white/80 dark:border-slate-800 bg-white dark:bg-[#151821]'
                     : 'border-slate-800/80 dark:border-slate-700/80 bg-[#0A0A0A]'

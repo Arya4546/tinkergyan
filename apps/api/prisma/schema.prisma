@@ -203,6 +203,7 @@ enum ProjectType {
 enum UserRole {
   USER
   ADMIN
+  SUPER_ADMIN
 }
 
 enum BadgeTriggerType {

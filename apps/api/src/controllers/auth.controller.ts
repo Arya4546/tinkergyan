@@ -107,6 +107,7 @@ export const getMe = catchAsync(async (req: Request, res: Response) => {
         level: user.level,
         streak: user.streak,
         avatar: user.avatar,
+        role: user.role,
       },
     },
   });
