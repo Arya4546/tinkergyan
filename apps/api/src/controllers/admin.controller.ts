@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { AdminService } from '../services/admin.service';
 import { catchAsync } from '../utils/catchAsync';
 
-const page = z.coerce.number().int().min(1).default(1);
+const page = z.coerce.number().int().min(1).max(100_000).default(1);
 const pageSize = z.coerce.number().int().min(1).max(100).default(20);
 const search = z
   .string()

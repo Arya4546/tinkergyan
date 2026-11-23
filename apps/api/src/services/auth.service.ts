@@ -47,6 +47,13 @@ export class AuthService {
   }
 
   static async register(data: RegisterDto) {
+    // The super-admin address is reserved: otherwise anyone who registers it
+    // before the first server start would block the bootstrap forever.
+    const reserved = env.ADMIN_EMAIL?.trim().toLowerCase();
+    if (reserved && data.email.trim().toLowerCase() === reserved) {
+      throw new AppError('CONFLICT', 'Email already in use', 409);
+    }
+
     const existingUser = await prisma.user.findUnique({
       where: { email: data.email },
     });

@@ -21,7 +21,7 @@ import { prisma } from '../lib/prisma';
 export type AdminBootstrapResult = 'skipped' | 'created' | 'exists' | 'promoted' | 'conflict';
 
 export async function ensureSuperAdmin(): Promise<AdminBootstrapResult> {
-  const email = env.ADMIN_EMAIL?.trim().toLowerCase();
+  const email = env.ADMIN_EMAIL?.trim();
   const password = env.ADMIN_PASSWORD;
   const name = env.ADMIN_FULL_NAME?.trim() || 'Super Admin';
 

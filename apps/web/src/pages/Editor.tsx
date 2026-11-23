@@ -310,6 +310,15 @@ export default function Editor() {
   const [showMoreMenu, setShowMoreMenu] = useState(false);
   const [hardwarePort, setHardwarePort] = useState<any>(null);
   const disconnectListenerRef = useRef<(() => void) | null>(null);
+  // Drop the cable-unplug listener when leaving the editor, otherwise it would
+  // fire "Cable disconnected" toasts on whatever page the user is on next.
+  useEffect(
+    () => () => {
+      disconnectListenerRef.current?.();
+      disconnectListenerRef.current = null;
+    },
+    [],
+  );
   const [isFlashing, setIsFlashing] = useState(false);
   // `isFlashing` state doesn't block a second click until React re-renders —
   // a fast double-click (or a near-simultaneous second call) lands before

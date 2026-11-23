@@ -228,6 +228,7 @@ abstract class VendorBulkPort implements HardwarePort {
   async close(): Promise<void> {
     this.readable_ = null;
     this.writable_ = null;
+    this.rxQueue = [];
     if (!this.device.opened) return;
     try {
       await this.shutdownChip();
@@ -242,31 +243,60 @@ abstract class VendorBulkPort implements HardwarePort {
     await this.device.close();
   }
 
+  // Packets that have arrived but no stream has consumed yet. Every transfer
+  // lands here first, so a transfer that was already in flight when a reader
+  // was cancelled is never lost — the next stream simply picks it up.
+  private rxQueue: Uint8Array[] = [];
+  private inflight: Promise<void> | null = null;
+
+  /** One USB read at a time, shared by every stream this port ever hands out. */
+  private fill(): Promise<void> {
+    if (!this.inflight) {
+      this.inflight = (async () => {
+        try {
+          const r = await this.device.transferIn(this.epIn, MAX_TRANSFER);
+          if (r.status === 'stall') {
+            await this.device.clearHalt('in', this.epIn);
+          } else if (r.status !== 'ok') {
+            throw new Error(`${this.chipName} read failed (${r.status})`);
+          } else if (r.data && r.data.byteLength > 0) {
+            this.rxQueue.push(new Uint8Array(r.data.buffer, r.data.byteOffset, r.data.byteLength));
+          }
+        } finally {
+          this.inflight = null;
+        }
+      })();
+    }
+    return this.inflight;
+  }
+
   // Like the native API, `readable` hands out a fresh stream if the previous
-  // one was cancelled while the port stayed open.
+  // one was cancelled while the port stayed open, and ends the stream when the
+  // port is closed or the cable is pulled.
   get readable(): ReadableStream<Uint8Array> | null {
     if (!this.readable_ && this.device.opened) {
       let active = true;
       this.readable_ = new ReadableStream<Uint8Array>({
         pull: async (controller) => {
-          while (active && this.device.opened) {
-            try {
-              const r = await this.device.transferIn(this.epIn, MAX_TRANSFER);
-              if (r.status === 'stall') {
-                await this.device.clearHalt('in', this.epIn);
-                continue;
-              }
-              if (r.status === 'ok' && r.data && r.data.byteLength > 0) {
-                controller.enqueue(
-                  new Uint8Array(r.data.buffer, r.data.byteOffset, r.data.byteLength),
-                );
+          try {
+            while (active) {
+              const next = this.rxQueue.shift();
+              if (next) {
+                controller.enqueue(next);
                 return;
               }
-            } catch (err) {
-              if (!active || !this.device.opened) return;
-              controller.error(err);
-              return;
+              if (!this.device.opened) {
+                active = false;
+                controller.close();
+                return;
+              }
+              await this.fill();
             }
+          } catch (err) {
+            if (!active) return;
+            active = false;
+            if (this.device.opened) controller.error(err);
+            else controller.close();
           }
         },
         cancel: () => {
