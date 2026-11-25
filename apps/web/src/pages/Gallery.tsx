@@ -4,6 +4,7 @@ import { Globe, GitFork, Blocks, Code2, Brain, Search } from 'lucide-react';
 import { PageHeader } from '../components/ui/PageHeader';
 import { Loader } from '../components/ui/Loader';
 import { api } from '../services/api';
+import { isPythonTarget } from '../lib/python/targets';
 
 interface GalleryProject {
   id: string;
@@ -105,7 +106,7 @@ export default function Gallery() {
               const isAi = p.boardTarget === 'ai';
               const viewHref = isAi
                 ? `/ai-trainer/${p.id}`
-                : `/editor/${p.id}${p.boardTarget === 'software' ? '?engine=software' : '?engine=hardware'}`;
+                : `/editor/${p.id}?engine=${p.boardTarget === 'software' ? 'software' : isPythonTarget(p.boardTarget) ? 'python' : 'hardware'}`;
               return (
                 <div
                   key={p.id}

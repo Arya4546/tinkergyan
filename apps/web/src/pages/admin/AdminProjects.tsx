@@ -67,6 +67,7 @@ export default function AdminProjects() {
             { value: '', label: 'All types' },
             { value: 'hardware', label: 'Hardware' },
             { value: 'software', label: 'Software' },
+            { value: 'python', label: 'Python' },
             { value: 'ai', label: 'AI Studio' },
           ]}
         />

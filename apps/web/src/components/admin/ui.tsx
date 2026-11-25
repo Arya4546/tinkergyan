@@ -93,6 +93,7 @@ export function KindPill({ kind }: { kind: ProjectKind }) {
   const tone = {
     ai: 'bg-rose-100 text-rose-700 dark:bg-rose-500/15 dark:text-rose-300',
     software: 'bg-sky-100 text-sky-700 dark:bg-sky-500/15 dark:text-sky-300',
+    python: 'bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300',
     hardware: 'bg-purple-100 text-purple-700 dark:bg-purple-500/15 dark:text-purple-300',
   }[kind];
   return <span className={`${pill} ${tone}`}>{KIND_LABEL[kind]}</span>;

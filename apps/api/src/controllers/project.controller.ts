@@ -45,6 +45,7 @@ export const updateProjectSchema = z.object({
     blockState: z.string().max(BLOCK_STATE_MAX_LENGTH).optional(),
     boardTarget: z.string().optional(),
     isPublic: z.boolean().optional(),
+    type: z.enum(['BLOCK', 'CODE']).optional(),
   }),
 });
 
@@ -62,7 +63,10 @@ export const listProjects = catchAsync(async (req: Request, res: Response) => {
     search: typeof search === 'string' ? search : undefined,
     type: type === 'BLOCK' || type === 'CODE' ? type : undefined,
     category:
-      category === 'HARDWARE' || category === 'SOFTWARE' || category === 'AI'
+      category === 'HARDWARE' ||
+      category === 'SOFTWARE' ||
+      category === 'AI' ||
+      category === 'PYTHON'
         ? category
         : undefined,
     boardTarget: typeof boardTarget === 'string' ? boardTarget : undefined,

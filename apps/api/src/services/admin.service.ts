@@ -8,13 +8,30 @@ import type { Prisma } from '@prisma/client';
 import { AppError } from '../errors/app-error';
 import { prisma } from '../lib/prisma';
 
-export type ProjectKind = 'ai' | 'software' | 'hardware';
+export type ProjectKind = 'ai' | 'software' | 'python' | 'hardware';
+
+/** boardTarget values that are not a hardware board. */
+const NON_HARDWARE_TARGETS = ['ai', 'software', 'python'];
+
+/** Python projects that run on a board are stored as 'python-esp32', 'python-esp32s3', ... */
+const PYTHON_BOARD_PREFIX = 'python-';
 
 export const projectKind = (boardTarget: string): ProjectKind =>
-  boardTarget === 'ai' ? 'ai' : boardTarget === 'software' ? 'software' : 'hardware';
+  boardTarget === 'ai' || boardTarget === 'software' || boardTarget === 'python'
+    ? boardTarget
+    : boardTarget.startsWith(PYTHON_BOARD_PREFIX)
+      ? 'python'
+      : 'hardware';
 
 const kindWhere = (kind: ProjectKind): Prisma.ProjectWhereInput =>
-  kind === 'hardware' ? { boardTarget: { notIn: ['ai', 'software'] } } : { boardTarget: kind };
+  kind === 'hardware'
+    ? {
+        boardTarget: { notIn: NON_HARDWARE_TARGETS },
+        NOT: { boardTarget: { startsWith: PYTHON_BOARD_PREFIX } },
+      }
+    : kind === 'python'
+      ? { OR: [{ boardTarget: 'python' }, { boardTarget: { startsWith: PYTHON_BOARD_PREFIX } }] }
+      : { boardTarget: kind };
 
 const pageOf = (page: number, pageSize: number) => ({
   skip: (page - 1) * pageSize,
@@ -58,6 +75,7 @@ export class AdminService {
       publicProjects,
       aiProjects,
       softwareProjects,
+      pythonProjects,
       publishedCourses,
       totalCourses,
       enrollments,
@@ -74,6 +92,7 @@ export class AdminService {
       prisma.project.count({ where: { isPublic: true } }),
       prisma.project.count({ where: kindWhere('ai') }),
       prisma.project.count({ where: kindWhere('software') }),
+      prisma.project.count({ where: kindWhere('python') }),
       prisma.course.count({ where: { isPublished: true } }),
       prisma.course.count(),
       prisma.enrollment.count(),
@@ -117,7 +136,8 @@ export class AdminService {
         public: publicProjects,
         ai: aiProjects,
         software: softwareProjects,
-        hardware: totalProjects - aiProjects - softwareProjects,
+        python: pythonProjects,
+        hardware: totalProjects - aiProjects - softwareProjects - pythonProjects,
       },
       learning: {
         publishedCourses,
@@ -289,7 +309,8 @@ export class AdminService {
 
   static async listProjects(q: ListProjectsQuery) {
     const where: Prisma.ProjectWhereInput = {
-      ...(q.kind && kindWhere(q.kind)),
+      // AND, not spread: the python kind and the search are both OR filters.
+      ...(q.kind && { AND: [kindWhere(q.kind)] }),
       ...(q.userId && { userId: q.userId }),
       ...(q.visibility && { isPublic: q.visibility === 'public' }),
       ...(q.search && {

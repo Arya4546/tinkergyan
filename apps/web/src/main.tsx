@@ -26,18 +26,30 @@ import './index.css';
 // the server itself is unreachable).
 const RELOAD_KEY = '__tg_chunk_reload';
 
-function reloadOnce() {
-  const lastReload = Number(sessionStorage.getItem(RELOAD_KEY) || '0');
-  if (Date.now() - lastReload > 10_000) {
-    sessionStorage.setItem(RELOAD_KEY, String(Date.now()));
-    window.location.reload();
+/** Reload to pick up a new deploy, at most once in 10 s. True when reloading. */
+function reloadOnce(): boolean {
+  let lastReload = 0;
+  try {
+    lastReload = Number(sessionStorage.getItem(RELOAD_KEY) || '0');
+  } catch {
+    /* storage blocked: still reload */
   }
+  if (Date.now() - lastReload <= 10_000) return false;
+  try {
+    sessionStorage.setItem(RELOAD_KEY, String(Date.now()));
+  } catch {
+    /* ignore */
+  }
+  window.location.reload();
+  return true;
 }
 
 // Vite emits this event when a preloaded chunk fails to fetch
+// Swallowing the error is only right when the page is about to reload: Vite
+// then resolves the import with undefined, which would otherwise crash the
+// lazy route with a confusing error instead of showing the error page.
 window.addEventListener('vite:preloadError', (event) => {
-  event.preventDefault();
-  reloadOnce();
+  if (reloadOnce()) event.preventDefault();
 });
 
 // Catch-all for dynamic import() failures (e.g. esptool-js, lazy routes)
@@ -58,7 +70,7 @@ const Dashboard = lazy(() => import('@/pages/Dashboard'));
 const ErrorPage = lazy(() => import('@/pages/ErrorPage'));
 const NotFound = lazy(() => import('@/pages/NotFound'));
 const LandingPage = lazy(() => import('@/pages/LandingPage'));
-const Editor = lazy(() => import('@/pages/Editor'));
+const EditorRoute = lazy(() => import('@/pages/EditorRoute'));
 const AITrainer = lazy(() => import('@/pages/AITrainer'));
 const Projects = lazy(() => import('@/pages/Projects'));
 const Profile = lazy(() => import('@/pages/Profile'));
@@ -164,8 +176,8 @@ const router = createBrowserRouter([
               { path: 'settings', element: <Settings /> },
             ],
           },
-          { path: 'editor', element: <Editor /> },
-          { path: 'editor/:id', element: <Editor /> },
+          { path: 'editor', element: <EditorRoute /> },
+          { path: 'editor/:id', element: <EditorRoute /> },
           { path: 'ai-trainer', element: <AITrainer /> },
           { path: 'ai-trainer/:id', element: <AITrainer /> },
           { path: 'courses/:slug/lessons/:lessonId', element: <LessonView /> },

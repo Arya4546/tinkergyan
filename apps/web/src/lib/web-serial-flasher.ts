@@ -911,6 +911,114 @@ export class WebSerialFlasher {
     }
   }
 
+  /**
+   * Install MicroPython on an ESP32 / ESP32-S3 / ESP32-C3.
+   *
+   * The chip is read from its ROM first and `pickFirmware` chooses the build
+   * for *that* chip — a board sold as "ESP32" is often an S3 or C3, and the
+   * wrong build uploads fine but never starts. The whole flash is erased first,
+   * as MicroPython's own instructions require (an old Arduino sketch or file
+   * system left behind can stop it booting). Writes are verified by reading
+   * the flash back (MD5), like Arduino uploads.
+   *
+   * Returns the chip name, e.g. "ESP32-S3".
+   */
+  async flashMicroPython(
+    pickFirmware: (chipName: string) => Promise<{ data: Uint8Array; address: number }>,
+    options: {
+      onProgress?: (percent: number, message: string) => void;
+      onLog?: (message: string) => void;
+      /** Baud rate after the ROM handshake. 460800 is what MicroPython's docs use. */
+      baudrate?: number;
+    } = {},
+  ): Promise<string> {
+    const { onProgress, onLog } = options;
+    const { ESPLoader, Transport } = await import('esptool-js');
+    const terminal = {
+      clean: () => {},
+      writeLine: (data: string) => onLog?.(`[esptool] ${data}`),
+      write: (data: string) => onLog?.(`[esptool] ${data}`),
+    };
+
+    await this.releaseStreams();
+    if (!(await this.closePortFully())) throw new Error(PORT_BUSY_HINT);
+
+    const transport = new Transport(this.port);
+    // Erasing reports nothing for up to a minute: keep the bar moving (slowly,
+    // and never past the erase's share) so it doesn't look frozen.
+    let eraseTicker: ReturnType<typeof setInterval> | null = null;
+    try {
+      onProgress?.(2, 'Talking to your board…');
+      const esploader = new ESPLoader({
+        transport,
+        baudrate: options.baudrate ?? 460800,
+        terminal,
+      });
+      try {
+        await esploader.main();
+      } catch (err) {
+        if (isPortOpenError(err)) throw new Error(PORT_BUSY_HINT);
+        throw err;
+      }
+      const chipName = esploader.chip?.CHIP_NAME;
+      if (!chipName) {
+        throw new Error(
+          'Could not identify the connected chip. Check the USB cable and try again.',
+        );
+      }
+
+      onProgress?.(6, `Found ${chipName}. Getting MicroPython ready…`);
+      const firmware = await pickFirmware(chipName);
+
+      onProgress?.(10, 'Clearing the board (this takes up to a minute)…');
+      let erased = false;
+      let erasePct = 10;
+      eraseTicker = setInterval(() => {
+        if (erased) return;
+        erasePct += (29 - erasePct) * 0.06;
+        onProgress?.(erasePct, 'Clearing the board (this takes up to a minute)…');
+      }, 1000);
+      await esploader.writeFlash({
+        fileArray: [{ data: firmware.data, address: firmware.address }],
+        flashSize: 'keep',
+        flashMode: 'keep',
+        flashFreq: 'keep',
+        eraseAll: true,
+        compress: true,
+        reportProgress: (_fileIndex: number, written: number, total: number) => {
+          if (!erased) {
+            erased = true;
+            if (eraseTicker) clearInterval(eraseTicker);
+            onProgress?.(30, 'Installing MicroPython…');
+          }
+          const pct = total > 0 ? written / total : 0;
+          onProgress?.(
+            30 + Math.round(pct * 68),
+            `Installing MicroPython… ${Math.round(pct * 100)}%`,
+          );
+        },
+        calculateMD5Hash: md5Hex,
+      });
+
+      onProgress?.(99, 'Restarting your board…');
+      await this.resetIntoRunMode(transport, onLog);
+      return chipName;
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      onLog?.(`MicroPython install error: ${msg}`);
+      if (isPortOpenError(err)) throw new Error(PORT_BUSY_HINT);
+      if (msg.includes('MD5 of file does not match')) throw new Error(FLASH_VERIFY_FAILED_HINT);
+      throw err instanceof Error ? err : new Error(msg);
+    } finally {
+      if (eraseTicker) clearInterval(eraseTicker);
+      try {
+        await this.disconnectWithTimeout(transport);
+      } catch {
+        /* best-effort */
+      }
+    }
+  }
+
   private startBackgroundRead() {
     this.isReading = true;
     this.readError = null;

@@ -34,6 +34,7 @@ export default function AdminOverview() {
   const mix = [
     { key: 'hardware', n: projects.hardware, bar: 'bg-purple-500' },
     { key: 'software', n: projects.software, bar: 'bg-sky-500' },
+    { key: 'python', n: projects.python ?? 0, bar: 'bg-amber-500' },
     { key: 'ai', n: projects.ai, bar: 'bg-rose-500' },
   ] as const;
 

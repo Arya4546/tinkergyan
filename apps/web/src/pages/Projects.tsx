@@ -11,6 +11,7 @@ import {
   Zap,
   Cpu,
   Brain,
+  Code2,
   SlidersHorizontal,
   Check,
   X,
@@ -23,9 +24,10 @@ import { CustomSelect } from '../components/ui/CustomSelect';
 import { Tooltip } from '../components/ui/Tooltip';
 import { Loader } from '../components/ui/Loader';
 import { BOARDS, getBoardLabel } from '../lib/boards';
+import { isPythonTarget } from '../lib/python/targets';
 
 type FilterType = 'ALL' | 'BLOCK' | 'CODE';
-type CategoryFilterType = 'ALL' | 'HARDWARE' | 'SOFTWARE' | 'AI';
+type CategoryFilterType = 'ALL' | 'HARDWARE' | 'SOFTWARE' | 'PYTHON' | 'AI';
 
 export default function Projects() {
   const { projects, isLoading, error, fetchProjects, removeProject, removeProjects } =
@@ -69,10 +71,15 @@ export default function Projects() {
   // "the AI filter shows everything". Re-applying it here keeps the list
   // honest against either server; against one that understands the category
   // it is a no-op, since every row it returned is already an AI project.
-  const filtered = useMemo(
-    () => (categoryFilter === 'AI' ? projects.filter((p) => p.boardTarget === 'ai') : projects),
-    [projects, categoryFilter],
-  );
+  // The same goes for Python: an older API ignores `category=PYTHON`, and its
+  // HARDWARE filter ("everything that isn't software or AI") includes Python.
+  const filtered = useMemo(() => {
+    if (categoryFilter === 'AI') return projects.filter((p) => p.boardTarget === 'ai');
+    if (categoryFilter === 'PYTHON') return projects.filter((p) => isPythonTarget(p.boardTarget));
+    if (categoryFilter === 'HARDWARE')
+      return projects.filter((p) => !isPythonTarget(p.boardTarget));
+    return projects;
+  }, [projects, categoryFilter]);
 
   // A project that's selected but no longer in the current filtered view
   // (the filters changed since it was selected) shouldn't count toward the
@@ -189,6 +196,19 @@ export default function Projects() {
               }`}
             >
               <Play size={13} className="fill-current" /> Software
+            </button>
+            <button
+              onClick={() => {
+                setCategoryFilter('PYTHON');
+                setBoardFilter('ALL');
+              }}
+              className={`px-3 py-1 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all ${
+                categoryFilter === 'PYTHON'
+                  ? 'bg-amber-500 text-white shadow-sm'
+                  : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
+              }`}
+            >
+              <Code2 size={13} /> Python
             </button>
             <button
               onClick={() => {
@@ -341,7 +361,7 @@ export default function Projects() {
               const boardLabel = getBoardLabel(project.boardTarget);
               const openHref = isAi
                 ? `/ai-trainer/${project.id}`
-                : `/editor/${project.id}${isSoftware ? '?engine=software' : '?engine=hardware'}`;
+                : `/editor/${project.id}?engine=${isSoftware ? 'software' : isPythonTarget(project.boardTarget) ? 'python' : 'hardware'}`;
               return (
                 <div
                   key={project.id}

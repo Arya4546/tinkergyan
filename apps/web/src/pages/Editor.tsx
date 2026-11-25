@@ -122,6 +122,7 @@ function compileSpriteProgram(xml: string): string {
 import { useIsMobile, isMobileNow } from '../lib/use-media-query';
 import { Tooltip } from '../components/ui/Tooltip';
 import { BOARDS, getBoardLabel } from '../lib/boards';
+import { isPythonTarget } from '../lib/python/targets';
 import { Loader } from '../components/ui/Loader';
 
 // ─── Template Picker Modal ────────────────────────────────────────────────────
@@ -523,7 +524,8 @@ export default function Editor() {
         return;
       }
       const currentEngine = searchParams.get('engine');
-      const targetEngine = board === 'software' ? 'software' : 'hardware';
+      const targetEngine =
+        board === 'software' ? 'software' : isPythonTarget(board) ? 'python' : 'hardware';
       if (currentEngine !== targetEngine) {
         navigate(`/editor/${projectId}?engine=${targetEngine}`, { replace: true });
       }

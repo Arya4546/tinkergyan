@@ -10,6 +10,9 @@ import { prisma } from '../lib/prisma';
 import type { ProjectType } from '@prisma/client';
 import { Prisma } from '@prisma/client';
 
+/** boardTarget prefix of Python projects that run on a board, e.g. 'python-esp32'. */
+export const PYTHON_BOARD_PREFIX = 'python-';
+
 // ─── DTOs ─────────────────────────────────────────────────────────────────────
 
 export interface CreateProjectDto {
@@ -26,12 +29,14 @@ export interface UpdateProjectDto {
   blockState?: string;
   boardTarget?: string;
   isPublic?: boolean;
+  /** Blocks or text. Python projects can switch between the two. */
+  type?: 'BLOCK' | 'CODE';
 }
 
 export interface ListProjectsFilterDto {
   search?: string | undefined;
   type?: 'BLOCK' | 'CODE' | undefined;
-  category?: 'HARDWARE' | 'SOFTWARE' | 'AI' | undefined;
+  category?: 'HARDWARE' | 'SOFTWARE' | 'AI' | 'PYTHON' | undefined;
   boardTarget?: string | undefined;
 }
 
@@ -61,13 +66,18 @@ export class ProjectService {
       // Specific board selected — use it directly (it already implies the category)
       where.boardTarget = filter.boardTarget;
     } else if (filter?.category === 'HARDWARE') {
-      where.boardTarget = { notIn: ['software', 'ai'] };
+      where.boardTarget = { notIn: ['software', 'ai', 'python'] };
+      // Python projects that run on a board ('python-esp32', ...) are Python, not hardware.
+      where.NOT = { boardTarget: { startsWith: PYTHON_BOARD_PREFIX } };
     } else if (filter?.category === 'SOFTWARE') {
       where.boardTarget = 'software';
     } else if (filter?.category === 'AI') {
       // AI Studio projects are the ones targeting the 'ai' pseudo-board — the
       // same value HARDWARE excludes above.
       where.boardTarget = 'ai';
+    } else if (filter?.category === 'PYTHON') {
+      // 'python' runs in the browser; 'python-esp32' etc. run on a board.
+      where.OR = [{ boardTarget: 'python' }, { boardTarget: { startsWith: PYTHON_BOARD_PREFIX } }];
     }
 
     return prisma.project.findMany({
@@ -147,6 +157,7 @@ export class ProjectService {
         ...(dto.blockState !== undefined && { blockState: dto.blockState }),
         ...(dto.boardTarget !== undefined && { boardTarget: dto.boardTarget }),
         ...(dto.isPublic !== undefined && { isPublic: dto.isPublic }),
+        ...(dto.type !== undefined && { type: dto.type }),
       },
     });
   }

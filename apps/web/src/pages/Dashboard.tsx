@@ -1,6 +1,6 @@
 import { useAuthStore } from '../stores/auth.store';
 import { useProjectStore } from '../stores/project.store';
-import { FolderCode, Plus, TrendingUp, Zap, Award, Cpu, Play, Brain } from 'lucide-react';
+import { FolderCode, Plus, TrendingUp, Zap, Award, Cpu, Play, Brain, Code2 } from 'lucide-react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 import { NewProjectDialog } from '../components/ui/NewProjectDialog';
@@ -13,10 +13,10 @@ export default function Dashboard() {
     () => searchParams.get('new') === 'true',
   );
   const [newProjectCategory, setNewProjectCategory] = useState<
-    'hardware' | 'software' | 'ai' | null
+    'hardware' | 'software' | 'python' | 'ai' | null
   >(null);
 
-  const openNewProject = (category: 'hardware' | 'software' | 'ai' | null) => {
+  const openNewProject = (category: 'hardware' | 'software' | 'python' | 'ai' | null) => {
     setNewProjectCategory(category);
     setIsNewProjectOpen(true);
   };
@@ -115,7 +115,7 @@ export default function Dashboard() {
             <p className="text-sm text-slate-500 mb-8 text-center">
               Pick a workspace to start a new project.
             </p>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 w-full">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6 w-full">
               <button
                 onClick={() => openNewProject('hardware')}
                 className="flex flex-col items-center gap-4 p-8 rounded-[2rem] border border-slate-200 dark:border-slate-800 hover:border-purple-300 dark:hover:border-purple-500/50 bg-white dark:bg-[#1A1D24] hover:bg-purple-50/50 dark:hover:bg-purple-500/5 hover:shadow-lg transition-all duration-300 group cursor-pointer"
@@ -145,6 +145,22 @@ export default function Dashboard() {
                   </h3>
                   <p className="text-sm text-slate-500 font-medium leading-relaxed">
                     Scratch, Animations, and Games
+                  </p>
+                </div>
+              </button>
+              <button
+                onClick={() => openNewProject('python')}
+                className="flex flex-col items-center gap-4 p-8 rounded-[2rem] border border-slate-200 dark:border-slate-800 hover:border-amber-300 dark:hover:border-amber-500/50 bg-white dark:bg-[#1A1D24] hover:bg-amber-50/50 dark:hover:bg-amber-500/5 hover:shadow-lg transition-all duration-300 group cursor-pointer"
+              >
+                <div className="w-20 h-20 bg-amber-50 dark:bg-amber-900/20 text-amber-600 dark:text-amber-400 rounded-2xl flex items-center justify-center transition-colors">
+                  <Code2 size={36} strokeWidth={1.5} />
+                </div>
+                <div className="text-center">
+                  <h3 className="font-semibold text-xl text-slate-900 dark:text-white mb-1.5">
+                    Python
+                  </h3>
+                  <p className="text-sm text-slate-500 font-medium leading-relaxed">
+                    Real Python with blocks or typing
                   </p>
                 </div>
               </button>

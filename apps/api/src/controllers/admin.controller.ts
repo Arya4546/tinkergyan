@@ -25,7 +25,7 @@ export const listUsersSchema = z.object({
 export const listProjectsSchema = z.object({
   query: z.object({
     search,
-    kind: z.enum(['ai', 'software', 'hardware']).optional(),
+    kind: z.enum(['ai', 'software', 'python', 'hardware']).optional(),
     visibility: z.enum(['public', 'private']).optional(),
     userId: z.string().min(1).optional(),
     page,

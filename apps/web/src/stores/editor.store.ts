@@ -17,6 +17,7 @@ import { usePreferencesStore } from './preferences.store';
 import { create } from 'zustand';
 import { api } from '../services/api';
 import { aiEngine } from '../lib/ai-engine';
+import { isPythonTarget } from '../lib/python/targets';
 import { audioTrainerEngine } from '../lib/audio-trainer-engine';
 import { poseTrainerEngine } from '../lib/pose-trainer-engine';
 import { resetAllAIState } from '../lib/reset-ai-state';
@@ -922,6 +923,9 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
           code,
           blockState,
           boardTarget: board,
+          // Python projects switch between blocks and text, so the format has
+          // to follow them. Other engines keep the format they were created with.
+          ...(isPythonTarget(board) ? { type: mode === 'block' ? 'BLOCK' : 'CODE' } : {}),
         });
       } else {
         const { data } = await api.post('/projects', {

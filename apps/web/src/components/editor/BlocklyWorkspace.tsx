@@ -21,6 +21,8 @@ import './ai-blocks';
 import { workspaceToArduinoCode } from './arduino-generator';
 import './ai-arduino-generator';
 import './ai-scratch-generator';
+import { workspaceToPython } from './python-blocks';
+import './python-board-blocks';
 import { getToolbox } from './toolbox';
 import { useUIStore } from '../../stores/ui.store';
 import { useEditorStore } from '../../stores/editor.store';
@@ -68,6 +70,14 @@ const KID_CATEGORY_STYLES = {
   scratch_sensing_category: { colour: '#5CB1D6' },
   scratch_lists_category: { colour: '#FF8C1A' },
   ai_category: { colour: '#FF6F61' },
+  python_io_category: { colour: '#0EA5E9' },
+  python_list_category: { colour: '#745CA6' },
+  python_time_category: { colour: '#F59E0B' },
+  // Same colours as the blocks in python-board-blocks.ts.
+  python_pins_category: { colour: '#2E7D32' },
+  python_analog_category: { colour: '#E65100' },
+  python_sensor_category: { colour: '#00838F' },
+  python_ai_category: { colour: '#FF6F61' },
 };
 
 const KID_FONT: Blockly.Theme.FontStyle = {
@@ -117,6 +127,12 @@ const buildTheme = (name: string, p: EditorPalette) =>
   });
 
 const kidTheme = buildTheme('kidFriendly', LIGHT);
+
+type EngineMode = 'hardware' | 'software' | 'python';
+
+/** The text code shown next to the blocks: C++ for Arduino, Python for Python projects. */
+const generateCode = (engineMode: EngineMode, ws: Blockly.Workspace) =>
+  engineMode === 'python' ? workspaceToPython(ws) : workspaceToArduinoCode(ws);
 const darkKidTheme = buildTheme('darkKidFriendly', DARK);
 
 // ─── Public ref handle ────────────────────────────────────────────────────────
@@ -134,11 +150,17 @@ export interface BlocklyWorkspaceHandle {
   redo: () => void;
   /** Delete every block on the workspace, leaving it empty (used by "Reset Project"). */
   clearWorkspace: () => void;
+  /**
+   * Replace the canvas with a Blockly JSON program (an example). Unlike
+   * loadXml this is a normal edit: it marks the project changed and Undo
+   * brings the previous blocks back.
+   */
+  loadJson: (state: Record<string, unknown>) => boolean;
 }
 
 // ─── Props ────────────────────────────────────────────────────────────────────
 interface BlocklyWorkspaceProps {
-  engineMode?: 'hardware' | 'software';
+  engineMode?: EngineMode;
   onCodeChange: (code: string) => void;
   /**
    * Fires on every real (non-UI) workspace edit, whether or not C++ could be
@@ -168,6 +190,8 @@ export const BlocklyWorkspace = forwardRef<BlocklyWorkspaceHandle, BlocklyWorksp
     onWorkspaceChangeRef.current = onWorkspaceChange;
     const onReadyRef = useRef(onReady);
     onReadyRef.current = onReady;
+    const engineModeRef = useRef(engineMode);
+    engineModeRef.current = engineMode;
     const theme = useUIStore((s) => s.theme);
     const board = useEditorStore((s) => s.board);
 
@@ -238,7 +262,7 @@ export const BlocklyWorkspace = forwardRef<BlocklyWorkspaceHandle, BlocklyWorksp
       },
       getCode() {
         if (!workspaceRef.current) return '';
-        return workspaceToArduinoCode(workspaceRef.current);
+        return generateCode(engineModeRef.current, workspaceRef.current);
       },
       undo() {
         if (!workspaceRef.current) return;
@@ -254,6 +278,22 @@ export const BlocklyWorkspace = forwardRef<BlocklyWorkspaceHandle, BlocklyWorksp
         // leave events enabled so the change listener marks the project dirty
         // and regenerates code/isEmpty state as usual.
         workspaceRef.current.clear();
+      },
+      loadJson(state: Record<string, unknown>) {
+        const ws = workspaceRef.current;
+        if (!ws) return false;
+        Blockly.Events.setGroup(true);
+        try {
+          ws.clear();
+          Blockly.serialization.workspaces.load(state, ws, { recordUndo: true });
+          ws.scrollCenter();
+          return true;
+        } catch (err) {
+          console.error('[loadJson error]', err);
+          return false;
+        } finally {
+          Blockly.Events.setGroup(false);
+        }
       },
     }));
 
@@ -298,7 +338,12 @@ export const BlocklyWorkspace = forwardRef<BlocklyWorkspaceHandle, BlocklyWorksp
       (Blockly.Tooltip as any).HOVER_MS = 100;
 
       workspaceRef.current = Blockly.inject(blocklyDiv.current, {
-        toolbox: getToolbox(engineMode),
+        toolbox: getToolbox(engineMode, useEditorStore.getState().board),
+        // Blockly's icons (zoom, trash) and sounds, served by this app. The
+        // default is Google's demo server, which now answers 404 — the zoom
+        // and trash buttons showed broken images — and which school networks
+        // often block. Copied from node_modules/blockly/media (blockly 11.2.2).
+        media: '/blockly-media/',
         // Zelos is Blockly's Scratch-style renderer: rounded blocks, full
         // C-shape wrapping around nested statements — the kid-friendly look.
         renderer: 'zelos',
@@ -373,7 +418,7 @@ export const BlocklyWorkspace = forwardRef<BlocklyWorkspaceHandle, BlocklyWorksp
         }
 
         try {
-          const code = workspaceToArduinoCode(workspaceRef.current);
+          const code = generateCode(engineModeRef.current, workspaceRef.current);
           onCodeChange(code);
         } catch {
           // Expected in software mode: the Arduino generator has no handlers
@@ -456,14 +501,16 @@ export const BlocklyWorkspace = forwardRef<BlocklyWorkspaceHandle, BlocklyWorksp
       // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []); // Intentionally runs once — workspace lifecycle is managed internally
 
-    // Sync toolbox when engine mode changes
+    // Sync toolbox when engine mode changes, and for Python when the project
+    // moves between the browser and a board (board-only categories).
+    const toolboxBoard = engineMode === 'python' ? board : '';
     useEffect(() => {
       if (!workspaceRef.current) return;
-      workspaceRef.current.updateToolbox(getToolbox(engineMode));
+      workspaceRef.current.updateToolbox(getToolbox(engineMode, toolboxBoard));
       appliedFlyoutOffsetRef.current = 0;
       // Toolbox width may change between engines — recalculate SVG layout
       Blockly.svgResize(workspaceRef.current);
-    }, [engineMode]);
+    }, [engineMode, toolboxBoard]);
 
     // Sync board changes to update the root block's title and re-generate code
     useEffect(() => {
@@ -475,7 +522,7 @@ export const BlocklyWorkspace = forwardRef<BlocklyWorkspaceHandle, BlocklyWorksp
       }
       // Re-generate code so the C++ preview reflects the correct board-specific header
       try {
-        const code = workspaceToArduinoCode(workspaceRef.current);
+        const code = generateCode(engineModeRef.current, workspaceRef.current);
         onCodeChange(code);
       } catch {
         // Generator errors should not crash the editor

@@ -12,6 +12,8 @@
  */
 import type { KnownBoardTarget } from '@tinkergyan/shared-types';
 
+import { pythonBoardInfo } from './python/targets';
+
 export type BoardFqbn = KnownBoardTarget;
 
 export interface BoardDefinition {
@@ -269,5 +271,8 @@ export function getBoardDefinition(fqbn: string): BoardDefinition {
 export function getBoardLabel(fqbn: string): string {
   if (fqbn === 'software') return 'Scratch';
   if (fqbn === 'ai') return 'AI Model';
+  if (fqbn === 'python') return 'Python';
+  const pyBoard = pythonBoardInfo(fqbn);
+  if (pyBoard) return `Python · ${pyBoard.label}`;
   return DEFINITION_BY_FQBN.get(fqbn)?.label ?? 'Board';
 }

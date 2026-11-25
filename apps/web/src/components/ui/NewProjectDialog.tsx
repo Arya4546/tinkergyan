@@ -9,6 +9,9 @@ import {
   PersonStanding,
   Type as TypeIcon,
   Table2,
+  Code2,
+  Blocks,
+  Keyboard,
 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -17,11 +20,12 @@ import { useProjectStore } from '../../stores/project.store';
 import { BOARDS } from '../../lib/boards';
 import type { AITrainerTab } from '../../stores/ai.store';
 
-type ProjectCategory = 'software' | 'hardware' | 'ai';
+type ProjectCategory = 'software' | 'hardware' | 'python' | 'ai';
 
 const CATEGORY_LABELS: Record<ProjectCategory, string> = {
   software: 'Software',
   hardware: 'Hardware',
+  python: 'Python',
   ai: 'AI',
 };
 
@@ -68,6 +72,17 @@ const MODES: Array<{
     },
   },
   {
+    id: 'python',
+    label: 'Python Coding',
+    blurb: 'Real Python with blocks or typing. Runs in the browser or on an ESP32.',
+    icon: Code2,
+    tint: {
+      icon: 'bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400',
+      active: 'border-amber-500 ring-2 ring-amber-500/20 bg-amber-50/30 dark:bg-amber-950/10',
+      check: 'text-amber-500',
+    },
+  },
+  {
     id: 'ai',
     label: 'AI Model Training',
     blurb: 'Train a model from your own examples.',
@@ -100,6 +115,7 @@ export function NewProjectDialog({ open, onClose, preSelectedCategory }: NewProj
   const [category, setCategory] = useState<ProjectCategory | null>(null);
   const [board, setBoard] = useState<string>(BOARDS[0]!.fqbn);
   const [aiKind, setAiKind] = useState<AITrainerTab>('audio');
+  const [pythonStart, setPythonStart] = useState<'BLOCK' | 'CODE'>('BLOCK');
   const [isCreating, setIsCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   /** Name box flagged red after Create was pressed with it empty. */
@@ -123,6 +139,7 @@ export function NewProjectDialog({ open, onClose, preSelectedCategory }: NewProj
       setCategory(preSelectedCategory || null);
       setBoard(BOARDS[0]!.fqbn);
       setAiKind('audio');
+      setPythonStart('BLOCK');
       setError(null);
       setNameError(false);
       setIsCreating(false);
@@ -153,7 +170,7 @@ export function NewProjectDialog({ open, onClose, preSelectedCategory }: NewProj
       const boardTarget = category === 'hardware' ? board : category;
       const project = await projectService.create({
         title: title.trim(),
-        type: 'BLOCK',
+        type: category === 'python' ? pythonStart : 'BLOCK',
         boardTarget,
         // Stamp the chosen modality into the project's own saved state at
         // creation, so every later open (direct URL, Projects list, Gallery)
@@ -223,7 +240,15 @@ export function NewProjectDialog({ open, onClose, preSelectedCategory }: NewProj
           <input
             ref={nameInputRef}
             type="text"
-            placeholder="e.g. My Smart Home LED"
+            placeholder={
+              category === 'python'
+                ? 'e.g. My Quiz Game'
+                : category === 'software'
+                  ? 'e.g. My Space Adventure'
+                  : category === 'ai'
+                    ? 'e.g. My Rock Paper Scissors AI'
+                    : 'e.g. My Smart Home LED'
+            }
             value={title}
             onChange={(e) => {
               setTitle(e.target.value);
@@ -322,6 +347,56 @@ export function NewProjectDialog({ open, onClose, preSelectedCategory }: NewProj
           </div>
         )}
 
+        {/* Blocks or typing (Python only) */}
+        {category === 'python' && (
+          <div>
+            <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">
+              How do you want to start?
+            </label>
+            <p className="text-xs text-slate-500 dark:text-slate-400 mb-3">
+              You can switch from blocks to typing any time inside the project.
+            </p>
+            <div className="grid grid-cols-2 gap-2">
+              {(
+                [
+                  { id: 'BLOCK', label: 'With blocks', icon: Blocks },
+                  { id: 'CODE', label: 'Typing code', icon: Keyboard },
+                ] as const
+              ).map(({ id, label, icon: Icon }) => (
+                <button
+                  key={id}
+                  type="button"
+                  onClick={() => setPythonStart(id)}
+                  disabled={isCreating}
+                  aria-pressed={pythonStart === id}
+                  className={`flex items-center gap-2 h-11 px-3 rounded-xl border text-left transition-all duration-150 ${
+                    pythonStart === id
+                      ? 'border-amber-500 ring-2 ring-amber-500/20 bg-amber-50/30 dark:bg-amber-950/10'
+                      : 'border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-[#1b1b33] hover:bg-slate-100 dark:hover:bg-white/5'
+                  }`}
+                >
+                  <Icon
+                    size={15}
+                    className={`shrink-0 ${pythonStart === id ? 'text-amber-500' : 'text-slate-400'}`}
+                  />
+                  <span
+                    className={`text-sm font-semibold truncate ${
+                      pythonStart === id
+                        ? 'text-amber-600 dark:text-amber-400'
+                        : 'text-slate-700 dark:text-slate-200'
+                    }`}
+                  >
+                    {label}
+                  </span>
+                  {pythonStart === id && (
+                    <Check size={14} className="ml-auto shrink-0 text-amber-500" />
+                  )}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* Board Selection (Hardware only) */}
         {category === 'hardware' && (
           <div>
@@ -361,9 +436,11 @@ export function NewProjectDialog({ open, onClose, preSelectedCategory }: NewProj
               ? 'bg-emerald-500 hover:bg-emerald-600 shadow-emerald-500/10'
               : category === 'hardware'
                 ? 'bg-purple-500 hover:bg-purple-600 shadow-purple-500/10'
-                : category === 'ai'
-                  ? 'bg-[#FF6F61] hover:bg-[#E8584A] shadow-[#FF6F61]/20'
-                  : 'bg-slate-500'
+                : category === 'python'
+                  ? 'bg-amber-500 hover:bg-amber-600 shadow-amber-500/10'
+                  : category === 'ai'
+                    ? 'bg-[#FF6F61] hover:bg-[#E8584A] shadow-[#FF6F61]/20'
+                    : 'bg-slate-500'
           }`}
         >
           {isCreating ? 'Creating Project...' : 'Create Project'}

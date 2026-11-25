@@ -10,8 +10,9 @@
  *     If both `colour` and `categorystyle` are present, Blockly silently ignores
  *     `categorystyle` — so only `categorystyle` must appear here.
  */
+import { isPythonBoardTarget } from '../../lib/python/targets';
 
-export function getToolbox(engineMode: 'hardware' | 'software') {
+export function getToolbox(engineMode: 'hardware' | 'software' | 'python', board = '') {
   const scratchCategories = [
     {
       kind: 'category',
@@ -552,6 +553,16 @@ export function getToolbox(engineMode: 'hardware' | 'software') {
     },
   ];
 
+  if (engineMode === 'python') {
+    return {
+      kind: 'categoryToolbox',
+      contents: getPythonCategories(
+        sharedCategories,
+        isPythonBoardTarget(board),
+      ) as unknown as typeof sharedCategories,
+    };
+  }
+
   return {
     kind: 'categoryToolbox',
     contents:
@@ -559,4 +570,124 @@ export function getToolbox(engineMode: 'hardware' | 'software') {
         ? [...scratchCategories, ...sharedCategories, ...aiCategory]
         : [...hardwareCategories, ...sharedCategories, ...aiCategory],
   };
+}
+
+/**
+ * Python projects: the shared Logic/Loops/Math/Text/Variables/My Blocks
+ * categories plus Python's own Print & Ask, Lists and Time. Every block listed
+ * here is run under MicroPython by the test suite (python-blocks.test), so
+ * only add blocks whose generated code MicroPython supports.
+ */
+function getPythonCategories(
+  sharedCategories: ReadonlyArray<{ name: string; contents?: unknown }>,
+  onBoard: boolean,
+): unknown[] {
+  const shared = (name: string) => sharedCategories.find((c) => c.name === name)!;
+  const text = (value: string) => ({ shadow: { type: 'text', fields: { TEXT: value } } });
+  const num = (value: number) => ({ shadow: { type: 'math_number', fields: { NUM: value } } });
+
+  const textCategory = shared('💬 Text');
+  return [
+    {
+      kind: 'category',
+      name: '🖨 Print & Ask',
+      categorystyle: 'python_io_category',
+      contents: [
+        { kind: 'block', type: 'text_print', inputs: { TEXT: text('Hello!') } },
+        { kind: 'block', type: 'py_ask_text', inputs: { QUESTION: text('What is your name? ') } },
+        { kind: 'block', type: 'py_ask_number', inputs: { QUESTION: text('Pick a number: ') } },
+      ],
+    },
+    shared('🔀 Logic'),
+    {
+      ...shared('🔁 Loops'),
+      contents: [
+        ...(shared('🔁 Loops').contents as unknown[]).slice(0, 3),
+        { kind: 'block', type: 'controls_forEach' },
+        ...(shared('🔁 Loops').contents as unknown[]).slice(3),
+      ],
+    },
+    shared('🔢 Math'),
+    {
+      ...textCategory,
+      contents: [
+        ...(textCategory.contents as unknown[]),
+        { kind: 'block', type: 'text_changeCase', inputs: { TEXT: text('hello') } },
+      ],
+    },
+    {
+      kind: 'category',
+      name: '📃 Lists',
+      categorystyle: 'python_list_category',
+      contents: [
+        { kind: 'block', type: 'lists_create_with' },
+        { kind: 'block', type: 'lists_create_empty' },
+        { kind: 'block', type: 'lists_length' },
+        { kind: 'block', type: 'lists_isEmpty' },
+        { kind: 'block', type: 'lists_getIndex' },
+        { kind: 'block', type: 'lists_setIndex' },
+        { kind: 'block', type: 'lists_indexOf' },
+        { kind: 'block', type: 'lists_sort' },
+      ],
+    },
+    {
+      kind: 'category',
+      name: '⏱ Time',
+      categorystyle: 'python_time_category',
+      contents: [{ kind: 'block', type: 'py_wait', inputs: { SECONDS: num(1) } }],
+    },
+    // Pins and sensors only exist on a board, so they are only offered there.
+    ...(onBoard
+      ? [
+          {
+            kind: 'category',
+            name: '💡 Pins',
+            categorystyle: 'python_pins_category',
+            contents: [
+              { kind: 'block', type: 'py_led_builtin' },
+              { kind: 'block', type: 'py_pin_write' },
+              { kind: 'block', type: 'py_button_pressed' },
+              { kind: 'block', type: 'py_pin_read' },
+            ],
+          },
+          {
+            kind: 'category',
+            name: '🎚 Analog & PWM',
+            categorystyle: 'python_analog_category',
+            contents: [
+              { kind: 'block', type: 'py_analog_read' },
+              { kind: 'block', type: 'py_pwm_write', inputs: { PERCENT: num(50) } },
+              { kind: 'block', type: 'py_servo', inputs: { ANGLE: num(90) } },
+              {
+                kind: 'block',
+                type: 'py_tone',
+                inputs: { FREQ: num(440), SECONDS: num(0.5) },
+              },
+            ],
+          },
+          {
+            kind: 'category',
+            name: '📡 Sensors',
+            categorystyle: 'python_sensor_category',
+            contents: [
+              { kind: 'block', type: 'py_distance' },
+              { kind: 'block', type: 'py_dht' },
+            ],
+          },
+        ]
+      : []),
+    {
+      kind: 'category',
+      name: '🤖 AI',
+      categorystyle: 'python_ai_category',
+      contents: [
+        { kind: 'block', type: 'py_ai_camera' },
+        { kind: 'block', type: 'py_ai_sees' },
+        { kind: 'block', type: 'py_ai_label' },
+        { kind: 'block', type: 'py_ai_confidence' },
+      ],
+    },
+    shared('📦 Variables'),
+    shared('🛠 My Blocks'),
+  ];
 }

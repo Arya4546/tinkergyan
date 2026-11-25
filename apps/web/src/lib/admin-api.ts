@@ -4,12 +4,20 @@
  */
 import { api } from '../services/api';
 
-export type ProjectKind = 'ai' | 'software' | 'hardware';
+export type ProjectKind = 'ai' | 'software' | 'python' | 'hardware';
 export type Role = 'USER' | 'ADMIN' | 'SUPER_ADMIN';
 
 export interface AdminStats {
   users: { total: number; new7d: number; new30d: number; active7d: number };
-  projects: { total: number; public: number; ai: number; software: number; hardware: number };
+  projects: {
+    total: number;
+    public: number;
+    ai: number;
+    software: number;
+    /** Missing from an API older than Python projects. */
+    python?: number;
+    hardware: number;
+  };
   learning: {
     publishedCourses: number;
     totalCourses: number;
@@ -163,6 +171,7 @@ export const adminApi = {
 export const KIND_LABEL: Record<ProjectKind, string> = {
   ai: 'AI Studio',
   software: 'Software',
+  python: 'Python',
   hardware: 'Hardware',
 };
 
