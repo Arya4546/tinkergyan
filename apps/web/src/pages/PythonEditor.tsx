@@ -30,6 +30,7 @@ import {
   Check,
   MoreVertical,
   Brain,
+  Puzzle,
 } from 'lucide-react';
 import {
   BlocklyWorkspace,
@@ -49,6 +50,7 @@ import { startAiCamera, stopAiCamera } from '../lib/python/ai-bridge';
 import { publishAiState } from '../lib/python/python-runner';
 import { isPythonBoardTarget, isPythonTarget, type PythonTarget } from '../lib/python/targets';
 import { STARTER_CODE, type PythonExample } from '../lib/python/examples';
+import type { ConvertResult } from '../lib/python/python-to-blocks';
 import { useEditorStore } from '../stores/editor.store';
 import { useUIStore } from '../stores/ui.store';
 import { useAuthStore } from '../stores/auth.store';
@@ -122,6 +124,13 @@ export default function PythonEditor() {
   const [showExamples, setShowExamples] = useState(false);
   const [showMore, setShowMore] = useState(false);
   const [confirm, setConfirm] = useState<null | 'to-code' | 'to-blocks' | 'leave'>(null);
+  /** The result of "Convert to blocks", shown in the 'to-blocks' dialog. */
+  const [conversion, setConversion] = useState<
+    null | { ok: true; result: ConvertResult } | { ok: false; message: string; line: number | null }
+  >(null);
+  const [converting, setConverting] = useState(false);
+  /** Arrange the blocks once the converted program is on the canvas. */
+  const tidyAfterLoad = useRef(false);
   const [blocklyReady, setBlocklyReady] = useState(false);
   const loadedXmlFor = useRef<string | null>(null);
 
@@ -192,6 +201,10 @@ export default function PythonEditor() {
       return;
     }
     if (blockXml && !blocklyRef.current?.loadXml(blockXml)) return;
+    if (tidyAfterLoad.current) {
+      tidyAfterLoad.current = false;
+      blocklyRef.current?.tidy();
+    }
     loadedXmlFor.current = key;
     // Loading is not an edit, so this must not mark the project changed.
     useEditorStore.setState({ generatedCode: blocklyRef.current?.getCode() ?? '' });
@@ -419,12 +432,78 @@ export default function PythonEditor() {
     setBlocklyReady(false);
     useEditorStore.setState({ mode: 'block', isDirty: true });
     setConfirm(null);
+    setConversion(null);
     setMobileTab('program');
+  };
+
+  /**
+   * "Convert to blocks" (also the Blocks switch while typing): turn the typed
+   * Python into blocks, or explain which line has no block. Nothing changes
+   * until the student agrees in the dialog.
+   */
+  const convertToBlocks = async () => {
+    const {
+      manualCode: typed,
+      generatedCode: fromBlocks,
+      blockXml: oldXml,
+    } = useEditorStore.getState();
+    // Unchanged since it came from the blocks: just go back to those blocks.
+    if (oldXml && typed.trim() === fromBlocks.trim()) {
+      switchToBlocks();
+      return;
+    }
+    setConverting(true);
+    try {
+      const { pythonToBlocks, ConvertError } = await import('../lib/python/python-to-blocks');
+      try {
+        setConversion({ ok: true, result: pythonToBlocks(typed, { onBoard: !!boardTarget }) });
+      } catch (err) {
+        if (!(err instanceof ConvertError)) throw err;
+        setConversion({ ok: false, message: err.message, line: err.line });
+      }
+    } catch (err) {
+      console.error('[Convert to blocks]', err);
+      setConversion({
+        ok: false,
+        message: 'Something went wrong while making the blocks. Your code is not changed.',
+        line: null,
+      });
+    } finally {
+      setConverting(false);
+    }
+    setConfirm('to-blocks');
+  };
+
+  const applyConversion = (result: ConvertResult) => {
+    useEditorStore.setState({
+      blockXml: result.xml,
+      generatedCode: result.code,
+      mode: 'block',
+      isDirty: true,
+    });
+    loadedXmlFor.current = null;
+    tidyAfterLoad.current = true;
+    setBlocklyReady(false);
+    setConfirm(null);
+    setConversion(null);
+    setMobileTab('program');
+    run.clear();
+    addToast({
+      type: 'success',
+      title: 'Your Python is now blocks 🧩',
+      message: result.notes.length ? result.notes.join(' ') : 'Drag them around and press ▶ Run.',
+    });
+  };
+
+  const closeConfirm = () => {
+    setConfirm(null);
+    setConversion(null);
   };
 
   const requestMode = (next: 'block' | 'code') => {
     if (next === mode) return;
-    setConfirm(next === 'code' ? 'to-code' : 'to-blocks');
+    if (next === 'block') void convertToBlocks();
+    else setConfirm('to-code');
   };
 
   // ── Examples ──────────────────────────────────────────────────────────────
@@ -583,6 +662,25 @@ export default function PythonEditor() {
 
   const codeView = (
     <div className="flex flex-col h-full min-h-0">
+      <div className="h-10 shrink-0 flex items-center gap-2 pl-3 pr-1.5 border-b border-ed-line bg-ed-panel">
+        <Keyboard size={14} className="text-amber-500" />
+        <span className="text-[11px] font-bold uppercase tracking-wider text-ed-mid truncate">
+          Your Python
+        </span>
+        <div className="ml-auto shrink-0">
+          <Tooltip content="Turn this Python into blocks you can drag" position="bottom">
+            <button
+              type="button"
+              onClick={() => void convertToBlocks()}
+              disabled={converting || isRunning}
+              className="h-8 px-3 rounded-lg bg-ed-accent hover:brightness-110 disabled:opacity-50 text-white text-xs font-bold flex items-center gap-1.5 shrink-0 active:scale-95 focus-visible:ring-4 focus-visible:ring-ed-accent/40 focus-visible:outline-none"
+            >
+              {converting ? <Loader2 size={14} className="animate-spin" /> : <Puzzle size={14} />}
+              Convert to blocks
+            </button>
+          </Tooltip>
+        </div>
+      </div>
       <div className="flex-1 min-h-0">
         <PythonCodeEditor
           ref={codeRef}
@@ -891,7 +989,7 @@ export default function PythonEditor() {
       {confirm && (
         <div
           className="fixed inset-0 z-[300] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 font-playful"
-          onClick={() => setConfirm(null)}
+          onClick={closeConfirm}
         >
           <div
             role="alertdialog"
@@ -917,16 +1015,39 @@ export default function PythonEditor() {
                 {confirm === 'to-code'
                   ? 'Start typing Python?'
                   : confirm === 'to-blocks'
-                    ? 'Go back to blocks?'
+                    ? conversion?.ok
+                      ? 'Turn your Python into blocks?'
+                      : 'This Python can’t become blocks yet'
                     : 'Unsaved changes'}
               </h3>
-              <p className="text-sm text-slate-600 dark:text-slate-300 mt-2 leading-relaxed">
-                {confirm === 'to-code'
-                  ? 'Your blocks will turn into Python code that you can type and change. Your blocks are kept, but things you type won’t turn back into blocks.'
-                  : confirm === 'to-blocks'
-                    ? 'Typed Python can’t be turned into blocks, so you’ll go back to your blocks and the code you typed will be lost.'
-                    : 'You have changes that are not saved yet. What would you like to do?'}
-              </p>
+              {confirm === 'to-blocks' && conversion && !conversion.ok ? (
+                <div className="mt-3 text-left rounded-2xl border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-slate-700 dark:text-slate-200 leading-relaxed">
+                  {conversion.line && (
+                    <p className="font-black text-amber-700 dark:text-amber-300">
+                      Line {conversion.line}
+                    </p>
+                  )}
+                  <p>{conversion.message}</p>
+                  <p className="mt-2 text-slate-500 dark:text-slate-400">
+                    Your code is not changed. You can keep it as Python — it runs the same.
+                  </p>
+                </div>
+              ) : (
+                <p className="text-sm text-slate-600 dark:text-slate-300 mt-2 leading-relaxed">
+                  {confirm === 'to-code'
+                    ? 'Your blocks will turn into Python code that you can type and change. Press "Convert to blocks" any time to turn it back.'
+                    : confirm === 'to-blocks'
+                      ? `Your program becomes blocks you can drag and change, and your comments become notes on the blocks.${blockXml ? ' The blocks you had before are replaced.' : ''}`
+                      : 'You have changes that are not saved yet. What would you like to do?'}
+                </p>
+              )}
+              {confirm === 'to-blocks' && conversion?.ok && conversion.result.notes.length > 0 && (
+                <ul className="mt-3 text-left text-sm text-slate-600 dark:text-slate-300 list-disc pl-5 space-y-1">
+                  {conversion.result.notes.map((note) => (
+                    <li key={note}>{note}</li>
+                  ))}
+                </ul>
+              )}
             </div>
             <div className="flex flex-col gap-2.5">
               {confirm === 'leave' ? (
@@ -954,22 +1075,52 @@ export default function PythonEditor() {
                     Leave without saving
                   </button>
                 </>
+              ) : confirm === 'to-blocks' && conversion && !conversion.ok ? (
+                <>
+                  {conversion.line && (
+                    <button
+                      type="button"
+                      autoFocus
+                      onClick={() => {
+                        const line = conversion.line!;
+                        closeConfirm();
+                        goToLine(line);
+                      }}
+                      className="w-full h-11 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-white font-heading font-black text-sm rounded-xl shadow-md active:scale-[0.98]"
+                    >
+                      Show line {conversion.line}
+                    </button>
+                  )}
+                  {blockXml && (
+                    <button
+                      type="button"
+                      onClick={switchToBlocks}
+                      className="w-full h-11 border border-red-500/30 text-red-600 dark:text-red-400 hover:bg-red-500/10 font-heading font-black text-sm rounded-xl"
+                    >
+                      Go back to my old blocks (lose this code)
+                    </button>
+                  )}
+                </>
               ) : (
                 <button
                   type="button"
                   autoFocus
-                  onClick={confirm === 'to-code' ? switchToCode : switchToBlocks}
+                  onClick={
+                    confirm === 'to-code'
+                      ? switchToCode
+                      : () => conversion?.ok && applyConversion(conversion.result)
+                  }
                   className="w-full h-11 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-white font-heading font-black text-sm rounded-xl shadow-md active:scale-[0.98]"
                 >
-                  {confirm === 'to-code' ? 'Yes, switch to Python' : 'Yes, go back to blocks'}
+                  {confirm === 'to-code' ? 'Yes, switch to Python' : 'Yes, make blocks'}
                 </button>
               )}
               <button
                 type="button"
-                onClick={() => setConfirm(null)}
+                onClick={closeConfirm}
                 className="w-full h-11 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-white/5 font-heading font-black text-sm rounded-xl"
               >
-                Cancel
+                {confirm === 'to-blocks' && conversion && !conversion.ok ? 'Keep typing' : 'Cancel'}
               </button>
             </div>
           </div>

@@ -13,6 +13,7 @@ import {
   ChevronDown,
 } from 'lucide-react';
 import type { PythonRunState } from '../../lib/python/use-python-run';
+import { END_OF_INPUT } from '../../lib/python/protocol';
 
 /** One block of output. Memoised: only the block that changed is laid out again. */
 const Chunk = memo(function Chunk({ text }: { text: string }) {
@@ -129,6 +130,8 @@ export function PythonConsole({ run, onGoToLine, goToLineLabel, className = '' }
         {status === 'finished' && !hasOutput && (
           <p className="text-ed-term-dim font-sans text-sm">
             Your program finished without printing anything. Try adding a print block or print(...).
+            If it only makes a function or a class, it also needs a line that uses it, like
+            print(my_function(5)).
           </p>
         )}
 
@@ -183,7 +186,9 @@ export function PythonConsole({ run, onGoToLine, goToLineLabel, className = '' }
       </div>
 
       {/* Answer box for input(). Mounted fresh for each question. */}
-      {status === 'waiting' && <AnswerBox prompt={prompt} onSubmit={run.answer} />}
+      {status === 'waiting' && (
+        <AnswerBox prompt={prompt} onSubmit={run.answer} endsInput={run.inputEnds} />
+      )}
       {/* A board reads typing at any time: one box for the whole run. */}
       {status === 'running' && run.interactive && (
         <AnswerBox prompt="" onSubmit={run.answer} keep />
@@ -196,11 +201,14 @@ function AnswerBox({
   prompt,
   onSubmit,
   keep = false,
+  endsInput = false,
 }: {
   prompt: string;
   onSubmit: (text: string) => void;
   /** Stays for the whole run (a board): clear after sending, don't grab focus. */
   keep?: boolean;
+  /** The program reads sys.stdin: an empty answer ends the input. */
+  endsInput?: boolean;
 }) {
   const [answer, setAnswer] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
@@ -232,6 +240,25 @@ function AnswerBox({
         ref={inputRef}
         value={answer}
         onChange={(e) => setAnswer(e.target.value)}
+        onKeyDown={(e) => {
+          // Ctrl+D ends the input, as in a terminal (input() then raises EOFError).
+          if (!keep && e.ctrlKey && !e.altKey && e.key.toLowerCase() === 'd') {
+            e.preventDefault();
+            onSubmit(END_OF_INPUT);
+          }
+        }}
+        onPaste={(e) => {
+          // A one-line box would join pasted lines into one ("3 4" + "1 2" →
+          // "3 41 2"). Send them as separate answers instead.
+          const pasted = e.clipboardData.getData('text');
+          if (!/[\r\n]/.test(pasted)) return;
+          e.preventDefault();
+          const el = e.currentTarget;
+          const start = el.selectionStart ?? answer.length;
+          const end = el.selectionEnd ?? answer.length;
+          onSubmit(answer.slice(0, start) + pasted + answer.slice(end));
+          if (keep) setAnswer('');
+        }}
         autoComplete="off"
         autoCapitalize="off"
         autoCorrect="off"
@@ -240,9 +267,11 @@ function AnswerBox({
         placeholder={
           keep
             ? 'Type here and press Enter to send'
-            : prompt.trim()
-              ? `${prompt.trim()} — type here`
-              : 'Type your answer here'
+            : endsInput
+              ? 'Type or paste input. Empty + Enter = done'
+              : prompt.trim()
+                ? `${prompt.trim()} — type here`
+                : 'Type your answer here'
         }
         className="flex-1 min-w-0 h-10 rounded-xl bg-ed-term-surface border border-sky-500/40 px-3 font-mono text-sm text-ed-term-text placeholder:text-ed-term-dim outline-none focus:ring-2 focus:ring-sky-400/60"
       />

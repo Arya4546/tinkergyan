@@ -20,10 +20,20 @@ export type ToWorker = {
   aiKey: string;
 };
 
+/**
+ * The answer that means "no more input" (end of file) to a program reading
+ * sys.stdin. It is a control character, so nothing typed or pasted can be it.
+ */
+export const END_OF_INPUT = '\u0004';
+
 export type FromWorker =
   | { type: 'ready' }
   | { type: 'output'; text: string }
-  | { type: 'input'; id: string; prompt: string }
+  /**
+   * The program wants a line. `eof`: it reads sys.stdin, so an empty answer
+   * should end the input (send END_OF_INPUT) instead of being an empty line.
+   */
+  | { type: 'input'; id: string; prompt: string; eof: boolean }
   /** The program called ai.start_camera() / ai.stop_camera(). */
   | { type: 'ai-camera'; on: boolean }
   /** The program hit the memory cap. The engine sometimes hangs after that. */

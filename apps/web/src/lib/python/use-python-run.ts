@@ -21,7 +21,7 @@ import {
   type RunResult,
 } from './python-runner';
 import { friendlyError, type FriendlyError } from './friendly-errors';
-import type { PythonErrorInfo } from './protocol';
+import { END_OF_INPUT, type PythonErrorInfo } from './protocol';
 
 export type RunStatus = 'idle' | 'running' | 'waiting' | 'finished' | 'stopped' | 'error';
 
@@ -69,9 +69,18 @@ export interface PythonRunState {
   /** True when early output was dropped to keep the page fast. */
   truncated: boolean;
   prompt: string;
+  /**
+   * The program is reading sys.stdin: an empty answer ends the input instead
+   * of being an empty line (answer('') sends end-of-file).
+   */
+  inputEnds: boolean;
   error: (FriendlyError & { raw: PythonErrorInfo }) | null;
   run: (code: string, options?: RunOptions) => void;
   stop: () => void;
+  /**
+   * Answer the program. Text with several lines (a paste) answers this
+   * question with the first line and the next questions with the others.
+   */
   answer: (text: string) => void;
   clear: () => void;
   /** Add a message from TinkerGyan itself (not the program) to the output. */
@@ -132,12 +141,20 @@ export function appendTo(buf: Buffer, text: string): void {
   }
 }
 
+/** Lines of pasted text: a final line break does not start another line. */
+export function answerLines(text: string): string[] {
+  const lines = text.split(/\r\n|\r|\n/);
+  if (lines.length > 1 && lines[lines.length - 1] === '') lines.pop();
+  return lines;
+}
+
 export function usePythonRun(): PythonRunState {
   const [status, setStatus] = useState<RunStatus>('idle');
   const [interactive, setInteractive] = useState(false);
   const [chunks, setChunks] = useState<OutputChunk[]>([]);
   const [truncated, setTruncated] = useState(false);
   const [prompt, setPrompt] = useState('');
+  const [inputEnds, setInputEnds] = useState(false);
   const [error, setError] = useState<PythonRunState['error']>(null);
 
   const handleRef = useRef<RunHandle | null>(null);
@@ -146,6 +163,8 @@ export function usePythonRun(): PythonRunState {
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastPublishRef = useRef(0);
   const runIdRef = useRef(0);
+  /** Whether the program's current question is a sys.stdin read. */
+  const inputEndsRef = useRef(false);
 
   const publish = useCallback(() => {
     if (frameRef.current !== null) {
@@ -208,6 +227,7 @@ export function usePythonRun(): PythonRunState {
       setStatus('running');
       setInteractive(!!options.interactive);
       const start: RunBackend = options.backend ?? runPython;
+      const onBoard = options.backend !== undefined;
       handleRef.current = start(code, {
         onAiCamera: (on) => {
           if (runId === runIdRef.current) options.onAiCamera?.(on);
@@ -215,10 +235,12 @@ export function usePythonRun(): PythonRunState {
         onOutput: (text) => {
           if (runId === runIdRef.current) append(text);
         },
-        onInput: (p) => {
+        onInput: (p, eof) => {
           if (runId !== runIdRef.current) return;
+          inputEndsRef.current = eof;
           publish(); // show the question now, not on the next frame
           setPrompt(p);
+          setInputEnds(eof);
           setStatus('waiting');
         },
         onDone: (result) => {
@@ -235,10 +257,10 @@ export function usePythonRun(): PythonRunState {
               line: null,
               traceback: '',
             };
-            setError({ ...friendlyError(raw, code), raw });
+            setError({ ...friendlyError(raw, code, onBoard), raw });
             setStatus('error');
           } else {
-            setError({ ...friendlyError(result.error, code), raw: result.error });
+            setError({ ...friendlyError(result.error, code, onBoard), raw: result.error });
             setStatus('error');
           }
         },
@@ -251,13 +273,34 @@ export function usePythonRun(): PythonRunState {
     handleRef.current?.stop();
   }, []);
 
-  const answer = useCallback((text: string) => {
-    const h = handleRef.current;
-    if (!h) return;
-    setPrompt('');
-    setStatus('running');
-    h.answer(text);
-  }, []);
+  const answer = useCallback(
+    (text: string) => {
+      const h = handleRef.current;
+      if (!h) return;
+      if (text === END_OF_INPUT) {
+        // Ctrl+D in the answer box: end of input, as in a terminal.
+        if (interactive) return;
+        setPrompt('');
+        setStatus('running');
+        h.answer(END_OF_INPUT);
+        return;
+      }
+      const lines = answerLines(text.split(END_OF_INPUT).join(''));
+      if (interactive) {
+        // A board reads typing at any time: send every line now.
+        for (const line of lines) h.answer(line);
+        return;
+      }
+      setPrompt('');
+      setStatus('running');
+      // Several lines go in one answer; the program takes the first now and
+      // the others at its next questions (python.worker.ts). An empty answer
+      // to a sys.stdin read means "no more input".
+      const ends = lines.length === 1 && lines[0] === '' && inputEndsRef.current;
+      h.answer(ends ? END_OF_INPUT : lines.join('\n'));
+    },
+    [interactive],
+  );
 
   const note = useCallback(
     (text: string) => {
@@ -281,6 +324,7 @@ export function usePythonRun(): PythonRunState {
     hasOutput: chunks.some((c) => c.text.length > 0),
     truncated,
     prompt,
+    inputEnds,
     error,
     run,
     stop,

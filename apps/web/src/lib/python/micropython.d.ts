@@ -3,6 +3,11 @@ declare module '@micropython/micropython-webassembly-pyscript' {
   export interface MicroPythonInstance {
     runPython(code: string): unknown;
     registerJsModule(name: string, module: Record<string, unknown>): void;
+    /** The engine's in-memory file system (Emscripten FS). */
+    FS: {
+      mkdir(path: string): void;
+      writeFile(path: string, data: string): void;
+    };
   }
   export function loadMicroPython(options?: {
     url?: string;

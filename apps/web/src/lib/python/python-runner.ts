@@ -17,8 +17,11 @@ export type RunResult =
 
 export interface RunHandlers {
   onOutput: (text: string) => void;
-  /** The program called input(); call handle.answer(text) to continue it. */
-  onInput: (prompt: string) => void;
+  /**
+   * The program wants a line (input(), or sys.stdin when `eof`); call
+   * handle.answer(text) to continue it. With `eof`, END_OF_INPUT ends the input.
+   */
+  onInput: (prompt: string, eof: boolean) => void;
   onDone: (result: RunResult) => void;
   /** The program turned the AI camera on or off. */
   onAiCamera?: (on: boolean) => void;
@@ -212,7 +215,7 @@ export function runPython(code: string, handlers: RunHandlers): RunHandle {
       else if (msg.type === 'ai-camera') handlers.onAiCamera?.(msg.on);
       else if (msg.type === 'input') {
         waitingId = msg.id;
-        handlers.onInput(msg.prompt);
+        handlers.onInput(msg.prompt, msg.eof);
       } else if (msg.type === 'memory-limit') {
         memoryTimer ??= setTimeout(
           () =>

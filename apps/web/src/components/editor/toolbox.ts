@@ -604,6 +604,11 @@ function getPythonCategories(
       contents: [
         ...(shared('🔁 Loops').contents as unknown[]).slice(0, 3),
         { kind: 'block', type: 'controls_forEach' },
+        {
+          kind: 'block',
+          type: 'py_range',
+          inputs: { START: num(0), STOP: num(10), STEP: num(1) },
+        },
         ...(shared('🔁 Loops').contents as unknown[]).slice(3),
       ],
     },

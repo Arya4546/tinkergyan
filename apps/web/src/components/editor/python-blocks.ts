@@ -41,6 +41,20 @@ Blockly.defineBlocksWithJsonArray([
     colour: PY_TIME_COLOUR,
     tooltip: 'Pauses the program for this many seconds (you can use decimals like 0.5).',
   },
+  {
+    type: 'py_range',
+    message0: 'range from %1 to %2 step %3',
+    args0: [
+      { type: 'input_value', name: 'START', check: 'Number' },
+      { type: 'input_value', name: 'STOP', check: 'Number' },
+      { type: 'input_value', name: 'STEP', check: 'Number' },
+    ],
+    inputsInline: true,
+    output: 'Array',
+    colour: '#5CA65C', // the Loops category's colour
+    tooltip:
+      'The whole numbers from the first number up to the second, NOT including the second: from 0 to 3 gives 0, 1, 2. Use it in "for each item in list".',
+  },
 ]);
 
 pythonGenerator.forBlock['py_ask_text'] = (block, generator) => {
@@ -68,6 +82,17 @@ pythonGenerator.forBlock['py_ask_number'] = (block, generator) => {
   return [`${fn}(${question})`, Order.FUNCTION_CALL];
 };
 
+// Python's own range(): `for i in range(n)` stays exactly that, so a loop over
+// range(len(things)) runs zero times for an empty list. (The "count with"
+// block counts DOWN from 0 to -1 there, because its end is included.)
+pythonGenerator.forBlock['py_range'] = (block, generator) => {
+  const start = generator.valueToCode(block, 'START', Order.NONE) || '0';
+  const stop = generator.valueToCode(block, 'STOP', Order.NONE) || '0';
+  const step = generator.valueToCode(block, 'STEP', Order.NONE) || '1';
+  const args = step !== '1' ? [start, stop, step] : start !== '0' ? [start, stop] : [stop];
+  return [`range(${args.join(', ')})`, Order.FUNCTION_CALL];
+};
+
 pythonGenerator.forBlock['py_wait'] = (block, generator) => {
   // Imports go in definitions_ (protected in the typings, but it is exactly how
   // Blockly's own Python generators add `import math` / `import random`).
@@ -87,6 +112,15 @@ pythonGenerator.forBlock['math_change'] = (block, generator) => {
   return `${name} = (${name} if isinstance(${name}, (int, float)) else 0) + ${delta}\n`;
 };
 
+// Stock "absolute" is math.fabs(x), which turns whole numbers into decimals
+// (|-3| prints 3.0). abs() keeps 3 as 3, and is what students write.
+const stockMathSingle = pythonGenerator.forBlock['math_single']!;
+pythonGenerator.forBlock['math_single'] = (block, generator) => {
+  if (block.getFieldValue('OP') !== 'ABS') return stockMathSingle.call(generator, block, generator);
+  const value = generator.valueToCode(block, 'NUM', Order.NONE) || '0';
+  return [`abs(${value})`, Order.FUNCTION_CALL];
+};
+
 // Stock title case uses str.title(), which MicroPython's str does not have.
 pythonGenerator.forBlock['text_changeCase'] = (block, generator) => {
   const text = generator.valueToCode(block, 'TEXT', Order.MEMBER) || "''";
@@ -100,6 +134,18 @@ pythonGenerator.forBlock['text_changeCase'] = (block, generator) => {
 `,
   );
   return [`${fn}(${text})`, Order.FUNCTION_CALL];
+};
+
+// Stock quoting writes a line break inside text as backslash + line break,
+// which Python reads as "the line continues": the line break vanished.
+pythonGenerator.quote_ = (text: string) => {
+  let s = text.replace(/\\/g, '\\\\').replace(/\n/g, '\\n').replace(/\r/g, '\\r');
+  let quote = "'";
+  if (s.includes("'")) {
+    if (!s.includes('"')) quote = '"';
+    else s = s.replace(/'/g, "\\'");
+  }
+  return quote + s + quote;
 };
 
 // PEP 8 indentation, matching what students see in examples and books.

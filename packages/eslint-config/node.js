@@ -12,6 +12,8 @@ export function createNodeConfig() {
         '*.config.{js,cjs,mjs,ts}',
         '*.mjs',
         'apps/api/**/*.{ts,js,mjs,cjs}',
+        // Test scripts run in Node (node --test), not in the browser.
+        'apps/web/tests/**/*.{js,mjs,cjs}',
         'packages/**/*.{ts,js,mjs,cjs}',
         'setup-husky.mjs',
       ],

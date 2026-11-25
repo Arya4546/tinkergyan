@@ -16,12 +16,18 @@ import engineUrl from '@micropython/micropython-webassembly-pyscript/micropython
 import wasmUrl from '@micropython/micropython-webassembly-pyscript/micropython.wasm?url';
 import type * as EngineNs from '@micropython/micropython-webassembly-pyscript';
 import type { MicroPythonInstance } from '@micropython/micropython-webassembly-pyscript';
-import type { FromWorker, PythonErrorInfo, ToWorker } from './protocol';
+import { END_OF_INPUT, type FromWorker, type PythonErrorInfo, type ToWorker } from './protocol';
+import { COMPAT_FILES, COMPAT_MODULES } from './compat';
+import { lockDown } from './isolation';
 
 type EngineModule = typeof EngineNs;
 
 const ctx = self as unknown as DedicatedWorkerGlobalScope;
-const post = (msg: FromWorker) => ctx.postMessage(msg);
+// Kept here: lockDown() (./isolation) removes both from the global scope
+// before any student code runs.
+const postToPage = ctx.postMessage.bind(ctx);
+const XHR = XMLHttpRequest;
+const post = (msg: FromWorker) => postToPage(msg);
 
 // ── Output batching ──────────────────────────────────────────────────────────
 // A `while True: print(...)` loop can print hundreds of thousands of lines a
@@ -68,7 +74,7 @@ let syncAvailable = false;
 
 function syncGet(path: string): string | null {
   try {
-    const xhr = new XMLHttpRequest();
+    const xhr = new XHR();
     xhr.open('GET', `/__py_sync__/${path}`, false);
     xhr.send();
     return xhr.status === 200 ? xhr.responseText : null;
@@ -102,26 +108,80 @@ function sleep(seconds: unknown) {
 }
 
 let inputCounter = 0;
-// The Python side always passes str(prompt).
-function input(prompt: string | undefined): string {
-  write(prompt ?? '');
+/** The student ended the input (end of file: Ctrl+D, or an empty answer to sys.stdin). */
+let inputEnded = false;
+/** The lines of the student's last answer (a paste can have many) and how many were read. */
+let answerLines: string[] = [];
+let answerRead = 0;
+
+/** Wait for the student's answer to one question. */
+function waitForAnswer(prompt: string, eof: boolean): string {
   flush();
   const id = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}-${inputCounter++}`;
-  post({ type: 'input', id, prompt: prompt ?? '' });
+  post({ type: 'input', id, prompt, eof });
   for (;;) {
     const reply = syncGet(`wait?id=${encodeURIComponent(id)}`);
     if (reply === null) {
       throw new Error('The answer box stopped working. Press Run to start again.');
     }
-    if (reply.startsWith('v:')) {
-      const value = reply.slice(2);
-      write(value + '\n'); // echo, like a real terminal
-      flush();
-      return value;
-    }
+    if (reply.startsWith('v:')) return reply.slice(2);
     // 'retry' — the service worker answered before a long wait timed out; ask again.
   }
 }
+
+/**
+ * One line of input, or null once the input has ended. A pasted block arrives
+ * as one answer; its other lines are kept for the next calls, so a program
+ * reading thousands of lines does not wait for the page once per line.
+ * `eof`: the program reads sys.stdin, where an empty answer ends the input.
+ */
+function ask(prompt: string, eof: boolean): string | null {
+  if (inputEnded) return null;
+  write(prompt);
+  // (An index, not shift(): shift() copies the array, which made reading a
+  // 100 000-line paste take seconds instead of milliseconds.)
+  let value = answerLines[answerRead];
+  if (value === undefined) {
+    const answer = waitForAnswer(prompt, eof);
+    if (answer === END_OF_INPUT) {
+      inputEnded = true;
+      return null;
+    }
+    answerLines = answer.split('\n');
+    answerRead = 0;
+    value = answerLines[0]!;
+  }
+  answerRead += 1;
+  write(value + '\n'); // echo, like a real terminal
+  return value;
+}
+
+/**
+ * sys.stdin.read(): the rest of the current answer at once (or the next
+ * answer), each line ending in \n; null once the input has ended.
+ */
+function readRest(): string | null {
+  if (inputEnded) return null;
+  if (answerRead >= answerLines.length) {
+    const answer = waitForAnswer('', true);
+    if (answer === END_OF_INPUT) {
+      inputEnded = true;
+      return null;
+    }
+    answerLines = answer.split('\n');
+    answerRead = 0;
+  }
+  const text = answerLines.slice(answerRead).join('\n') + '\n';
+  answerRead = answerLines.length;
+  write(text);
+  return text;
+}
+
+// input(): the Python side always passes str(prompt); null (after the input
+// ended) becomes EOFError, as in Python.
+const input = (prompt: string | undefined) => ask(prompt ?? '', false);
+// sys.stdin (compat/_tg_sys.py): readline() takes one line, read() the rest.
+const readLine = () => ask('', true);
 
 // ── AI model (trained in AI Studio, running on the page) ───────────────────
 // The page publishes the latest prediction to the service worker; reading it
@@ -151,63 +211,81 @@ function aiCamera(on: unknown) {
 // Runs before the student's code. Everything is set up inside a function so no
 // helper names leak into the student's globals, and the wrappers are named
 // _tg_* so the error parser can skip their frames in a traceback.
+//
+// Built-in modules that MicroPython leaves incomplete (time, sys, collections,
+// math, ...) are completed by /lib/_tg_<name>.py (see ./compat). The import
+// hook loads that file the first time a program imports the module, so
+// \`import math\` and \`from math import *\` both see the complete module.
 const PRELUDE = `
 def _tg_setup():
     import sys, builtins, tg_host
-    real_time = __import__('time')
 
-    def _tg_sleep(seconds):
-        tg_host.sleep(float(seconds))
+    compat = ${JSON.stringify(COMPAT_MODULES)}
+    real_import = builtins.__import__
+    loaded = {}
+    loading = []
 
-    def _tg_sleep_ms(ms):
-        tg_host.sleep(float(ms) / 1000)
+    def _tg_import(name, globals=None, locals=None, fromlist=(), level=0):
+        base = compat.get(name) if level == 0 else None
+        # While a module loads, its own imports get the real modules (the
+        # engine's time.py imports utime, which would otherwise come back here).
+        if base is None or base in loading:
+            return real_import(name, globals, locals, fromlist, level)
+        mod = loaded.get(base)
+        if mod is None:
+            loading.append(base)
+            try:
+                sys.modules['_tg_real_' + base] = real_import(base)
+                mod = real_import('_tg_' + base)
+            finally:
+                loading.remove(base)
+            loaded[base] = mod
+        return mod
 
-    def _tg_sleep_us(us):
-        tg_host.sleep(float(us) / 1000000)
-
-    class _TgTime:
-        sleep = staticmethod(_tg_sleep)
-        sleep_ms = staticmethod(_tg_sleep_ms)
-        sleep_us = staticmethod(_tg_sleep_us)
-        def __getattr__(self, name):
-            return getattr(real_time, name)
-
-    sys.modules['time'] = _TgTime()
-    sys.modules['utime'] = sys.modules['time']
+    builtins.__import__ = _tg_import
 
     def _tg_input(prompt=''):
         if not tg_host.can_input:
             raise RuntimeError("Typing answers is not available in this browser window. Open TinkerGyan in a normal (not private) Chrome, Edge, Firefox or Safari window.")
-        return tg_host.input(str(prompt))
+        stdin = sys.modules.get('_tg_sys')
+        if stdin is not None and stdin.stdin._buf:
+            # sys.stdin.read(n) left part of a line: input() continues from it.
+            print(prompt, end='')
+            return stdin.stdin._input_line()
+        value = tg_host.input(str(prompt))
+        if value is None:
+            raise EOFError('EOF when reading a line')
+        return value
 
     builtins.input = _tg_input
 
-    import json
+    real_sorted = builtins.sorted
 
-    class _TgAI:
-        # Same functions as ai.py on a board (lib/python/board/ai-module.ts).
-        def start_camera(self):
-            tg_host.ai_camera(True)
-        def stop_camera(self):
-            tg_host.ai_camera(False)
-        def _tg_state(self):
-            if not tg_host.can_input:
-                raise RuntimeError("AI needs a normal (not private) browser window. Open TinkerGyan in a normal Chrome, Edge, Firefox or Safari window.")
-            raw = tg_host.ai_state()
-            if not raw:
-                return {}
-            try:
-                return json.loads(raw)
-            except ValueError:
-                return {}
-        def label(self):
-            return self._tg_state().get('l', '')
-        def confidence(self, name):
-            return self._tg_state().get('c', {}).get(str(name), 0)
-        def labels(self):
-            return list(self._tg_state().get('c', {}))
+    def _tg_sorted(iterable, *, key=None, reverse=False):
+        # MicroPython's sort is not stable; Python's is (items with equal keys
+        # keep their order, which decides ties in many programs' output).
+        # Sorting (key, position) pairs natively makes it stable and stays fast.
+        # (list.sort() cannot be changed: use sorted() when ties matter.)
+        if key is None:
+            return real_sorted(iterable, reverse=reverse)
+        items = list(iterable)
+        if reverse:
+            order = real_sorted([(key(items[i]), -i) for i in range(len(items))], reverse=True)
+            return [items[-p[1]] for p in order]
+        order = real_sorted([(key(items[i]), i) for i in range(len(items))])
+        return [items[p[1]] for p in order]
 
-    sys.modules['ai'] = _TgAI()
+    builtins.sorted = _tg_sorted
+
+    real_open = builtins.open
+
+    def _tg_open(file, *args, **kwargs):
+        # open(0) is standard input, as in Python (open(0).read()).
+        if file == 0 and not isinstance(file, bool):
+            return _tg_import('sys').stdin
+        return real_open(file, *args, **kwargs)
+
+    builtins.open = _tg_open
 
 _tg_setup()
 del _tg_setup
@@ -280,13 +358,27 @@ async function loadEngine(): Promise<MicroPythonInstance> {
     URL.revokeObjectURL(blobUrl);
   }
   const { loadMicroPython } = engine;
-  return loadMicroPython({
+  const mp = await loadMicroPython({
     url: wasmUrl,
     heapsize: 8 * 1024 * 1024,
+    // Words of Python stack. The default (2048) ran out first in recursive
+    // functions with loops (a DFS stopped 112 calls deep); with this much, only
+    // the engine's fixed C stack limits recursion (~155 calls).
+    pystack: 16 * 1024,
     linebuffer: false,
     stdout: onBytes,
     stderr: onBytes,
   });
+  try {
+    mp.FS.mkdir('/lib'); // on sys.path, but not created by the engine
+  } catch {
+    /* already there */
+  }
+  for (const [name, source] of Object.entries(COMPAT_FILES)) {
+    mp.FS.writeFile(`/lib/${name}`, source);
+  }
+  lockDown();
+  return mp;
 }
 
 function load() {
@@ -317,6 +409,8 @@ ctx.onmessage = async (event: MessageEvent<ToWorker>) => {
     can_input: syncAvailable,
     sleep,
     input,
+    read_line: readLine,
+    read_rest: readRest,
     ai_state: aiState,
     ai_camera: aiCamera,
   });

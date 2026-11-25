@@ -150,6 +150,8 @@ export interface BlocklyWorkspaceHandle {
   redo: () => void;
   /** Delete every block on the workspace, leaving it empty (used by "Reset Project"). */
   clearWorkspace: () => void;
+  /** Line the top-level blocks up in one column at the top left, without overlaps (not an edit). */
+  tidy: () => void;
   /**
    * Replace the canvas with a Blockly JSON program (an example). Unlike
    * loadXml this is a normal edit: it marks the project changed and Undo
@@ -278,6 +280,19 @@ export const BlocklyWorkspace = forwardRef<BlocklyWorkspaceHandle, BlocklyWorksp
         // leave events enabled so the change listener marks the project dirty
         // and regenerates code/isEmpty state as usual.
         workspaceRef.current.clear();
+      },
+      tidy() {
+        const ws = workspaceRef.current;
+        if (!ws) return;
+        Blockly.Events.disable();
+        try {
+          // One column from the origin, then in from the edge like a new program's
+          // first block, so the top of the program shows beside the toolbox.
+          ws.cleanUp();
+          for (const block of ws.getTopBlocks(false)) block.moveBy(20, 20);
+        } finally {
+          Blockly.Events.enable();
+        }
       },
       loadJson(state: Record<string, unknown>) {
         const ws = workspaceRef.current;
