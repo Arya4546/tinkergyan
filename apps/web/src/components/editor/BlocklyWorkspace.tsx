@@ -73,6 +73,8 @@ const KID_CATEGORY_STYLES = {
   python_io_category: { colour: '#0EA5E9' },
   python_list_category: { colour: '#745CA6' },
   python_time_category: { colour: '#F59E0B' },
+  python_data_category: { colour: '#0D9488' },
+  python_code_category: { colour: '#64748B' },
   // Same colours as the blocks in python-board-blocks.ts.
   python_pins_category: { colour: '#2E7D32' },
   python_analog_category: { colour: '#E65100' },

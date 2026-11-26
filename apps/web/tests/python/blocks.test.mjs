@@ -4,10 +4,12 @@
 // - Blocks → Python → blocks → Python gives the same Python, for every block.
 // - Typed programs print the same before and after conversion (both run on
 //   MicroPython).
-// - Python with no matching block is refused with the right line.
+// - Python with no block of its own stays as Python ("Python code" blocks),
+//   noted with its line; only Python that can't run is refused.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { run } from './harness.mjs';
+import fs from 'node:fs';
+import { run, END } from './harness.mjs';
 import {
   pythonToBlocks,
   jsonToPython,
@@ -15,6 +17,10 @@ import {
   xmlBlockTypes,
   setBoard,
   setAiLabels,
+  boardExamples,
+  aiExamples,
+  getToolbox,
+  toolboxEntryToPython,
 } from './blocks.mjs';
 import { PYTHON_EXAMPLES } from '../../src/lib/python/examples.ts';
 
@@ -316,6 +322,67 @@ function toolboxPrograms() {
           inputs: { VALUE: v('items'), ...(where.startsWith('FROM') ? { AT: n(2) } : {}) },
         }),
       ];
+  const set = (value) => ({
+    type: 'variables_set',
+    fields: { VAR: { id: 'x' } },
+    inputs: { VALUE: { block: value } },
+  });
+  const listOf = (count) =>
+    count
+      ? {
+          block: {
+            type: 'lists_create_with',
+            extraState: { itemCount: count },
+            inputs: Object.fromEntries(
+              [n(1), t('a'), v('i')].slice(0, count).map((b, k) => [`ADD${k}`, b]),
+            ),
+          },
+        }
+      : { block: { type: 'lists_create_empty' } };
+  const code = (type, lines, extra = {}) => ({
+    type,
+    ...(lines.length > 1 ? { extraState: { lines: lines.length } } : {}),
+    fields: Object.fromEntries(lines.map((l, k) => [`LINE${k}`, l])),
+    ...extra,
+  });
+  Object.assign(out, {
+    'type of': [show({ type: 'py_type', inputs: { VALUE: n(5) } })],
+    capitalize: [show({ type: 'py_capitalize', inputs: { TEXT: t('hELLO') } })],
+    factorial: [show({ type: 'py_factorial', inputs: { NUM: v('x') } })],
+    dictionary: [
+      set({
+        type: 'py_dict',
+        extraState: { itemCount: 2 },
+        inputs: { KEY0: t('a'), VALUE0: n(1), KEY1: t('b'), VALUE1: v('i') },
+      }),
+    ],
+    'empty dictionary': [set({ type: 'py_dict', extraState: { itemCount: 0 } })],
+    'dictionary get': [show({ type: 'py_dict_get', inputs: { DICT: v('x'), KEY: t('a') } })],
+    'dictionary set': [{ type: 'py_dict_set', inputs: { DICT: v('x'), KEY: t('a'), VALUE: n(2) } }],
+    'Python code': [code('py_code', ['del items[0]'])],
+    'Python code, several lines': [code('py_code', ['class A:', '    """Hi."""', '    size = 3'])],
+    'Python code value': [show(code('py_code_value', ['[k * 2 for k in items]']))],
+    'Python code value in a sum': [
+      show({
+        type: 'math_arithmetic',
+        fields: { OP: 'ADD' },
+        inputs: { A: { block: code('py_code_value', ['3j']) }, B: n(2) },
+      }),
+    ],
+    'Python code around blocks': [
+      code('py_code_wrap', ['for letter in "ab"'], {
+        inputs: { DO: { block: show(v('x').block) } },
+      }),
+    ],
+  });
+  for (const [kind, type] of [
+    ['tuple', 'py_tuple'],
+    ['set', 'py_set'],
+  ]) {
+    for (const count of [0, 1, 3])
+      out[`${kind} of ${count}`] = [set({ type, inputs: { ITEMS: listOf(count) } })];
+    out[`${kind} of a list`] = [set({ type, inputs: { ITEMS: v('items') } })];
+  }
   for (const where of ['FIRST', 'LAST', 'FROM_START', 'FROM_END'])
     for (const mode of ['SET', 'INSERT'])
       out[`list ${mode} ${where}`] = [
@@ -363,6 +430,21 @@ test('blocks → Python → blocks gives the same Python, for every block', asyn
       assert.equal(back.code, code);
       assert.equal(xmlToPython(back.xml), code);
     });
+  }
+});
+
+test('every block in the Python toolbox makes Python', async (t) => {
+  for (const board of ['python', 'python-esp32']) {
+    for (const category of getToolbox('python', board).contents) {
+      for (const entry of category.contents ?? []) {
+        if (entry.kind !== 'block') continue;
+        await t.test(`${board} ${category.name} ${entry.type}`, () => {
+          const code = toolboxEntryToPython(entry);
+          assert.ok(code.trim(), 'no code');
+          assert.doesNotMatch(code, /undefined/);
+        });
+      }
+    }
   }
 });
 
@@ -558,15 +640,38 @@ test('converting keeps what the student sees in mind', async (t) => {
   });
 });
 
-// Python with no block: refused, with the line to look at.
-const REFUSED = [
-  ['try / except', 'x = 1\ntry:\n    x = 2\nexcept ValueError:\n    pass', 2, /try \/ except/],
-  ['class', 'class Dog:\n    pass', 1, /classes/],
-  ['dictionary', 'ages = {"a": 1}', 1, /dictionaries/],
-  ['list comprehension', 'sq = [i * i for i in range(3)]', 1, /comprehensions/],
-  ['tuple unpacking', 'a, b = 1, 2', 1, /one variable at a time/],
-  ['print with end=', 'print("a", end="")', 1, /sep= or end=/],
-  ['default argument', 'def f(a=1):\n    return a', 1, /no default values/],
+/** Convert and run both: the same output, or the same error. Converting again changes nothing. */
+async function sameBehaviour(code, inputs = [], { onBoard = false } = {}) {
+  const converted = pythonToBlocks(code, { onBoard });
+  const before = await run(seeded(code), inputs, { echo: false });
+  const after = await run(seeded(converted.code), inputs, { echo: false });
+  assert.equal(after.out, before.out, converted.code);
+  assert.equal(after.ok, before.ok, `${after.error?.message}\n${converted.code}`);
+  if (!before.ok) assert.equal(after.error.name, before.error.name, converted.code);
+  assert.equal(
+    pythonToBlocks(converted.code, { onBoard }).code,
+    converted.code,
+    'converts again to the same',
+  );
+  return converted;
+}
+
+const isCode = (t) => /^py_code(_value|_wrap)?$/.test(t);
+
+// Python with no block of its own: kept as Python in "Python code" blocks, with
+// the line and the reason in the notes. It still runs exactly the same.
+const KEPT = [
+  [
+    'try / except',
+    'x = 1\ntry:\n    x = 2\nexcept ValueError:\n    pass\nprint(x)',
+    2,
+    /try \/ except/,
+  ],
+  ['class', 'class Dog:\n    sound = "woof"\nprint(Dog.sound)', 1, /classes/],
+  ['list comprehension', 'sq = [i * i for i in range(3)]\nprint(sq)', 1, /comprehensions/],
+  ['tuple unpacking', 'a, b = 1, 2\nprint(a, b)', 1, /one variable at a time/],
+  ['print with end=', 'print("a", end="")\nprint("b")', 1, /sep= or end=/],
+  ['default argument', 'def f(a=1):\n    return a\nprint(f())', 1, /no default values/],
   [
     'recursion with local variables',
     'def fib(n):\n    if n < 2:\n        return n\n    a = fib(n - 1)\n    return a + fib(n - 2)\nprint(fib(5))',
@@ -579,25 +684,20 @@ const REFUSED = [
     5,
     /only "return" at the end/,
   ],
-  [
-    'nested function',
-    'def a():\n    def b():\n        pass\n    b()',
-    2,
-    /inside another function/,
-  ],
-  ['unknown module', 'import sys\nprint(1)', 1, /"sys" module/],
+  ['nested function', 'def a():\n    def b():\n        pass\n    b()\na()', 2, /inside other code/],
+  ['unknown module', 'import sys\nprint(len(sys.argv) >= 0)', 1, /"sys" module/],
   ['slice', 'a = [1, 2, 3]\nprint(a[1:])', 2, /slices/],
   ['in operator', 'a = [1]\nprint(1 in a)', 2, /"in"/],
   ['chained comparison', 'x = 3\nprint(1 < x < 5)', 2, /two things at a time/],
   ['string method', 's = "a b"\nprint(s.split())', 2, /\.split\(\)/],
-  ['whole-number float', 'x = 5.0', 1, /whole number/],
-  ['undefined name', 'print(y)', 1, /never gets a value/],
+  ['whole-number float', 'x = 5.0\nprint(x)', 1, /whole number/],
+  ['undefined name (fails the same way)', 'print(y)', 1, /never gets a value/],
   ['text repetition', 'print("-" * 10)', 1, /repeat text/],
-  ['looping over text', 'for ch in input():\n    print(ch)', 1, /letters of a text/],
-  ['float(input())', 'x = float(input())', 1, /no block for float/],
-  ['syntax error', 'x = 1\nif x\n    print(x)', 2, /can't read this line/],
+  ['looping over text', 'for ch in "abc":\n    print(ch)', 1, /letters of a text/],
+  ['float(input())', 'x = float(input())\nprint(x)', 1, /no block for float/],
+  ['complex number', 'z = 2 + 3j\nprint(z)', 1, /complex numbers/],
   [
-    'pins in the browser',
+    'pins in the browser (fails the same way)',
     'from machine import Pin\nPin(2, Pin.OUT).value(1)',
     1,
     /only work on a board/,
@@ -609,10 +709,48 @@ const REFUSED = [
     3,
     /gives back a value/,
   ],
-  ['wrong number of values', 'def f(a):\n    print(a)\nf(1, 2)', 3, /needs 1 value/],
+  [
+    'wrong number of values (fails the same way)',
+    'def f(a):\n    print(a)\nf(1, 2)',
+    3,
+    /needs 1 value/,
+  ],
+  [
+    'raw text over several lines, in kept Python',
+    // A real line break and a backslash inside r"""…""".
+    'def f():\n    print(r"""a\\b\n c""", end="!")\n    print()\nf()',
+    2,
+    /sep= or end=/,
+  ],
+  ['set([…])', 'print(set([1, 1, 2]))', 1, /another order/],
+  [
+    'dictionary item by a worked-out key',
+    'def get(d, k):\n    return d[k]\nprint(get({"a": 1}, "a"))',
+    2,
+    /might not be one/,
+  ],
 ];
 
-test('Python with no matching block is refused with its line', async (t) => {
+test('Python with no block of its own stays as Python, with its line', async (t) => {
+  setBoard('python');
+  for (const [name, code, line, message] of KEPT) {
+    await t.test(name, async () => {
+      const r = await sameBehaviour(code, name === 'float(input())' ? ['2.5'] : []);
+      assert.ok(xmlBlockTypes(r.xml).some(isCode), r.code);
+      const notes = r.notes.join('\n');
+      assert.match(notes, new RegExp(`Line ${line}: `), notes);
+      assert.match(notes, message, notes);
+    });
+  }
+});
+
+// Only Python that can't run at all is refused, with its line.
+const REFUSED = [
+  ['syntax error', 'x = 1\nif x\n    print(x)', 2, /can't read this line/],
+  ['return outside a function', 'x = 1\nreturn x', 2, /only works inside a function/],
+];
+
+test('Python that cannot run is refused with its line', async (t) => {
   setBoard('python');
   for (const [name, code, line, message] of REFUSED) {
     await t.test(name, () => {
@@ -629,20 +767,189 @@ test('Python with no matching block is refused with its line', async (t) => {
   }
 });
 
-test('typed examples either convert to the same program or are refused', async (t) => {
+test('a data types lesson becomes real blocks', async (t) => {
   setBoard('python');
-  for (const ex of PYTHON_EXAMPLES.filter((e) => !e.board)) {
-    await t.test(ex.id, async () => {
-      let converted;
-      try {
-        converted = pythonToBlocks(ex.code, { onBoard: false });
-      } catch (err) {
-        assert.equal(err.name, 'ConvertError', err.stack);
-        return;
-      }
-      const before = await run(seeded(ex.code), ex.testAnswers ?? []);
-      const after = await run(seeded(converted.code), ex.testAnswers ?? []);
-      assert.equal(after.out, before.out, converted.code);
-    });
+  const lesson = `# Integer
+age = 21
+
+# Float
+price = 99.50
+
+# String
+name = "Sakshi"
+
+# Boolean
+is_student = True
+
+# List
+numbers = [10, 20, 30]
+
+# Tuple
+colors = ("Red", "Green", "Blue")
+
+# Set
+unique_numbers = {1, 2, 3}
+
+# Dictionary
+student = {
+    "name": "Sakshi",
+    "age": 21
+}
+
+# Complex
+z = 2 + 3j
+
+print(type(age))
+print(type(price))
+print(type(name))
+print(type(is_student))
+print(type(numbers))
+print(type(colors))
+print(type(unique_numbers))
+print(type(student))
+print(type(z))`;
+  await t.test('types of every kind of value', async () => {
+    const r = await sameBehaviour(lesson);
+    const types = xmlBlockTypes(r.xml);
+    for (const type of ['py_type', 'py_tuple', 'py_set', 'py_dict'])
+      assert.ok(types.includes(type), `${type} missing`);
+    // Only the complex number has no block.
+    assert.equal(types.filter(isCode).length, 1, r.code);
+    assert.match(r.code, /^z = 2 \+ 3j$/m);
+    assert.match(r.code, /^colors = \('Red', 'Green', 'Blue'\)$/m);
+    assert.match(r.code, /^student = \{'name': 'Sakshi', 'age': 21\}$/m);
+    assert.match(r.code, /^# Dictionary$/m);
+  });
+  await t.test('type() of simple values', async () => {
+    const r = await sameBehaviour(
+      'a = 10\nb = 10.5\nc = "STEMmantra"\nd = True\n\nprint(type(a))\nprint(type(b))\nprint(type(c))\nprint(type(d))',
+    );
+    assert.ok(!xmlBlockTypes(r.xml).some(isCode), r.code);
+  });
+  await t.test('dictionaries, tuples and sets', async () => {
+    const r = await sameBehaviour(
+      'scores = {"ana": 3, "bo": 5}\nscores["cy"] = 1\nscores["ana"] += 2\nprint(scores["ana"], scores["cy"], len(scores))\nempty = {}\nnothing = dict()\nprint(empty, nothing)\none = (5,)\npair = 1, 2\nprint(one, pair, tuple(), tuple([3, 4]))\nprint(set(), {3, 3}, set(empty))\n\ndef minmax(a, b):\n    if a < b:\n        return a, b\n    return b, a\nprint(minmax(4, 2))',
+    );
+    assert.ok(!xmlBlockTypes(r.xml).some(isCode), r.code);
+  });
+  await t.test('capitalize and factorial work after converting', async () => {
+    // MicroPython has no str.capitalize(): the block writes its own helper.
+    const code =
+      'import math\nword = "hELLO wORLD"\nprint(word.capitalize())\nprint(math.factorial(5))';
+    const r = pythonToBlocks(code, { onBoard: false });
+    const types = xmlBlockTypes(r.xml);
+    assert.ok(types.includes('py_capitalize') && types.includes('py_factorial'), r.code);
+    const after = await run(r.code);
+    assert.equal(after.out, 'Hello world\n120\n');
+    assert.equal(pythonToBlocks(r.code, { onBoard: false }).code, r.code);
+  });
+});
+
+// Real programs: loops over dictionaries, classes, comprehensions, renamed
+// built-ins, global lines... Each converts, behaves the same and converts
+// again to exactly the same code.
+const PROGRAMS = {
+  'try / except / else / finally': [
+    'x = 1\ntry:\n    x = int("q")\nexcept ValueError as e:\n    print("bad", e)\nelse:\n    print("ok")\nfinally:\n    print("done", x)',
+    [],
+  ],
+  'class with methods': [
+    'class Dog:\n    def __init__(self, name):\n        self.name = name\n    def bark(self):\n        return self.name + " says woof"\n\nd = Dog("Rex")\nprint(d.bark())',
+    [],
+  ],
+  'swap with tuples': ['a, b = 1, 2\na, b = b, a\nprint(a, b)', []],
+  'for / else and while / else': [
+    'for i in range(3):\n    if i == 5:\n        break\nelse:\n    print("no break")\nn = 0\nwhile n < 2:\n    n += 1\nelse:\n    print("ended", n)',
+    [],
+  ],
+  'global used only by Python code': [
+    'count = 0\ndef bump():\n    global count\n    count, other = count + 1, 0\nbump()\nbump()\nprint(count)',
+    [],
+  ],
+  'variables named like built-ins': [
+    'sum = 0\nfor i in range(4):\n    sum += i\nprint(sum)\nlist = [3, 1]\nlist.sort()\nprint(list, sorted(list, reverse=True))',
+    [],
+  ],
+  'input = sys.stdin.readline': [
+    'import sys\ninput = sys.stdin.readline\nn = int(input())\nprint(n * 2)',
+    ['21'],
+  ],
+  'text over several lines': [
+    'msg = """line one\n    line two"""\nprint(msg)\ndef f():\n    t = """a\n  b"""\n    print(t, len(t))\nf()',
+    [],
+  ],
+  'tabs for indenting': ['x = 0\nwhile x < 2:\n\tx += 1\n\tprint(x, [i for i in range(x)])', []],
+  'from-import used by Python code': [
+    'from math import sqrt\nimport random\nprint([round(sqrt(x)) for x in (4, 9)])',
+    [],
+  ],
+  'looping over a dictionary': [
+    'ages = {"a": 1, "b": 2}\nfor k, v in ages.items():\n    print(k, v)\nprint(ages.get("c", 0), len(ages))\nfor k in ages:\n    print(k, ages[k])',
+    [],
+  ],
+  lambda: ['pts = [(1, "b"), (0, "a")]\nprint(sorted(pts, key=lambda p: p[0]))', []],
+  'renamed local used by Python code': [
+    'total = 1\ndef f():\n    total = 2\n    a, b = total, total + 1\n    return a + b\nprint(f(), total)',
+    [],
+  ],
+  formatting: ['n = 3.14159\nprint(f"{n:.2f}", "{} x".format(2), "%d%%" % 5)', []],
+  'comments inside Python code': [
+    'data = [\n    1,  # one\n    2,  # two\n]\nprint(sum(data))  # total\nclass A:  # klass\n    x = 1  # attr\nprint(A.x)',
+    [],
+  ],
+  'keyword arguments': ['def f(a, b):\n    return a - b\nprint(f(b=1, a=5))', []],
+  decorator: [
+    'def deco(fn):\n    def inner():\n        return fn() * 2\n    return inner\n@deco\ndef three():\n    return 3\nprint(three())',
+    [],
+  ],
+  generator: ['def gen():\n    yield 1\n    yield 2\nprint(list(gen()))', []],
+  'block-made helper used by Python code': [
+    "def ask_number(question):\n    while True:\n        answer = input(str(question)).strip()\n        try:\n            return int(answer)\n        except ValueError:\n            try:\n                return float(answer)\n            except ValueError:\n                print('Please type a number.')\n\nnums = [ask_number('n? ') for _ in range(2)]\nprint(nums)",
+    ['3', '4'],
+  ],
+};
+
+test('every program converts, behaves the same and converts again the same', async (t) => {
+  setBoard('python');
+  const dir = (name) => new URL(`./fixtures/${name}/`, import.meta.url).pathname;
+  for (const kind of ['dsa', 'stdin']) {
+    for (const file of fs
+      .readdirSync(dir(kind))
+      .filter((f) => f.endsWith('.py'))
+      .sort()) {
+      const base = dir(kind) + file.slice(0, -3);
+      const stdin = fs.existsSync(base + '.in') ? fs.readFileSync(base + '.in', 'utf8') : null;
+      const inputs =
+        stdin === null
+          ? []
+          : kind === 'dsa'
+            ? stdin.replace(/\n$/, '').split('\n')
+            : stdin === ''
+              ? [END]
+              : [...stdin.replace(/\n$/, '').split('\n'), END];
+      await t.test(`${kind}/${file}`, () =>
+        sameBehaviour(fs.readFileSync(dir(kind) + file, 'utf8'), inputs),
+      );
+    }
+  }
+  for (const ex of PYTHON_EXAMPLES)
+    await t.test(`example ${ex.id}`, () => sameBehaviour(ex.code, ex.testAnswers ?? []));
+  for (const [name, [code, inputs]] of Object.entries(PROGRAMS))
+    await t.test(name, () => sameBehaviour(code, inputs));
+});
+
+test('board and AI examples convert, and convert again the same', async (t) => {
+  setBoard('python-esp32');
+  try {
+    for (const ex of [...boardExamples('python-esp32'), ...aiExamples('python-esp32')]) {
+      await t.test(ex.id, () => {
+        const r = pythonToBlocks(ex.code, { onBoard: true });
+        assert.equal(pythonToBlocks(r.code, { onBoard: true }).code, r.code);
+        // The Python code blocks still have what they use.
+        if (/\bPin\(/.test(r.code)) assert.match(r.code, /^from machine import .*Pin/m);
+      });
+    }
+  } finally {
+    setBoard('python');
   }
 });

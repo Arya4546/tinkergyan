@@ -49,3 +49,13 @@ export function setBoard(board) {
 export function setAiLabels(labels) {
   useAIStore.setState({ classLabels: labels });
 }
+
+export { boardExamples, aiExamples } from '../../src/lib/python/board-examples';
+export { getToolbox } from '../../src/components/editor/toolbox';
+
+/** Python for one toolbox entry, loaded the way the flyout loads it. */
+export function toolboxEntryToPython(entry) {
+  const state = { ...entry };
+  delete state.kind;
+  return withWorkspace((ws) => Blockly.serialization.blocks.append(state, ws), workspaceToPython);
+}

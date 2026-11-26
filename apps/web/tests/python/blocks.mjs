@@ -17,4 +17,8 @@ export const {
   xmlBlockTypes,
   setBoard,
   setAiLabels,
+  boardExamples,
+  aiExamples,
+  getToolbox,
+  toolboxEntryToPython,
 } = module;

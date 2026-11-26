@@ -11,7 +11,9 @@ browser. `input()` / `sys.stdin` answers come from the test.
   output; `.in` holds stdin, one answer per line.
 - `blocks.test.mjs` — "Convert to blocks": every block goes blocks → Python →
   blocks unchanged, typed programs print the same before and after conversion,
-  and Python with no block is refused with the right line. It loads the real
+  Python with no block stays as "Python code" blocks (noted with its line),
+  only Python that can't run is refused, every example and fixture converts
+  again to identical code, and every toolbox block makes Python. It loads the real
   block generators through Vite (`blocks.mjs`, `blocks-env.mjs`).
 - `fixtures/stdin/` — `input()`, `sys.stdin.*` and `open(0)` parity with CPython.
   The whole `.in` is typed, then input ends (Ctrl+D). An empty `.in` means

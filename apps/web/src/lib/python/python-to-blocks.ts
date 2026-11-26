@@ -1,11 +1,14 @@
 /**
  * python-to-blocks.ts — "Convert to blocks": typed Python back into blocks.
  *
- * Only Python that blocks can say *exactly* is converted. Anything else stops
- * the conversion with the line and a reason, and the code is left as it was:
- * a program that quietly does something different once it is blocks would be
- * worse than one that stays as code. The tests (tests/python/blocks.test.mjs)
- * run each program before and after conversion and compare the output.
+ * Python that blocks can say *exactly* becomes those blocks. Anything else is
+ * kept as it was written, in grey "Python code" blocks (a whole statement, a
+ * value, or a header like `for k, v in d.items()` with real blocks inside), so
+ * every program that runs can become blocks and still does the same thing.
+ * The student is told which lines stayed as Python and why. Only Python that
+ * can't run at all (it doesn't parse) is refused, with its line. The tests
+ * (tests/python/blocks.test.mjs) run each program before and after conversion
+ * and compare the output.
  *
  * It also reads the Python the blocks themselves make (helper functions such
  * as ask_number, `x = None` declarations, imports), so blocks → code → blocks
@@ -15,7 +18,8 @@
  */
 import * as Blockly from 'blockly/core';
 import { pythonLanguage } from '@codemirror/lang-python';
-import { workspaceToPython } from '../../components/editor/python-blocks';
+import { pythonGenerator } from 'blockly/python';
+import { codeLines, workspaceToPython } from '../../components/editor/python-blocks';
 import '../../components/editor/python-board-blocks';
 
 type Tree = ReturnType<typeof pythonLanguage.parser.parse>;
@@ -31,7 +35,12 @@ interface BlockJson {
   icons?: { comment: { text: string; pinned: boolean; height: number; width: number } };
   x?: number;
   y?: number;
+  /** Converter only (removed before loading): leave this block out. */
+  drop?: boolean;
 }
+
+/** Functions kept as Python, and why (shared by every conversion attempt). */
+type RawFns = Map<string, { line: number; message: string }>;
 
 /** A value block and the types it gives (Blockly output check; null = anything). */
 interface Value {
@@ -42,12 +51,50 @@ interface Value {
 export class ConvertError extends Error {
   /** 1-based line in the student's code. */
   line: number;
-  constructor(message: string, line: number) {
+  /** True when the whole program can't be converted (not even as Python code blocks). */
+  fatal: boolean;
+  /** Follows from another part kept as Python (not worth telling twice). */
+  quiet = false;
+  constructor(message: string, line: number, fatal = false) {
     super(message);
     this.name = 'ConvertError';
     this.line = line;
+    this.fatal = fatal;
   }
 }
+
+/** Python's line breaks inside a text, written as \n (a text on one line means the same). */
+function escapeLineBreaks(text: string): string {
+  let out = '';
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i]!;
+    if (ch === '\\') {
+      if (text[i + 1] === '\n')
+        i++; // backslash + line break: the text just goes on
+      else out += ch + (text[++i] ?? '');
+    } else out += ch === '\n' ? '\\n' : ch === '\r' ? '\\r' : ch;
+  }
+  return out;
+}
+
+/** r"""a\b""" over several lines as the same text without the r: """a\\b""" on one line. */
+function unRaw(text: string): string {
+  const m = /^([a-zA-Z]*)('''|"""|'|")([\s\S]*)\2$/.exec(text);
+  if (!m) return text;
+  const body = m[3]!.replace(/\\/g, '\\\\').replace(/\n/g, '\\n').replace(/\r/g, '\\r');
+  return m[1]!.replace(/r/gi, '') + m[2]! + body + m[2]!;
+}
+
+/** Leading tabs as spaces (Python's tab stops are 8 apart). */
+function expandIndent(line: string): string {
+  const lead = /^[ \t]*/.exec(line)![0];
+  let col = 0;
+  for (const ch of lead) col = ch === '\t' ? col + 8 - (col % 8) : col + 1;
+  return ' '.repeat(col) + line.slice(lead.length);
+}
+
+/** A part with no block: it is kept as Python (not a reason to stop). */
+const soft = (err: unknown): err is ConvertError => err instanceof ConvertError && !err.fatal;
 
 export interface ConvertResult {
   /** Blockly XML for the whole workspace. */
@@ -111,6 +158,7 @@ function blockTemplates(): Templates {
     const blocks: BlockJson[] = [
       show({ type: 'py_ask_number' }),
       show({ type: 'text_changeCase', fields: { CASE: 'TITLECASE' }, inputs: { TEXT: v('a') } }),
+      show({ type: 'py_capitalize', inputs: { TEXT: v('a') } }),
       show({
         type: 'lists_indexOf',
         fields: { END: 'FIRST' },
@@ -237,9 +285,6 @@ const NO_BLOCK: Record<string, string> = {
   DictionaryComprehensionExpression: 'dictionary comprehensions',
   SetComprehensionExpression: 'set comprehensions',
   ComprehensionExpression: 'generator expressions',
-  DictionaryExpression: 'dictionaries ({...})',
-  SetExpression: 'sets ({...})',
-  TupleExpression: 'tuples (a, b)',
   ConditionalExpression: '"x if ... else y"',
   YieldExpression: '"yield"',
   AwaitExpression: '"await"',
@@ -282,6 +327,21 @@ class Converter {
   private nameCount = new Map<string, number>();
   readonly notes: string[] = [];
   private dropped = 0;
+  /** Names that only ever hold a dictionary / a list (so `x[i]` is an item of one). */
+  private dictVars = new Set<string>();
+  private knownLists = new Set<string>();
+  /** Line → why it stayed as Python. */
+  private rawReasons = new Map<number, string>();
+  /** Every name the kept Python uses. */
+  private rawRefs = new Set<string>();
+  /** Imports, block-made helpers and tables that were skipped, with the names they make. */
+  private skipped: { node: Node; binds: string[] }[] = [];
+  /** `global` lines, kept only for names no block uses. */
+  private scopes: { block: BlockJson; names: string[] }[] = [];
+  /** Why an import stays as Python. */
+  private importErrors = new Map<number, ConvertError>();
+  /** A function failed to become blocks: convert again with it kept as Python. */
+  retry = false;
 
   constructor(
     private code: string,
@@ -289,6 +349,7 @@ class Converter {
     private t: Templates,
     private checks: Checks,
     private options: ConvertOptions,
+    private rawFns: RawFns,
   ) {
     for (let i = 0; i < code.length; i++) if (code[i] === '\n') this.lineStarts.push(i + 1);
   }
@@ -312,6 +373,162 @@ class Converter {
 
   fail(n: Node | number, message: string): never {
     throw new ConvertError(message, this.lineOf(typeof n === 'number' ? n : n.from));
+  }
+
+  /** Stop the whole conversion: this program can't become blocks at all. */
+  fatal(n: Node | number, message: string): never {
+    throw new ConvertError(message, this.lineOf(typeof n === 'number' ? n : n.from), true);
+  }
+
+  /** What a failed try changed, so it can be undone before trying another way. */
+  snapshot() {
+    const used = this.comments.map((c) => c.used);
+    const { nextComment, dropped } = this;
+    const reasons = new Map(this.rawReasons);
+    const scopes = this.scopes.length;
+    return () => {
+      this.comments.forEach((c, i) => (c.used = used[i]!));
+      Object.assign(this, { nextComment, dropped, rawReasons: reasons });
+      this.scopes.length = scopes;
+    };
+  }
+
+  noteRaw(err: ConvertError) {
+    if (!err.quiet && !this.rawReasons.has(err.line)) this.rawReasons.set(err.line, err.message);
+  }
+
+  quiet(n: Node, message: string): never {
+    const err = new ConvertError(message, this.lineOf(n.from));
+    err.quiet = true;
+    throw err;
+  }
+
+  // ── Python code blocks ────────────────────────────────────────────────────
+
+  /** A "Python code" block holding the code from `from` to `to`, as written. */
+  rawBlock(type: string, from: number, to: number, ctx: Ctx): BlockJson {
+    const lines = this.rawLines(from, to, ctx);
+    const fields: Record<string, string> = {};
+    lines.forEach((line, i) => (fields[`LINE${i}`] = line));
+    const block: BlockJson = { type, fields };
+    if (lines.length > 1) block.extraState = { lines: lines.length };
+    return block;
+  }
+
+  rawValue(n: Node, ctx: Ctx): Value {
+    return { block: this.rawBlock('py_code_value', n.from, n.to, ctx), check: null };
+  }
+
+  /**
+   * The code from `from` to `to` as lines for a "Python code" block: renamed
+   * function variables use their new names, comments in it are kept in it,
+   * and it is moved to the left edge (the blocks indent it again). A line
+   * break inside a text becomes \n, so indenting can't change the text.
+   */
+  rawLines(from: number, to: number, ctx: Ctx): string[] {
+    const edits: { from: number; to: number; text: string }[] = [];
+    const texts: { from: number; to: number; raw: boolean }[] = [];
+    this.tree.iterate({
+      from,
+      to,
+      enter: (c) => {
+        if (c.from < from || c.to > to) return true; // around the range: look inside
+        if (c.name === 'Comment') {
+          for (const k of this.comments) if (k.from === c.from) k.used = true;
+          return false;
+        }
+        if (c.name === 'String' || c.name === 'FormatString') {
+          const text = this.code.slice(c.from, c.to);
+          if (text.includes('\n'))
+            texts.push({ from: c.from, to: c.to, raw: /^[a-zA-Z]*[rR]/.test(text) });
+          if (c.name === 'String') return false;
+        }
+        if (c.name === 'VariableName') {
+          const node = c.node;
+          if (node.parent?.name === 'ArgList' && node.nextSibling?.name === 'AssignOp') return true; // f(name=…)
+          const name = this.code.slice(c.from, c.to);
+          this.rawRefs.add(name);
+          const renamed = ctx.fn?.rename.get(name);
+          if (renamed) {
+            this.rawRefs.add(renamed);
+            edits.push({ from: c.from, to: c.to, text: renamed });
+          }
+        }
+        return true;
+      },
+    });
+    edits.sort((a, b) => a.from - b.from);
+    texts.sort((a, b) => a.from - b.from);
+    const apply = (a: number, b: number) => {
+      let out = '';
+      let pos = a;
+      for (const e of edits)
+        if (e.from >= a && e.to <= b) {
+          out += this.code.slice(pos, e.from) + e.text;
+          pos = e.to;
+        }
+      return out + this.code.slice(pos, b);
+    };
+    const lineStart = this.lineStarts[this.lineOf(from) - 1]!;
+    const base = expandIndent(/^[ \t]*/.exec(this.code.slice(lineStart, from))![0]);
+    let text = '';
+    let pos = from;
+    for (const t of texts) {
+      text += apply(pos, t.from);
+      let part = apply(t.from, t.to);
+      part = t.raw ? unRaw(part) : escapeLineBreaks(part);
+      text += part;
+      pos = t.to;
+    }
+    text += apply(pos, to);
+    const out: string[] = [];
+    text.split('\n').forEach((line, i) => {
+      let l = line;
+      if (i > 0) {
+        l = expandIndent(l);
+        if (l.startsWith(base)) l = l.slice(base.length);
+      }
+      out.push(l.trimEnd());
+    });
+    while (out.length > 1 && out.at(-1) === '') out.pop();
+    return out;
+  }
+
+  /**
+   * A statement with no block of its own. A loop, if, try or with keeps real
+   * blocks inside: only its header lines (`for k, v in d.items()`, `except
+   * ValueError as e`) stay as Python. Anything else is kept whole.
+   */
+  keepAsPython(n: Node, ctx: Ctx, err: ConvertError): BlockJson[] {
+    this.noteRaw(err);
+    if (/^(For|While|If|Try|With)Statement$/.test(n.name) && !this.has(n, 'async')) {
+      const restore = this.snapshot();
+      try {
+        return this.wrap(n, ctx);
+      } catch (e) {
+        if (!soft(e)) throw e;
+        restore();
+      }
+    }
+    return [this.rawBlock('py_code', n.from, n.to, ctx)];
+  }
+
+  wrap(n: Node, ctx: Ctx): BlockJson[] {
+    const blocks: BlockJson[] = [];
+    let start: number | null = null;
+    for (let c = n.firstChild; c; c = c.nextSibling) {
+      if (c.name === 'Comment') continue;
+      start ??= c.from;
+      if (c.name !== 'Body') continue;
+      // Only a loop's own body is in the loop (not its "else").
+      const loop = !blocks.length && /^(For|While)Statement$/.test(n.name);
+      const block = this.rawBlock('py_code_wrap', start, c.from, ctx);
+      const body = this.stack(this.kids(c), loop ? { ...ctx, loops: ctx.loops + 1 } : ctx);
+      if (body) block.inputs = { DO: { block: body } };
+      blocks.push(block);
+      start = null;
+    }
+    return blocks;
   }
 
   /** The child nodes, without brackets, commas and the like. */
@@ -404,11 +621,15 @@ class Converter {
 
   /** Comments written before `pos` (and on its own line): they go on the next block. */
   takeComments(pos: number, line = this.lineOf(pos)): string[] {
-    const out: string[] = [];
+    return this.takeCommentsAt(pos, line).map((c) => c.text);
+  }
+
+  takeCommentsAt(pos: number, line = this.lineOf(pos)): { from: number; text: string }[] {
+    const out: { from: number; text: string }[] = [];
     while (this.nextComment < this.comments.length) {
       const c = this.comments[this.nextComment]!;
       if (c.from > pos && c.line !== line) break;
-      if (!c.used) out.push(c.text);
+      if (!c.used) out.push(c);
       c.used = true;
       this.nextComment++;
     }
@@ -423,7 +644,7 @@ class Converter {
     this.tree.iterate({
       enter: (n) => {
         if (n.type.isError)
-          this.fail(
+          this.fatal(
             n.from,
             "Python can't read this line. Fix it first — ▶ Run shows what's wrong.",
           );
@@ -449,19 +670,34 @@ class Converter {
       if (c.name === 'Comment') continue;
       const src = this.src(c);
       if (c.name === 'ImportStatement') {
-        this.readImport(c);
+        // Imports with blocks are written again by the blocks; others stay as Python.
+        const restore = this.snapshot();
+        try {
+          this.skipped.push({ node: c, binds: this.readImport(c) });
+          continue;
+        } catch (err) {
+          if (!soft(err)) throw err;
+          restore();
+          this.importErrors.set(c.from, err);
+        }
+        declarations = false;
+        statements.push(c);
         continue;
       }
       if (c.name === 'FunctionDefinition') {
         const name = this.src(c.getChild('VariableName')!);
         if (this.t.defs.get(name) === squash(src)) {
           this.helpers.add(name);
+          this.skipped.push({ node: c, binds: [name] });
           continue;
         }
         defs.push(c);
         continue;
       }
-      if (c.name === 'AssignStatement' && this.t.tables.has(squash(src))) continue;
+      if (c.name === 'AssignStatement' && this.t.tables.has(squash(src))) {
+        this.skipped.push({ node: c, binds: [src.split(' ')[0]!] });
+        continue;
+      }
       // Blocks declare every variable first (`x = None`): the blocks do that again.
       if (declarations && c.name === 'AssignStatement' && /^[A-Za-z_]\w* = None$/.test(src)) {
         this.varId(src.split(' ')[0]!);
@@ -483,8 +719,11 @@ class Converter {
 
     const defBlocks: BlockJson[] = [];
     const ordered = [...statements, ...defs].sort((x, y) => x.from - y.from);
-    const main = this.stack(ordered, TOP, defBlocks);
-    const stacks = main ? [main, ...defBlocks] : defBlocks;
+    let main = this.stack(ordered, TOP, defBlocks);
+    main = this.chain(this.neededSkipped(), main ? [main] : []);
+    const tops = main ? [main, ...defBlocks] : defBlocks;
+    this.markUnneededGlobals(tops);
+    const stacks = tops.map((b) => this.prune(b)).filter((b): b is BlockJson => !!b);
     const leftover = this.comments.filter((c) => !c.used).length + this.dropped;
     if (leftover)
       this.notes.push(
@@ -492,6 +731,7 @@ class Converter {
           ? 'A comment at the very end had no block to go on, so it was left out.'
           : `${leftover} comments at the very end had no block to go on, so they were left out.`,
       );
+    this.noteRawLines();
     stacks.forEach((b, i) => Object.assign(b, { x: 20, y: 20 + i * 200 }));
     return {
       blocks: { languageVersion: 0, blocks: stacks },
@@ -499,13 +739,97 @@ class Converter {
     };
   }
 
-  readImport(n: Node) {
+  /**
+   * Skipped imports and block-made helpers that the kept Python uses: the
+   * blocks only write those back when a block needs them, so they are kept
+   * as Python too (at the start, in the order they were written).
+   */
+  neededSkipped(): BlockJson | null {
+    const needed = new Set<Node>();
+    for (let grew = true; grew; ) {
+      grew = false;
+      for (const s of this.skipped)
+        if (!needed.has(s.node) && s.binds.some((b) => this.rawRefs.has(b))) {
+          needed.add(s.node);
+          this.rawBlock('py_code', s.node.from, s.node.to, TOP); // adds the names it uses
+          grew = true;
+        }
+    }
+    // Each once: the blocks may have written the same import at the top already.
+    const kept = this.skipped.filter((s) => needed.has(s.node));
+    const blocks = kept
+      .filter(
+        (s, i) =>
+          !kept.slice(i + 1).some((t) => squash(this.src(t.node)) === squash(this.src(s.node))),
+      )
+      .map((s) => this.rawBlock('py_code', s.node.from, s.node.to, TOP));
+    return this.chain(null, blocks);
+  }
+
+  /**
+   * The blocks write `global` for every variable a block uses, so a `global`
+   * line is only kept when it names a variable that just the Python code uses.
+   */
+  markUnneededGlobals(tops: BlockJson[]) {
+    const used = new Set<string>();
+    const visit = (b: BlockJson) => {
+      const v = b.fields?.['VAR'] as { id?: string } | undefined;
+      if (v?.id) used.add(v.id);
+      const params = (b.extraState as { params?: { id: string }[] } | undefined)?.params;
+      for (const p of params ?? []) used.add(p.id);
+      for (const i of Object.values(b.inputs ?? {})) visit(i.block);
+      if (b.next) visit(b.next.block);
+    };
+    tops.forEach(visit);
+    for (const s of this.scopes)
+      if (s.names.every((name) => used.has(this.varId(name)))) s.block.drop = true;
+  }
+
+  /** `top` without the blocks marked `drop` (their comments move to the next block). */
+  prune(top: BlockJson): BlockJson | null {
+    const prune = (b: BlockJson | undefined): BlockJson | null => {
+      if (!b) return null;
+      if (b.drop) {
+        const next = prune(b.next?.block);
+        if (next && b.icons) this.comment(next, [b.icons.comment.text]);
+        return next;
+      }
+      for (const [name, input] of Object.entries(b.inputs ?? {})) {
+        const kept = prune(input.block);
+        if (kept) input.block = kept;
+        else delete b.inputs![name];
+      }
+      const next = prune(b.next?.block);
+      if (next) b.next = { block: next };
+      else delete b.next;
+      return b;
+    };
+    return prune(top);
+  }
+
+  noteRawLines() {
+    const lines = [...this.rawReasons].sort((a, b) => a[0] - b[0]);
+    for (const why of this.rawFns.values())
+      if (!lines.some(([line]) => line === why.line)) lines.push([why.line, why.message]);
+    if (!lines.length) return;
+    lines.sort((a, b) => a[0] - b[0]);
+    this.notes.push(
+      lines.length === 1
+        ? 'One part has no block yet, so it stays as Python in a grey "Python code" block:'
+        : `${lines.length} parts have no blocks yet, so they stay as Python in grey "Python code" blocks:`,
+    );
+    for (const [line, message] of lines.slice(0, 5)) this.notes.push(`Line ${line}: ${message}`);
+    if (lines.length > 5) this.notes.push(`…and ${lines.length - 5} more.`);
+  }
+
+  /** Reads an import the blocks can write themselves; gives the names it makes. */
+  readImport(n: Node): string[] {
     const src = this.src(n);
     let m: RegExpExecArray | null;
     if ((m = /^import\s+([\w\s,]+)$/.exec(src))) {
-      for (const mod of m[1]!.split(',').map((s) => s.trim()))
-        if (!BLOCK_MODULES.has(mod)) this.noModule(n, mod);
-      return;
+      const mods = m[1]!.split(',').map((s) => s.trim());
+      for (const mod of mods) if (!BLOCK_MODULES.has(mod)) this.noModule(n, mod);
+      return mods;
     }
     if ((m = /^from\s+(\w+)\s+import\s+\(?([\w\s,]+?)\)?$/.exec(src))) {
       const mod = m[1]!;
@@ -516,7 +840,7 @@ class Converter {
       if (mod === 'machine') {
         if (!this.options.onBoard) this.boardOnly(n);
         for (const name of names) if (!MACHINE_NAMES.has(name)) this.noModule(n, `machine.${name}`);
-        return;
+        return names;
       }
       if (!BLOCK_MODULES.has(mod) || mod === 'dht') this.noModule(n, mod);
       for (const name of names) {
@@ -527,7 +851,7 @@ class Converter {
           );
         this.fromImports.set(name, `${mod}.${name}`);
       }
-      return;
+      return names;
     }
     this.fail(n, 'Blocks can only use plain imports like "import time" (no "as").');
   }
@@ -542,17 +866,61 @@ class Converter {
 
   // ── Who uses which names ──────────────────────────────────────────────────
 
-  /** Every VariableName read or written below `n`, and whether it was assigned. */
-  scan(n: Node, names: Set<string>, assigned: Set<string>, calls: Set<string>) {
+  /**
+   * Whether this VariableName is given a value here (Python then keeps it local
+   * to the function it is in): `x = …`, `a, b = …`, `x += …`, `for k, v in …`,
+   * `except E as e`, `with … as f`, `import x`.
+   */
+  isBinding(node: Node): boolean {
+    let child = node;
+    let p = node.parent;
+    while (p && /^(TupleExpression|ParenthesizedExpression|ArrayExpression)$/.test(p.name)) {
+      child = p;
+      p = p.parent;
+    }
+    if (!p) return false;
+    const after = (token: string) => {
+      for (let s = child.nextSibling; s; s = s.nextSibling) if (s.name === token) return true;
+      return false;
+    };
+    switch (p.name) {
+      case 'AssignStatement':
+        return after('AssignOp');
+      case 'UpdateStatement':
+        return p.firstChild?.from === child.from;
+      case 'ForStatement':
+        return after('in') && child.from < (p.getChild('in')?.from ?? 0);
+      case 'TryStatement':
+      case 'WithStatement':
+        return child.prevSibling?.name === 'as';
+      case 'ImportStatement':
+        return (
+          child.prevSibling?.name === 'as' ||
+          (child.nextSibling?.name !== 'as' &&
+            !!p.getChild('import') &&
+            child.from > p.getChild('import')!.from &&
+            child.prevSibling?.name !== '.')
+        );
+    }
+    return false;
+  }
+
+  /**
+   * Every VariableName read or written below `n`, and the ones given a value.
+   * Gives true if `n` holds a function, class, lambda or comprehension (which
+   * have names of their own).
+   */
+  scan(n: Node, names: Set<string>, assigned: Set<string>, calls: Set<string>): boolean {
     const cursor = n.cursor();
     const end = n.to;
+    let scopes = false;
     do {
       if (cursor.from >= end) break;
-      if (cursor.name === 'FunctionDefinition' && cursor.from !== n.from)
-        this.fail(
-          cursor.from,
-          "Blocks can't make a function inside another function. Move it out to the left edge.",
-        );
+      if (
+        (cursor.name === 'FunctionDefinition' && cursor.from !== n.from) ||
+        /^(ClassDefinition|LambdaExpression|\w*ComprehensionExpression)$/.test(cursor.name)
+      )
+        scopes = true;
       if (cursor.name === 'VariableName') {
         const name = this.code.slice(cursor.from, cursor.to);
         names.add(name);
@@ -560,51 +928,52 @@ class Converter {
         const parent = cursor.node.parent!;
         if (parent.name === 'CallExpression' && parent.firstChild?.from === cursor.from)
           calls.add(name);
-        const isTarget =
-          (parent.name === 'AssignStatement' || parent.name === 'UpdateStatement') &&
-          cursor.node.nextSibling?.name.endsWith('Op') === true;
-        const isLoopVar = parent.name === 'ForStatement' && cursor.node.prevSibling?.name === 'for';
-        if (isTarget || isLoopVar) assigned.add(name);
+        if (this.isBinding(cursor.node)) assigned.add(name);
       }
     } while (cursor.next());
+    return scopes;
   }
 
   analyse(statements: Node[], defs: Node[]) {
     const topNames = new Set<string>();
     const topCalls = new Set<string>();
     for (const s of statements) this.scan(s, topNames, this.assigned, topCalls);
+    const keepAsPython = (d: Node, name: string, message: string) => {
+      if (!this.rawFns.has(name)) this.rawFns.set(name, { line: this.lineOf(d.from), message });
+    };
+    // Every function, including the ones kept as Python: who calls whom.
+    const all = new Map<string, FnInfo & { scopes: boolean; assigned: Set<string> }>();
+    const seen = new Set<string>();
     for (const d of defs) {
-      const nameNode = d.getChild('VariableName')!;
-      const name = this.src(nameNode);
-      if (this.fns.has(name))
-        this.fail(d, `There are two functions called "${name}". Give one of them another name.`);
-      if (this.has(d, 'async')) this.fail(d, 'Blocks have no "async" functions.');
-      const paramList = d.getChild('ParamList')!;
-      if (this.kids(paramList).some((k) => k.name !== 'VariableName'))
-        this.fail(
+      const name = this.src(d.getChild('VariableName')!);
+      if (seen.has(name))
+        keepAsPython(
           d,
-          'Blocks can only make functions with plain inputs, like def area(width, height): — no default values, *args or type hints.',
+          name,
+          `There are two functions called "${name}". Blocks need different names.`,
         );
-      const params = this.kids(paramList).map((k) => this.src(k));
+      seen.add(name);
+      const paramList = d.getChild('ParamList')!;
+      const plain = this.kids(paramList).every((k) => k.name === 'VariableName');
+      const params = plain ? this.kids(paramList).map((k) => this.src(k)) : [];
       const names = new Set<string>();
       const assigned = new Set<string>();
       const calls = new Set<string>();
       const body = d.getChild('Body')!;
-      this.scan(body, names, assigned, calls);
+      const scopes = this.scan(body, names, assigned, calls);
       const globals = new Set<string>();
       let returnsValue = false;
+      let nonlocal = false;
       body.cursor().iterate((c) => {
         if (c.name === 'ScopeStatement') {
-          if (this.code.slice(c.from, c.to).startsWith('nonlocal'))
-            this.fail(c.from, 'Blocks have no "nonlocal".');
+          if (this.code.slice(c.from, c.to).startsWith('nonlocal')) nonlocal = true;
           for (const v of c.node.getChildren('VariableName')) globals.add(this.src(v));
         }
         if (c.name === 'ReturnStatement' && this.kids(c.node).length > 1) returnsValue = true;
       });
       for (const p of params) assigned.add(p);
-      for (const a of assigned) this.assigned.add(a);
       const locals = new Set([...assigned].filter((a) => !globals.has(a) && !params.includes(a)));
-      this.fns.set(name, {
+      all.set(name, {
         name,
         node: d,
         params,
@@ -612,58 +981,158 @@ class Converter {
         locals,
         names,
         calls,
+        scopes,
+        assigned,
         rename: new Map(),
       });
+      if (this.has(d, 'async')) keepAsPython(d, name, 'Blocks have no "async" functions.');
+      else if (!plain)
+        keepAsPython(
+          d,
+          name,
+          'Blocks can only make functions with plain inputs, like def area(width, height): — no default values, *args or type hints.',
+        );
+      else if (nonlocal) keepAsPython(d, name, 'Blocks have no "nonlocal".');
+      else if (d.parent?.name === 'DecoratedStatement')
+        keepAsPython(d, name, 'Blocks have no decorators (@...).');
     }
-    for (const f of this.fns.values()) {
-      for (const c of [...f.calls]) if (!this.fns.has(c)) f.calls.delete(c);
-      if (this.vars.has(f.name) || this.assigned.has(f.name))
-        this.fail(
+    for (const [name, f] of all) {
+      if (this.rawFns.has(name)) {
+        // Kept as Python: its names count as used "elsewhere" by the others.
+        for (const x of f.names) topNames.add(x);
+        continue;
+      }
+      if (this.vars.has(name) || this.assigned.has(name))
+        keepAsPython(
           f.node,
-          `"${f.name}" is the name of a function and of a variable. Give one of them another name.`,
+          name,
+          `"${name}" is the name of a function and of a variable. Blocks need different names.`,
         );
     }
     // Blocks have one copy of every variable, shared by the whole program. A
     // function's own (local) variable would then mix with one of the same name
     // elsewhere, so it gets a name of its own. A function that calls itself
-    // would need a fresh copy for every call, which blocks can't do.
-    for (const f of this.fns.values()) {
+    // (even through others) would need a fresh copy for every call, which
+    // blocks can't do: it stays as Python.
+    for (const f of all.values()) {
+      if (this.rawFns.has(f.name)) continue;
       const reach = new Set<string>();
       const walk = (g: string) => {
-        for (const c of this.fns.get(g)!.calls)
-          if (!reach.has(c)) {
+        for (const c of all.get(g)?.calls ?? [])
+          if (all.has(c) && !reach.has(c)) {
             reach.add(c);
             walk(c);
           }
       };
       walk(f.name);
       if (reach.has(f.name) && f.locals.size)
-        this.fail(
+        keepAsPython(
           f.node,
-          `"${f.name}" calls itself and has its own variables (${[...f.locals].join(', ')}). Blocks keep only one copy of each variable, so the calls would mix them up. Keep this one as Python.`,
+          f.name,
+          `"${f.name}" calls itself and has its own variables (${[...f.locals].join(', ')}). Blocks keep only one copy of each variable, so the calls would mix them up.`,
         );
+    }
+    for (const f of all.values()) {
+      if (this.rawFns.has(f.name)) continue;
       for (const local of f.locals) {
         const elsewhere =
           topNames.has(local) ||
-          [...this.fns.values()].some(
-            (g) => g !== f && g.names.has(local) && !g.params.includes(local),
-          );
+          [...all.values()].some((g) => g !== f && g.names.has(local) && !g.params.includes(local));
         if (!elsewhere) continue;
         let renamed = `${f.name}_${local}`;
-        for (let i = 2; this.assigned.has(renamed) || this.fns.has(renamed); i++)
+        for (let i = 2; this.assigned.has(renamed) || all.has(renamed); i++)
           renamed = `${f.name}_${local}${i}`;
-        this.assigned.add(renamed);
         f.rename.set(local, renamed);
+      }
+      // Renaming inside a class, lambda or inner function could change what a
+      // name means there: keep such a function as Python instead.
+      if (f.rename.size && f.scopes) {
+        keepAsPython(
+          f.node,
+          f.name,
+          `"${f.name}" has variables that need new names in blocks, and a part (class, lambda or comprehension) where that isn't safe.`,
+        );
+        continue;
+      }
+      for (const [local, renamed] of f.rename) {
+        this.assigned.add(renamed);
         this.notes.push(
           `In "${f.name}", the variable "${local}" is now "${renamed}", so it doesn't mix with the "${local}" outside it.`,
         );
       }
+      for (const a of f.assigned) this.assigned.add(a);
+      for (const c of [...f.calls]) if (!all.has(c) || this.rawFns.has(c)) f.calls.delete(c);
+      this.fns.set(f.name, f);
     }
     for (const s of statements)
       s.cursor().iterate((c) => {
         if (c.name === 'ReturnStatement')
-          this.fail(c.from, '"return" only works inside a function.');
+          this.fatal(
+            c.from,
+            '"return" only works inside a function. Fix it first — ▶ Run shows what\'s wrong.',
+          );
+        return c.name !== 'FunctionDefinition' && c.name !== 'ClassDefinition';
       });
+    // What each variable holds, from every place it gets a value. `x = None`
+    // (which the blocks write first) says nothing; an input of a function
+    // could be anything.
+    const kinds = new Map<string, Set<string>>();
+    const add = (name: string, kind: string) => {
+      if (!kinds.has(name)) kinds.set(name, new Set());
+      kinds.get(name)!.add(kind);
+    };
+    const kindOf = (v: Node): string | null => {
+      if (v.name === 'None') return null;
+      if (v.name === 'DictionaryExpression' || this.isCall(v, 'dict')) return 'dict';
+      if (
+        /^(ArrayExpression|ArrayComprehensionExpression)$/.test(v.name) ||
+        this.isCall(v, 'list') ||
+        this.isCall(v, 'sorted')
+      )
+        return 'list';
+      if (v.name === 'BinaryExpression') {
+        const k = this.kids(v);
+        if (
+          /^[*+]$/.test(this.src(k[1]!)) &&
+          [k[0]!, k[2]!].some((x) => x.name === 'ArrayExpression')
+        )
+          return 'list';
+      }
+      return 'other';
+    };
+    this.tree.iterate({
+      enter: (c) => {
+        if (c.name === 'ParamList') {
+          for (const p of c.node.getChildren('VariableName')) add(this.src(p), 'other');
+          return false;
+        }
+        if (c.name === 'CallExpression') {
+          // a.append(x): a is a list.
+          const callee = c.node.firstChild;
+          const obj = callee?.firstChild;
+          const method = callee?.getChild('PropertyName');
+          if (
+            callee?.name === 'MemberExpression' &&
+            obj?.name === 'VariableName' &&
+            method &&
+            /^(append|insert|extend|sort|reverse)$/.test(this.src(method))
+          )
+            add(this.src(obj), 'list');
+        }
+        if (c.name !== 'VariableName' || !this.isBinding(c.node)) return true;
+        const parent = c.node.parent!;
+        const parts = this.kids(parent);
+        const simple =
+          parent.name === 'AssignStatement' && parts.length === 3 && parts[0]!.from === c.from;
+        const kind = simple ? kindOf(parts[2]!) : 'other';
+        if (kind) add(this.src(c.node), kind);
+        return true;
+      },
+    });
+    for (const [name, k] of kinds) {
+      if (k.size === 1 && k.has('dict')) this.dictVars.add(name);
+      if (k.size === 1 && k.has('list')) this.knownLists.add(name);
+    }
   }
 
   // ── Statements ────────────────────────────────────────────────────────────
@@ -679,10 +1148,24 @@ class Converter {
     let pending: string[] = [];
     for (const n of nodes) {
       if (n.name === 'FunctionDefinition' && defs) {
-        defs.push(this.procedure(n));
-        continue;
+        const name = this.src(n.getChild('VariableName')!);
+        if (!this.rawFns.has(name)) {
+          const restore = this.snapshot();
+          try {
+            defs.push(this.procedure(n));
+          } catch (err) {
+            if (!soft(err)) throw err;
+            // Calls to it were made into blocks already: convert again, with it as Python.
+            restore();
+            this.rawFns.set(name, { line: err.line, message: err.message });
+            this.retry = true;
+          }
+          continue;
+        }
       }
-      pending.push(...this.takeComments(n.from));
+      const taken = this.takeCommentsAt(n.from);
+      const inside = (c: { from: number }) => c.from >= n.from && c.from < n.to;
+      pending.push(...taken.filter((c) => !inside(c)).map((c) => c.text));
       // A text on its own line (like a docstring) is a comment.
       if (
         n.name === 'ExpressionStatement' &&
@@ -692,7 +1175,20 @@ class Converter {
         if (doc) pending.push(doc);
         continue;
       }
-      const blocks = this.statement(n, ctx);
+      let blocks: BlockJson[];
+      const restore = this.snapshot();
+      try {
+        blocks = this.statement(n, ctx);
+      } catch (err) {
+        if (!soft(err)) throw err;
+        restore();
+        blocks = this.keepAsPython(n, ctx, err);
+      }
+      // A comment at the end of the line, or one inside that no block took (as
+      // in `if x: return 1  # one`), goes on the block — unless the statement
+      // is kept as Python: it is in there.
+      if (blocks[0]?.type !== 'py_code')
+        pending.push(...taken.filter(inside).map((c) => c.text), ...this.takeComments(n.to - 1));
       if (!blocks.length) continue;
       if (pending.length) {
         this.comment(blocks[0]!, pending);
@@ -750,17 +1246,32 @@ class Converter {
             fields: { FLOW: n.name === 'BreakStatement' ? 'BREAK' : 'CONTINUE' },
           },
         ];
-      case 'ScopeStatement':
-        return []; // global: blocks share every variable anyway
+      case 'ScopeStatement': {
+        // Kept for now; dropped later if blocks use all its names (they write `global` themselves).
+        if (this.src(n).startsWith('nonlocal')) this.fail(n, 'Blocks have no "nonlocal".');
+        const block = this.rawBlock('py_code', n.from, n.to, ctx);
+        this.scopes.push({ block, names: n.getChildren('VariableName').map((v) => this.src(v)) });
+        return [block];
+      }
       case 'ReturnStatement':
         return [this.returnStatement(n, ctx)];
-      case 'ImportStatement':
+      case 'ImportStatement': {
+        const why = this.importErrors.get(n.from);
+        if (why) throw why;
         return this.fail(n, 'Put imports at the very top of the program, not inside other code.');
-      case 'FunctionDefinition':
+      }
+      case 'FunctionDefinition': {
+        const why = this.rawFns.get(this.src(n.getChild('VariableName')!));
+        if (why && !ctx.fn) {
+          const err = new ConvertError(why.message, why.line);
+          err.quiet = true; // listed with the functions
+          throw err;
+        }
         return this.fail(
           n,
           "Blocks can't make a function inside other code. Move it out to the left edge.",
         );
+      }
       default:
         return this.fail(
           n,
@@ -788,10 +1299,30 @@ class Converter {
       this.fail(n, 'Blocks set one variable at a time: write a = 1 and b = 1 on separate lines.');
     if (n.getChild('TypeDef'))
       this.fail(n, 'Blocks have no type hints (x: int). Leave out the ": int".');
-    const parts = this.kids(n).filter((k) => k.name !== 'AssignOp');
-    if (parts.length !== 2)
+    const parts = this.kids(n);
+    const op = parts.findIndex((k) => k.name === 'AssignOp');
+    const targets = parts.slice(0, op);
+    const values = parts.slice(op + 1);
+    if (targets.length !== 1 || !values.length)
       this.fail(n, 'Blocks set one variable at a time: write a = 1 and b = 2 on separate lines.');
-    const [target, valueNode] = parts as [Node, Node];
+    const target = targets[0]!;
+    // `x = 1, 2` saves a tuple.
+    if (values.length > 1) {
+      if (target.name !== 'VariableName')
+        this.fail(n, 'Blocks can only save a tuple in a variable.');
+      const id = this.varId(this.varName(this.src(target), ctx));
+      return this.block('variables_set', n, { VAR: { id } }, { VALUE: this.tuple(values, n, ctx) });
+    }
+    const valueNode = values[0]!;
+    if (target.name === 'MemberExpression' && this.isDictItem(target)) {
+      const [obj, key] = this.kids(target) as [Node, Node];
+      return this.block(
+        'py_dict_set',
+        n,
+        {},
+        { DICT: this.expr(obj, ctx), KEY: this.expr(key, ctx), VALUE: this.expr(valueNode, ctx) },
+      );
+    }
     if (target.name === 'MemberExpression') {
       const { list, where } = this.subscript(target, ctx);
       const v = this.expr(valueNode, ctx);
@@ -831,6 +1362,31 @@ class Converter {
 
   update(n: Node, ctx: Ctx): BlockJson {
     const [target, op, valueNode] = [n.firstChild!, n.getChild('UpdateOp')!, this.kids(n).at(-1)!];
+    if (target.name === 'MemberExpression' && this.isDictItem(target)) {
+      // d["k"] += 1 → in d set "k" to (in d get "k") + 1. The key is worked out
+      // twice, so only a plain key is allowed.
+      const [obj, key] = this.kids(target) as [Node, Node];
+      if (obj.name !== 'VariableName' || !/^(VariableName|String|Number)$/.test(key.name))
+        this.fail(
+          n,
+          'Blocks can only change a dictionary item with a plain key, like d["a"] += 1.',
+        );
+      const current = this.value(
+        this.block(
+          'py_dict_get',
+          target,
+          {},
+          { DICT: this.expr(obj, ctx), KEY: this.expr(key, ctx) },
+        ),
+      );
+      const sum = this.binary(this.src(op).slice(0, -1), current, this.expr(valueNode, ctx), n);
+      return this.block(
+        'py_dict_set',
+        n,
+        {},
+        { DICT: this.expr(obj, ctx), KEY: this.expr(key, ctx), VALUE: sum },
+      );
+    }
     if (target.name !== 'VariableName')
       this.fail(n, 'Blocks can only do +=, -= and so on with a variable.');
     const name = this.src(target);
@@ -890,14 +1446,15 @@ class Converter {
   }
 
   ifReturn(cond: Node, ret: Node, ctx: Ctx): BlockJson {
-    const valueNode = this.kids(ret).filter((k) => k.name !== 'return')[0];
+    const values = this.kids(ret).filter((k) => k.name !== 'return');
+    const valueNode = values[0];
     if (!!valueNode !== ctx.fn!.returnsValue)
       this.fail(
         ret,
         `"${ctx.fn!.name}" must either always give back a value or never. Blocks can't mix "return" and "return something".`,
       );
     const inputs: Record<string, Value> = { CONDITION: this.expr(cond, ctx, true) };
-    if (valueNode) inputs['VALUE'] = this.expr(valueNode, ctx);
+    if (valueNode) inputs['VALUE'] = this.valueOf(values, ret, ctx);
     return this.block(
       'procedures_ifreturn',
       ret,
@@ -1025,6 +1582,14 @@ class Converter {
   // ── Functions ─────────────────────────────────────────────────────────────
 
   procedure(d: Node): BlockJson {
+    const block = this.procedureBlock(d);
+    // Comments no block took (like one after the last `return`) go on the function.
+    const rest = this.takeComments(d.to - 1);
+    if (rest.length) this.comment(block, rest);
+    return block;
+  }
+
+  procedureBlock(d: Node): BlockJson {
     const f = this.fns.get(this.src(d.getChild('VariableName')!))!;
     const ctx: Ctx = { fn: f, loops: 0 };
     const comments = this.takeComments(d.from);
@@ -1041,10 +1606,10 @@ class Converter {
     let returnValue: Value | null = null;
     const last = statements.at(-1);
     if (last?.name === 'ReturnStatement') {
-      const v = this.kids(last).filter((k) => k.name !== 'return')[0];
-      if (v) returnValue = this.expr(v, ctx);
+      const values = this.kids(last).filter((k) => k.name !== 'return');
+      if (values.length) returnValue = this.valueOf(values, last, ctx);
       statements = statements.slice(0, -1);
-      if (!v && f.returnsValue)
+      if (!values.length && f.returnsValue)
         this.fail(
           last,
           `"${f.name}" must either always give back a value or never. Blocks can't mix "return" and "return something".`,
@@ -1059,8 +1624,9 @@ class Converter {
         const conds = this.kids(last).filter((k) => !/^(if|elif|else|Body)$/.test(k.name));
         const body = this.stack(statements, ctx);
         const ifs = conds.map((c, i) => this.ifReturn(c, branches[i]![0]!, ctx));
-        const elseRet = this.kids(branches.at(-1)![0]!).filter((k) => k.name !== 'return')[0];
-        returnValue = elseRet ? this.expr(elseRet, ctx) : null;
+        const elseRet = branches.at(-1)![0]!;
+        const values = this.kids(elseRet).filter((k) => k.name !== 'return');
+        returnValue = values.length ? this.valueOf(values, elseRet, ctx) : null;
         return this.procBlock(f, d, comments, this.chain(body, ifs), returnValue);
       }
     }
@@ -1106,11 +1672,13 @@ class Converter {
 
   // ── Expressions ───────────────────────────────────────────────────────────
 
+  /** A call of `name` (not when the program uses `name` for its own variable). */
   isCall(n: Node, name: string): boolean {
     return (
       n.name === 'CallExpression' &&
       n.firstChild?.name === 'VariableName' &&
-      this.src(n.firstChild) === name
+      this.src(n.firstChild) === name &&
+      !this.assigned.has(name)
     );
   }
 
@@ -1139,7 +1707,50 @@ class Converter {
     return null;
   }
 
+  /** `a` is a value; `a, b` (from `return a, b`) is a tuple. */
+  valueOf(nodes: Node[], at: Node, ctx: Ctx): Value {
+    return nodes.length === 1 ? this.expr(nodes[0]!, ctx) : this.tuple(nodes, at, ctx);
+  }
+
+  /** "create list with" the items (or "create empty list"). */
+  listOf(items: Node[], at: Node, ctx: Ctx): Value {
+    if (!items.length) return this.value({ type: 'lists_create_empty' });
+    const inputs: Record<string, Value> = {};
+    items.forEach((item, i) => (inputs[`ADD${i}`] = this.expr(item, ctx)));
+    return this.value(this.block('lists_create_with', at, {}, inputs, { itemCount: items.length }));
+  }
+
+  tuple(items: Node[], at: Node, ctx: Ctx): Value {
+    if (items.some((i) => i.name === '*')) this.fail(at, 'Blocks have no *list inside a tuple.');
+    return this.value(this.block('py_tuple', at, {}, { ITEMS: this.listOf(items, at, ctx) }));
+  }
+
+  /** d["key"]: an item of a dictionary (not a list). */
+  isDictItem(n: Node): boolean {
+    const parts = this.kids(n);
+    if (!this.has(n, '[') || this.has(n, ':') || parts.length !== 2) return false;
+    const [obj, key] = parts as [Node, Node];
+    return (
+      obj.name === 'DictionaryExpression' ||
+      (obj.name === 'VariableName' && this.dictVars.has(this.src(obj))) ||
+      /^(String|FormatString|ContinuedString|TupleExpression)$/.test(key.name)
+    );
+  }
+
+  /** A value as blocks; a part with no block is kept as Python (a "Python code" value). */
   expr(n: Node, ctx: Ctx, truthy = false): Value {
+    const restore = this.snapshot();
+    try {
+      return this.exprInner(n, ctx, truthy);
+    } catch (err) {
+      if (!soft(err)) throw err;
+      restore();
+      this.noteRaw(err);
+      return this.rawValue(n, ctx);
+    }
+  }
+
+  exprInner(n: Node, ctx: Ctx, truthy: boolean): Value {
     switch (n.name) {
       case 'ParenthesizedExpression': {
         const inner = this.kids(n);
@@ -1179,6 +1790,17 @@ class Converter {
         return this.call(n, ctx, false) as Value;
       case 'MemberExpression': {
         if (!this.has(n, '[')) this.fail(n, `There's no block for "${this.src(n)}".`);
+        if (this.isDictItem(n)) {
+          const [obj, key] = this.kids(n) as [Node, Node];
+          return this.value(
+            this.block(
+              'py_dict_get',
+              n,
+              {},
+              { DICT: this.expr(obj, ctx), KEY: this.expr(key, ctx) },
+            ),
+          );
+        }
         const { list, where } = this.subscript(n, ctx);
         return this.value(
           this.block(
@@ -1188,6 +1810,23 @@ class Converter {
             { VALUE: list, ...(where.at ? { AT: where.at } : {}) },
           ),
         );
+      }
+      case 'TupleExpression':
+        return this.tuple(this.kids(n), n, ctx);
+      case 'SetExpression':
+        if (this.has(n, '*')) this.fail(n, 'Blocks have no *list inside a set.');
+        return this.value(
+          this.block('py_set', n, {}, { ITEMS: this.listOf(this.kids(n), n, ctx) }),
+        );
+      case 'DictionaryExpression': {
+        if (this.has(n, '**')) this.fail(n, 'Blocks have no **dictionary inside a dictionary.');
+        const parts = this.kids(n);
+        const inputs: Record<string, Value> = {};
+        for (let i = 0; i + 1 < parts.length; i += 2) {
+          inputs[`KEY${i / 2}`] = this.expr(parts[i]!, ctx);
+          inputs[`VALUE${i / 2}`] = this.expr(parts[i + 1]!, ctx);
+        }
+        return this.value(this.block('py_dict', n, {}, inputs, { itemCount: parts.length >> 1 }));
       }
       case 'ArrayExpression': {
         const items = this.kids(n);
@@ -1447,7 +2086,9 @@ class Converter {
       this.fail(n, 'There are no blocks for slices like a[1:3].');
     const [obj, index] = parts as [Node, Node];
     const list = this.expr(obj, ctx);
-    if (obj.name === 'VariableName') this.listVars.add(this.src(obj));
+    const known =
+      !!list.check?.includes('Array') ||
+      (obj.name === 'VariableName' && this.knownLists.has(this.src(obj)));
     const k = this.intLiteral(index);
     if (k === 0) return { list, where: { where: 'FIRST' } };
     if (k === -1) return { list, where: { where: 'LAST' } };
@@ -1463,6 +2104,13 @@ class Converter {
       if (ik.length === 3 && this.src(ik[1]!) === '-' && this.intLiteral(ik[2]!) === 1)
         return { list, where: { where: 'FROM_START', at: this.expr(ik[0]!, ctx) } };
     }
+    // Otherwise the blocks would write a[int(i + 1 - 1)], which is only the
+    // same as a[i] when `a` is a list (not a dictionary with number keys).
+    if (!known)
+      this.fail(
+        n,
+        `Blocks can only pick an item by a worked-out position from a list, and "${this.src(obj)}" might not be one.`,
+      );
     if (index.name === 'BinaryExpression') {
       const ik = this.kids(index);
       if (ik.length === 3 && this.src(ik[1]!) === '-' && this.intLiteral(ik[2]!) === 1)
@@ -1599,6 +2247,9 @@ class Converter {
             this.block('lists_getIndex', n, { MODE: 'GET_REMOVE', WHERE: where.where }, inputs),
           );
         }
+        case 'capitalize':
+          count(0);
+          return value(this.block('py_capitalize', n, {}, { TEXT: this.expr(obj, ctx) }));
         case 'upper':
         case 'lower': {
           count(0);
@@ -1618,6 +2269,7 @@ class Converter {
     }
     if (callee.name !== 'VariableName') this.fail(n, `There's no block for "${this.src(n)}".`);
     const name = this.src(callee);
+    if (this.rawFns.has(name)) this.quiet(n, `"${name}" stays as Python, so calls to it do too.`);
 
     // The student's own functions come first (they may reuse a helper's name).
     const fn = this.fns.get(name);
@@ -1647,6 +2299,8 @@ class Converter {
     }
     const imported = this.fromImports.get(name);
     if (imported) return this.moduleCall(n, imported, args, ctx, statement);
+    if (this.assigned.has(name))
+      this.fail(n, `"${name}" is a variable in this program, so there's no block for calling it.`);
 
     switch (name) {
       case 'print': {
@@ -1697,6 +2351,25 @@ class Converter {
       case 'ask_number':
         count(1);
         return value(this.block('py_ask_number', n, {}, { QUESTION: e(0) }));
+      case 'type':
+        count(1);
+        return value(this.block('py_type', n, {}, { VALUE: e(0) }));
+      case 'tuple':
+      case 'set': {
+        if (args.length > 1) count(1);
+        // set([3, 1]) and {3, 1} can print their items in a different order.
+        if (name === 'set' && args[0] && /^(Array|Tuple)Expression$/.test(args[0].name))
+          this.fail(
+            n,
+            'The set block writes {…}, which can show the items in another order than set([…]).',
+          );
+        const items = args.length ? e(0) : this.listOf([], n, ctx);
+        return value(this.block(name === 'tuple' ? 'py_tuple' : 'py_set', n, {}, { ITEMS: items }));
+      }
+      case 'dict':
+        if (args.length)
+          this.fail(n, 'Blocks can only make an empty dict() — or write {"key": value}.');
+        return value(this.block('py_dict', n, {}, {}, { itemCount: 0 }));
       case 'str':
         if (!args.length) return value(this.text('').block);
         count(1);
@@ -1821,6 +2494,9 @@ class Converter {
             { NUM: e(0) },
           ),
         );
+      case 'math.factorial':
+        need(1);
+        return value(this.block('py_factorial', n, {}, { NUM: e(0) }));
       case 'math.pow':
         need(2);
         if (this.intLiteral(args[0]!) === 10)
@@ -1895,6 +2571,10 @@ class Converter {
     };
     if (BOARD_HELPERS.has(name) && !this.options.onBoard) this.boardOnly(n);
     switch (name) {
+      case 'capitalize':
+        if (!this.helpers.has(name)) return null;
+        need(1);
+        return value(this.block('py_capitalize', n, {}, { TEXT: e(0) }));
       case 'title_case':
         need(1);
         return value(this.block('text_changeCase', n, { CASE: 'TITLECASE' }, { TEXT: e(0) }));
@@ -2012,22 +2692,82 @@ class Converter {
 }
 
 /**
- * Turn Python into blocks. Throws ConvertError (with the line) when some of it
- * has no block; nothing is changed then.
+ * The blocks write some names differently (a variable called `sum` becomes
+ * `sum2`). Python code blocks must then say the new name too — everywhere,
+ * calls included: a program that saves something in `input` means that.
+ */
+function matchBlocklyNames(ws: Blockly.Workspace) {
+  const vars = new Map<string, string>();
+  const procs = new Map<string, string>();
+  pythonGenerator.init(ws);
+  try {
+    for (const v of ws.getAllVariables()) {
+      const name = pythonGenerator.getVariableName(v.getId());
+      if (name !== v.name) vars.set(v.name, name);
+    }
+    for (const b of ws.getAllBlocks(false))
+      if (b.type.startsWith('procedures_def')) {
+        const own = b.getFieldValue('NAME') as string;
+        const name = pythonGenerator.getProcedureName(own);
+        if (name !== own) procs.set(own, name);
+      }
+  } finally {
+    pythonGenerator.finish('');
+  }
+  if (!vars.size && !procs.size) return;
+  for (const b of ws.getAllBlocks(false)) {
+    if (!/^py_code(_value|_wrap)?$/.test(b.type)) continue;
+    const text = codeLines(b).join('\n');
+    // A header (`for x in y`) is only Python with a body after it.
+    const parsed = b.type === 'py_code_wrap' ? `${text}:\n pass` : text;
+    const tree = pythonLanguage.parser.parse(parsed);
+    const edits: { from: number; to: number; text: string }[] = [];
+    tree.iterate({
+      enter: (c) => {
+        if (c.name !== 'VariableName' || c.to > text.length) return;
+        const node = c.node;
+        if (node.parent?.name === 'ArgList' && node.nextSibling?.name === 'AssignOp') return;
+        const own = text.slice(c.from, c.to);
+        const renamed = procs.get(own) ?? vars.get(own);
+        if (renamed) edits.push({ from: c.from, to: c.to, text: renamed });
+      },
+    });
+    if (!edits.length) continue;
+    let out = text;
+    for (const e of edits.sort((a, b) => b.from - a.from))
+      out = out.slice(0, e.from) + e.text + out.slice(e.to);
+    out.split('\n').forEach((line, i) => b.setFieldValue(line, `LINE${i}`));
+  }
+}
+
+/**
+ * Turn Python into blocks. Parts with no block become "Python code" blocks.
+ * Throws ConvertError (with the line) only when the program can't be read at
+ * all; nothing is changed then.
  */
 export function pythonToBlocks(code: string, options: ConvertOptions): ConvertResult {
   const tree = pythonLanguage.parser.parse(code);
   const checks = new Checks();
   const ws = new Blockly.Workspace();
   try {
-    const converter = new Converter(code, tree, blockTemplates(), checks, options);
-    const state = converter.run();
+    const templates = blockTemplates();
+    const rawFns: RawFns = new Map();
+    let converter: Converter;
+    let state: object;
+    // A function that can't become blocks is kept as Python; calls to it must
+    // then be Python too, so convert again (each round keeps more functions).
+    for (;;) {
+      converter = new Converter(code, tree, templates, checks, options, rawFns);
+      state = converter.run();
+      if (!converter.retry) break;
+    }
     try {
       Blockly.serialization.workspaces.load(state, ws);
     } catch (err) {
       console.error('[python-to-blocks] could not load', err, state);
-      throw new ConvertError("Something in this program couldn't be made into blocks.", 1);
+      throw new ConvertError("Something in this program couldn't be made into blocks.", 1, true);
     }
+    matchBlocklyNames(ws);
     const xml = Blockly.Xml.domToText(Blockly.Xml.workspaceToDom(ws));
     return { xml, code: workspaceToPython(ws), notes: converter.notes };
   } finally {

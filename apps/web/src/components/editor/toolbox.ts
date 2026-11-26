@@ -612,12 +612,19 @@ function getPythonCategories(
         ...(shared('🔁 Loops').contents as unknown[]).slice(3),
       ],
     },
-    shared('🔢 Math'),
+    {
+      ...shared('🔢 Math'),
+      contents: [
+        ...(shared('🔢 Math').contents as unknown[]),
+        { kind: 'block', type: 'py_factorial', inputs: { NUM: num(5) } },
+      ],
+    },
     {
       ...textCategory,
       contents: [
         ...(textCategory.contents as unknown[]),
         { kind: 'block', type: 'text_changeCase', inputs: { TEXT: text('hello') } },
+        { kind: 'block', type: 'py_capitalize', inputs: { TEXT: text('hELLO') } },
       ],
     },
     {
@@ -633,6 +640,47 @@ function getPythonCategories(
         { kind: 'block', type: 'lists_setIndex' },
         { kind: 'block', type: 'lists_indexOf' },
         { kind: 'block', type: 'lists_sort' },
+      ],
+    },
+    {
+      kind: 'category',
+      name: '🗂 Data',
+      categorystyle: 'python_data_category',
+      contents: [
+        { kind: 'block', type: 'py_type', inputs: { VALUE: num(42) } },
+        {
+          kind: 'block',
+          type: 'py_dict',
+          inputs: { KEY0: text('name'), VALUE0: text('Asha'), KEY1: text('age'), VALUE1: num(12) },
+        },
+        { kind: 'block', type: 'py_dict_get', inputs: { KEY: text('name') } },
+        { kind: 'block', type: 'py_dict_set', inputs: { KEY: text('age'), VALUE: num(13) } },
+        {
+          kind: 'block',
+          type: 'py_tuple',
+          inputs: {
+            ITEMS: {
+              block: {
+                type: 'lists_create_with',
+                extraState: { itemCount: 2 },
+                inputs: { ADD0: num(3), ADD1: num(4) },
+              },
+            },
+          },
+        },
+        {
+          kind: 'block',
+          type: 'py_set',
+          inputs: {
+            ITEMS: {
+              block: {
+                type: 'lists_create_with',
+                extraState: { itemCount: 3 },
+                inputs: { ADD0: text('red'), ADD1: text('red'), ADD2: text('blue') },
+              },
+            },
+          },
+        },
       ],
     },
     {
@@ -694,5 +742,15 @@ function getPythonCategories(
     },
     shared('📦 Variables'),
     shared('🛠 My Blocks'),
+    {
+      kind: 'category',
+      name: '🐍 Python code',
+      categorystyle: 'python_code_category',
+      contents: [
+        { kind: 'block', type: 'py_code', fields: { LINE0: 'print("Hi from Python!")' } },
+        { kind: 'block', type: 'py_code_value', fields: { LINE0: 'len("hello")' } },
+        { kind: 'block', type: 'py_code_wrap', fields: { LINE0: 'for letter in "abc"' } },
+      ],
+    },
   ];
 }
