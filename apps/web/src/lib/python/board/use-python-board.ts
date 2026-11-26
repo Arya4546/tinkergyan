@@ -83,6 +83,21 @@ async function knownPorts(): Promise<HardwarePort[]> {
   }
 }
 
+/** What to tell a student when the board stopped answering while installing. */
+function cantTalkHint(raw: string): string {
+  if (
+    /Failed to connect|Timeout|Invalid head of packet|Unable to verify flash|noise|corruption/i.test(
+      raw,
+    )
+  )
+    return (
+      "Couldn't talk to your board to install MicroPython. Hold down the BOOT button on the " +
+      'board, press Install MicroPython, and let go when the bar starts moving. If it still ' +
+      'fails, try a different USB cable (some only charge) or another USB port.'
+    );
+  return raw;
+}
+
 export function usePythonBoard(target: PythonBoardTarget | null): PythonBoardState {
   const supported = isHardwareSupported();
   const [status, setStatus] = useState<BoardStatus>(supported ? 'disconnected' : 'unsupported');
@@ -245,11 +260,21 @@ export function usePythonBoard(target: PythonBoardTarget | null): PythonBoardSta
         await flashOnce(460800);
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
-        // A cable or adapter that can't keep up with the fast speed: try the
-        // slow one once. Anything the student must fix is reported at once.
-        if (!installed || /busy|ESP8266|Python projects work with|download/i.test(msg)) throw err;
+        // A cable or USB adapter (CH340, CP2102…) that can't keep up with the
+        // fast speed fails right after switching to it, before the chip's
+        // firmware is even picked ("Invalid head of packet", "Unable to verify
+        // flash chip connection"). Try once at the board's own speed, which
+        // never switches. Anything the student must fix is reported at once.
+        if (/busy|ESP8266|Python projects work with|download/i.test(msg)) throw err;
+        installed = null;
         setInstall({ percent: 2, message: 'Trying again more slowly…' });
-        await flashOnce(115200);
+        try {
+          await flashOnce(115200);
+        } catch (err2) {
+          const msg2 = err2 instanceof Error ? err2.message : String(err2);
+          if (/busy|ESP8266|Python projects work with|download/i.test(msg2)) throw err2;
+          throw new Error(cantTalkHint(msg2));
+        }
       }
 
       // The board restarts into MicroPython. Boards whose USB is built into
