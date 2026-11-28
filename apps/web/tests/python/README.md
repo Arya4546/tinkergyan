@@ -7,6 +7,10 @@ They run student programs on the same MicroPython build, PRELUDE and compat
 modules the browser uses (`harness.mjs` reads them from the source), without a
 browser. `input()` / `sys.stdin` answers come from the test.
 
+- `fixtures/compat/` — Python the engine can't run by itself, made to work:
+  `re` (on the browser's regex engine, `js-regex.ts`), `s[::-1]` and
+  `a[::2] = …` (`rewrite.ts`), `dataclasses`, `RecursionError`. Each
+  `.expected` is CPython's output.
 - `fixtures/dsa/` — interview-style programs. Each `.expected` is CPython 3.12's
   output; `.in` holds stdin, one answer per line.
 - `blocks.test.mjs` — "Convert to blocks": every block goes blocks → Python →

@@ -19,6 +19,7 @@ import type { MicroPythonInstance } from '@micropython/micropython-webassembly-p
 import { END_OF_INPUT, type FromWorker, type PythonErrorInfo, type ToWorker } from './protocol';
 import { COMPAT_FILES, COMPAT_MODULES } from './compat';
 import { lockDown } from './isolation';
+import { reCompile, reExec } from './js-regex';
 
 type EngineModule = typeof EngineNs;
 
@@ -287,6 +288,55 @@ def _tg_setup():
 
     builtins.open = _tg_open
 
+    # MicroPython says RuntimeError for "maximum recursion depth exceeded";
+    # Python's name for it is RecursionError (a RuntimeError there too).
+    if not hasattr(builtins, 'RecursionError'):
+        builtins.RecursionError = RuntimeError
+
+    def _tg_slice(seq, start, stop, step):
+        # seq[start:stop:step] where MicroPython only slices lists with a step
+        # (rewrite.ts turns s[::-1] into this): text, tuples and bytes too.
+        try:
+            return seq[start:stop:step]
+        except NotImplementedError:
+            part = list(seq)[start:stop:step]
+            if isinstance(seq, str):
+                return ''.join(part)
+            if isinstance(seq, tuple):
+                return tuple(part)
+            if isinstance(seq, (bytes, bytearray)):
+                return type(seq)(part)
+            raise
+
+    builtins._tg_slice = _tg_slice
+
+    def _tg_setslice(seq, start, stop, step, value):
+        # seq[start:stop:step] = value (MicroPython: only without a step).
+        try:
+            seq[start:stop:step] = value
+            return
+        except NotImplementedError:
+            pass
+        where = list(range(len(seq)))[start:stop:step]
+        value = list(value)
+        if len(value) != len(where):
+            raise ValueError('attempt to assign sequence of size %d to extended slice of size %d' % (len(value), len(where)))
+        for i, v in zip(where, value):
+            seq[i] = v
+
+    def _tg_delslice(seq, start, stop, step):
+        try:
+            del seq[start:stop:step]
+            return
+        except NotImplementedError:
+            pass
+        # Highest index first, so the others don't move.
+        for i in sorted(list(range(len(seq)))[start:stop:step], reverse=True):
+            del seq[i]
+
+    builtins._tg_setslice = _tg_setslice
+    builtins._tg_delslice = _tg_delslice
+
 _tg_setup()
 del _tg_setup
 `;
@@ -413,6 +463,8 @@ ctx.onmessage = async (event: MessageEvent<ToWorker>) => {
     read_rest: readRest,
     ai_state: aiState,
     ai_camera: aiCamera,
+    re_compile: reCompile,
+    re_exec: reExec,
   });
   try {
     mp.runPython(PRELUDE);

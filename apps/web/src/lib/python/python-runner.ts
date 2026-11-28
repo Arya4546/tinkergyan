@@ -9,6 +9,7 @@
  * once. Each worker runs a single program and is then thrown away.
  */
 import type { FromWorker, PythonErrorInfo } from './protocol';
+import { rewriteForEngine } from './rewrite';
 
 export type RunResult =
   | { status: 'ok' }
@@ -246,7 +247,13 @@ export function runPython(code: string, handlers: RunHandlers): RunHandle {
         },
       });
     };
-    w.worker.postMessage({ type: 'run', code, syncAvailable, aiKey: AI_KEY });
+    // s[::-1], @dataclass…: see rewrite.ts. Same lines, so errors still match.
+    w.worker.postMessage({
+      type: 'run',
+      code: rewriteForEngine(code),
+      syncAvailable,
+      aiKey: AI_KEY,
+    });
   })();
 
   return {

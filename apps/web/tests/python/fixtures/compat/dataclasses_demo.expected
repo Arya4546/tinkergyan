@@ -1,0 +1,9 @@
+Point(x=1, y=0) Point(x=2, y=3) Point(x=4, y=5) True False
+[('x', 1), ('y', 2)] (1, 2) Point(x=1, y=9) ['x', 'y']
+Student(grade=90, name='Asha', tags=['top']) Student(grade=85, name='Bo', tags=[]) True Bo True
+frozen: FrozenInstanceError
+Card(rank='A', suit='spades') True 1
+10.0 pen x4 Item(name='pen', price=2.5, qty=4)
+TypeError
+Point3(x=1, y=2, z=3)
+True

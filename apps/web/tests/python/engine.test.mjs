@@ -7,6 +7,7 @@ import { run, END } from './harness.mjs';
 import { friendlyError, unclosedBrackets } from '../../src/lib/python/friendly-errors.ts';
 import { PYTHON_EXAMPLES, STARTER_CODE } from '../../src/lib/python/examples.ts';
 import { lockDown, BLOCKED_GLOBALS } from '../../src/lib/python/isolation.ts';
+import { rewriteForEngine } from '../../src/lib/python/rewrite.ts';
 
 const fixtures = (name) => new URL(`./fixtures/${name}/`, import.meta.url).pathname;
 const programs = (dir) =>
@@ -16,6 +17,39 @@ const programs = (dir) =>
     .sort()
     .map((f) => f.slice(0, -3));
 const failure = (r) => `${r.error.name}: ${r.error.message} (line ${r.error.line})`;
+
+// Python the browser engine can't run by itself: re (on the browser's regex
+// engine), s[::-1] and a[::2] = … (rewrite.ts), dataclasses, RecursionError.
+test('Python made to work in the browser prints the same as CPython', async (t) => {
+  const dir = fixtures('compat');
+  for (const name of programs(dir)) {
+    await t.test(name, async () => {
+      const r = await run(fs.readFileSync(dir + name + '.py', 'utf8'), [], { echo: false });
+      assert.ok(r.ok, r.ok ? '' : failure(r));
+      assert.equal(r.out, fs.readFileSync(dir + name + '.expected', 'utf8'));
+    });
+  }
+});
+
+test('rewrite.ts leaves other code alone and keeps line numbers', async () => {
+  for (const code of [
+    'print("a::b")',
+    'x = {"a": 1, "b": 2}\nprint(x[1:2])',
+    'def f(:\n  pass',
+    'print(s[1:2:])',
+    'a = [1]\nb = """x::y"""',
+  ]) {
+    assert.equal(rewriteForEngine(code), code);
+  }
+  assert.equal(
+    rewriteForEngine('a[::2] = b[::-1]\ndel c[1::2]'),
+    '_tg_setslice(a, None, None, 2, _tg_slice(b, None, None, -1))\n_tg_delslice(c, 1, None, 2)',
+  );
+  const r = await run('s = "abc"\nx = s[::-1]\nprint(missing)');
+  assert.equal(r.error.line, 3);
+  const r2 = await run('a = [1]\na[::2] = [1, 2]');
+  assert.equal(`${r2.error.name} ${r2.error.line}`, 'ValueError 2');
+});
 
 test('DSA programs print the same as CPython', async (t) => {
   const dir = fixtures('dsa');
@@ -138,7 +172,16 @@ test('errors point at the right line with a helpful message', async (t) => {
       1,
       /More values than variables/,
     ],
-    ['str[::-1]', 's = "hello"\nprint(s[::-1])', [], 'NotImplementedError', 2, /reversed\(text\)/],
+    // s[::-1] works in the browser now (rewrite.ts); the hint is still what
+    // a board shows, so this one runs without the rewrite, as a board does.
+    [
+      'str[::-1] on a board',
+      's = "hello"\nprint(s[::-1])',
+      [],
+      'NotImplementedError',
+      2,
+      /reversed\(text\)/,
+    ],
     ['str.zfill', 'print("7".zfill(3))', [], 'AttributeError', 1, /f"\{n:05\}"/],
     ['missing file (browser)', 'open("data.txt").read()', [], 'OSError', 1, /doesn't exist/],
     [
@@ -287,7 +330,8 @@ test('errors point at the right line with a helpful message', async (t) => {
   ];
   for (const [name, code, inputs, wantName, wantLine, wantText] of cases) {
     await t.test(name, async () => {
-      const r = await run(code, inputs, { echo: false });
+      const rewrite = !name.endsWith('on a board');
+      const r = await run(code, inputs, { echo: false, rewrite });
       assert.ok(!r.ok, 'expected an error');
       assert.equal(r.error.name, wantName, failure(r));
       const f = friendlyError(r.error, code);

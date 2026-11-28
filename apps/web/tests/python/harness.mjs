@@ -3,6 +3,8 @@
 // compat files written to /lib, the same error parsing. stdin answers come from
 // `inputs`; END (\u0004) ends sys.stdin like an empty answer in the browser.
 import fs from 'node:fs';
+import { reCompile, reExec } from '../../src/lib/python/js-regex.ts';
+import { rewriteForEngine } from '../../src/lib/python/rewrite.ts';
 const WEB = new URL('../..', import.meta.url).pathname.replace(/\/$/, '');
 const PKG = WEB + '/node_modules/@micropython/micropython-webassembly-pyscript';
 const COMPAT = WEB + '/src/lib/python/compat/';
@@ -44,7 +46,7 @@ const { loadMicroPython } = await import(PKG + '/micropython.mjs');
 export async function run(
   code,
   inputs = [],
-  { prelude = PRELUDE, echo = true, compat = true } = {},
+  { prelude = PRELUDE, echo = true, compat = true, rewrite = true } = {},
 ) {
   let out = '';
   const dec = new TextDecoder();
@@ -119,11 +121,14 @@ export async function run(
     read_rest: readRest,
     ai_state: () => '',
     ai_camera: () => {},
+    re_compile: reCompile,
+    re_exec: reExec,
   });
   mp.runPython(compat ? prelude : '');
   const t0 = performance.now();
   try {
-    mp.runPython(code);
+    // As python-runner.ts does before sending the code to the worker.
+    mp.runPython(rewrite ? rewriteForEngine(code) : code);
     return { ok: true, out, ms: performance.now() - t0, asked };
   } catch (e) {
     const info = parsePythonError(e);

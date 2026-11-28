@@ -16,8 +16,10 @@ import operatorPy from './_tg_operator.py?raw';
 import randomPy from './_tg_random.py?raw';
 import sysPy from './_tg_sys.py?raw';
 import timePy from './_tg_time.py?raw';
+import rePy from './_tg_re.py?raw';
 import aiPy from './ai.py?raw';
 import bisectPy from './bisect.py?raw';
+import dataclassesPy from './dataclasses.py?raw';
 import queuePy from './queue.py?raw';
 import typingPy from './typing.py?raw';
 
@@ -30,10 +32,12 @@ export const COMPAT_FILES: Record<string, string> = {
   '_tg_math.py': mathPy,
   '_tg_operator.py': operatorPy,
   '_tg_random.py': randomPy,
+  '_tg_re.py': rePy,
   '_tg_sys.py': sysPy,
   '_tg_time.py': timePy,
   'ai.py': aiPy,
   'bisect.py': bisectPy,
+  'dataclasses.py': dataclassesPy,
   'queue.py': queuePy,
   'typing.py': typingPy,
 };
@@ -47,6 +51,7 @@ export const COMPAT_MODULES: Record<string, string> = {
   math: 'math',
   operator: 'operator',
   random: 'random',
+  re: 're',
   sys: 'sys',
   time: 'time',
   utime: 'time',
