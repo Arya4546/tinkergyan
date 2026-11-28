@@ -250,30 +250,39 @@ export function usePythonBoard(target: PythonBoardTarget | null): PythonBoardSta
           },
           {
             baudrate,
+            // esptool's own log, for support: if an install fails, the browser
+            // console (F12) shows the exact step and what the board answered.
+            onLog: (line) => console.info(`[MicroPython install @${baudrate}] ${line}`),
             onProgress: (percent, message) => {
               if (mountedRef.current) setInstall({ percent, message });
             },
           },
         );
 
-      try {
-        await flashOnce(460800);
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err);
-        // A cable or USB adapter (CH340, CP2102…) that can't keep up with the
-        // fast speed fails right after switching to it, before the chip's
-        // firmware is even picked ("Invalid head of packet", "Unable to verify
-        // flash chip connection"). Try once at the board's own speed, which
-        // never switches. Anything the student must fix is reported at once.
-        if (/busy|ESP8266|Python projects work with|download/i.test(msg)) throw err;
-        installed = null;
-        setInstall({ percent: 2, message: 'Trying again more slowly…' });
+      // Which speeds to try. Switching speed means closing and reopening the
+      // port (Web Serial can't change it in place), and on boards with a USB
+      // chip (CH340, CP2102…) reopening can trip the auto-reset circuit: the
+      // ESP32 reboots mid-install and its boot messages arrive as garbage
+      // ("Invalid head of packet (0x78)", "Unable to verify flash chip
+      // connection"). So those boards stay at 115200 the whole way — the same
+      // as the C++ upload, which works on them — and get a second try.
+      // Chips with USB built in (Espressif's own ID, 0x303a: S3, C3) have no
+      // reset circuit and ignore the speed: fast first, 115200 as a fallback.
+      const nativeUsb = info.usbVendorId === 0x303a;
+      const speeds = nativeUsb ? [460800, 115200] : [115200, 115200];
+      for (let i = 0; i < speeds.length; i++) {
         try {
-          await flashOnce(115200);
-        } catch (err2) {
-          const msg2 = err2 instanceof Error ? err2.message : String(err2);
-          if (/busy|ESP8266|Python projects work with|download/i.test(msg2)) throw err2;
-          throw new Error(cantTalkHint(msg2));
+          if (i > 0) {
+            installed = null;
+            setInstall({ percent: 2, message: 'That didn\u2019t work. Trying once more…' });
+          }
+          await flashOnce(speeds[i]!);
+          break;
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : String(err);
+          // Anything the student must fix is reported at once.
+          if (/busy|ESP8266|Python projects work with|download/i.test(msg)) throw err;
+          if (i === speeds.length - 1) throw new Error(cantTalkHint(msg));
         }
       }
 

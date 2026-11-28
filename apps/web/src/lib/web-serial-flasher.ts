@@ -1016,7 +1016,24 @@ export class WebSerialFlasher {
       } catch {
         /* best-effort */
       }
+      // After a failure esptool can still be holding the port (its disconnect
+      // waits for a read that never ends). Let go by force, or the retry
+      // can't open it and the student is told the port is busy.
+      await this.forceRelease(transport);
     }
+  }
+
+  private async forceRelease(transport: object): Promise<void> {
+    const reader = (transport as { reader?: ReadableStreamDefaultReader<Uint8Array> }).reader;
+    if (this.port.readable?.locked && reader) {
+      await Promise.race([reader.cancel().catch(() => {}), this.delay(500)]);
+      try {
+        reader.releaseLock();
+      } catch {
+        /* already released */
+      }
+    }
+    await this.closePortFully();
   }
 
   private startBackgroundRead() {
