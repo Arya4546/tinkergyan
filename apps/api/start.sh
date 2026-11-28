@@ -6,6 +6,12 @@ npx --yes prisma@6.16.0 migrate deploy
 
 CLI=/app/bin/arduino-cli
 PKGS=/root/.arduino15/packages
+
+# Keep sketch libraries (Servo, ESP32Servo…) on the persisted arduino_data
+# volume with the cores. arduino-cli's default, /root/Arduino/libraries, is
+# inside the container and is lost whenever the container is recreated. The
+# server inherits this, so its compiles look in the same place.
+export ARDUINO_DIRECTORIES_USER="${ARDUINO_DIRECTORIES_USER:-/root/.arduino15/user}"
 ESP8266_URL=https://arduino.esp8266.com/stable/package_esp8266com_index.json
 ESP32_URL=https://raw.githubusercontent.com/espressif/arduino-esp32/gh-pages/package_esp32_index.json
 
@@ -52,7 +58,30 @@ install_core() {
 #
 # `|| true` throughout for the same reason: a core that cannot install must
 # never take the API down with it.
+# Libraries the blocks generate #includes for (servo blocks → Servo.h, or
+# ESP32Servo.h on ESP32) and that students commonly use. Without them a sketch
+# fails with "Servo.h: No such file or directory". Each is small, so they go
+# first: ready within seconds of a restart, not after the ESP32 core download.
+# Same list as scripts/setup-arduino-cli.sh.
+install_lib() {
+  if "$CLI" lib list 2>/dev/null | grep -q "^$1 "; then
+    echo "Library $1 already installed."
+    return 0
+  fi
+  echo "Installing library $1..."
+  "$CLI" lib install "$1"
+}
+
+install_libs() {
+  "$CLI" lib update-index || true
+  for lib in "Servo" "ESP32Servo" "Adafruit NeoPixel" "DHT sensor library" "LiquidCrystal"; do
+    install_lib "$lib" || echo "Library $lib install failed — sketches using it will not compile"
+  done
+}
+
 install_cores() {
+  install_libs
+
   echo "Updating core index..."
   "$CLI" core update-index --additional-urls "$ESP8266_URL,$ESP32_URL" || true
 
