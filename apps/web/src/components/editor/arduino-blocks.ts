@@ -178,6 +178,86 @@ Blockly.Blocks['arduino_analog_write'] = {
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
+// SERVO MOTOR BLOCKS
+// Each block attaches its servo by itself (and again after "release"), so
+// there is no setup block to forget. Code: arduino-generator.ts.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Turn a hobby servo (SG90, MG996R…) to an angle. */
+Blockly.Blocks['arduino_servo_write'] = {
+  init(this: Blockly.Block): void {
+    this.appendValueInput('ANGLE')
+      .setCheck('Number')
+      .appendField('turn servo on pin')
+      .appendField(new Blockly.FieldDropdown(getPwmPins), 'PIN')
+      .appendField('to');
+    this.appendDummyInput().appendField('degrees');
+    this.setInputsInline(true);
+    this.setPreviousStatement(true, null);
+    this.setNextStatement(true, null);
+    this.setColour(COLOR_ANALOG);
+    this.setTooltip(
+      'Moves a servo to an angle from 0 to 180 degrees and holds it there. ' +
+        'Wires: brown/black to GND, red to 5V, orange/yellow to this pin.',
+    );
+  },
+};
+
+/** Move a servo smoothly from one angle to another. */
+Blockly.Blocks['arduino_servo_sweep'] = {
+  init(this: Blockly.Block): void {
+    this.appendDummyInput()
+      .appendField('sweep servo on pin')
+      .appendField(new Blockly.FieldDropdown(getPwmPins), 'PIN');
+    this.appendValueInput('FROM').setCheck('Number').appendField('from');
+    this.appendValueInput('TO').setCheck('Number').appendField('to');
+    this.appendValueInput('SECONDS').setCheck('Number').appendField('degrees in');
+    this.appendDummyInput().appendField('seconds');
+    this.setInputsInline(true);
+    this.setPreviousStatement(true, null);
+    this.setNextStatement(true, null);
+    this.setColour(COLOR_ANALOG);
+    this.setTooltip('Moves a servo smoothly, one degree at a time, and waits until it gets there.');
+  },
+};
+
+/** Continuous-rotation ("360°") servo speed. */
+Blockly.Blocks['arduino_servo_spin'] = {
+  init(this: Blockly.Block): void {
+    this.appendValueInput('SPEED')
+      .setCheck('Number')
+      .appendField('spin 360° servo on pin')
+      .appendField(new Blockly.FieldDropdown(getPwmPins), 'PIN')
+      .appendField('at speed');
+    this.appendDummyInput().appendField('%');
+    this.setInputsInline(true);
+    this.setPreviousStatement(true, null);
+    this.setNextStatement(true, null);
+    this.setColour(COLOR_ANALOG);
+    this.setTooltip(
+      'For continuous-rotation servos (wheels): 100 is full speed one way, ' +
+        '-100 full speed the other way, 0 stops.',
+    );
+  },
+};
+
+/** Stop sending pulses: the servo goes limp (quiet, saves battery). */
+Blockly.Blocks['arduino_servo_release'] = {
+  init(this: Blockly.Block): void {
+    this.appendDummyInput()
+      .appendField('release servo on pin')
+      .appendField(new Blockly.FieldDropdown(getPwmPins), 'PIN');
+    this.setPreviousStatement(true, null);
+    this.setNextStatement(true, null);
+    this.setColour(COLOR_ANALOG);
+    this.setTooltip(
+      'Lets the servo go loose: it stops holding its angle and stops buzzing. ' +
+        'Turning it again picks it back up.',
+    );
+  },
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
 // CONTROL / TIMING BLOCKS
 // ─────────────────────────────────────────────────────────────────────────────
 

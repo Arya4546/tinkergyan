@@ -72,6 +72,70 @@ javascriptGenerator.forBlock['arduino_analog_write'] = function (block, generato
   return `await api.analogWrite(${JSON.stringify(pin)}, ${value});\n`;
 };
 
+// ─── SERVO MOTOR ────────────────────────────────────────────────────────────
+// Same maths as the C++ helpers in arduino-generator.ts (whole degrees,
+// clamped, timed from the start), shown through analogWrite: the simulator's
+// servo turns duty 0-255 into 0-180 degrees (hardware-binding.ts).
+
+type JsGen = typeof javascriptGenerator & { FUNCTION_NAME_PLACEHOLDER_: string };
+
+function simServoWriteFn(generator: typeof javascriptGenerator): string {
+  const g = generator as JsGen;
+  return g.provideFunction_(
+    'simServoWrite',
+    `async function ${g.FUNCTION_NAME_PLACEHOLDER_}(pin, angle) {
+  angle = Math.max(0, Math.min(180, Math.trunc(Number(angle) || 0)));
+  await api.analogWrite(pin, Math.round((angle * 255) / 180));
+}`,
+  );
+}
+
+javascriptGenerator.forBlock['arduino_servo_write'] = function (block, generator) {
+  const pin = JSON.stringify(block.getFieldValue('PIN') as string);
+  const angle = generator.valueToCode(block, 'ANGLE', Order.NONE) || '90';
+  return `await ${simServoWriteFn(generator)}(${pin}, ${angle});\n`;
+};
+
+javascriptGenerator.forBlock['arduino_servo_sweep'] = function (block, generator) {
+  const g = generator as JsGen;
+  const pin = JSON.stringify(block.getFieldValue('PIN') as string);
+  const from = generator.valueToCode(block, 'FROM', Order.NONE) || '0';
+  const to = generator.valueToCode(block, 'TO', Order.NONE) || '180';
+  const seconds = generator.valueToCode(block, 'SECONDS', Order.NONE) || '1';
+  const write = simServoWriteFn(generator);
+  const fn = g.provideFunction_(
+    'simServoSweep',
+    `async function ${g.FUNCTION_NAME_PLACEHOLDER_}(pin, from, to, seconds) {
+  const clamp = (a) => Math.max(0, Math.min(180, Math.trunc(Number(a) || 0)));
+  from = clamp(from);
+  to = clamp(to);
+  const steps = Math.abs(to - from);
+  const total = Number(seconds) > 0 ? Number(seconds) * 1000 : 0;
+  const start = api.millis();
+  await ${write}(pin, from);
+  for (let i = 1; i <= steps; i++) {
+    const wait = (total * i) / steps - (api.millis() - start);
+    if (wait > 0) await api.delay(wait);
+    await ${write}(pin, to > from ? from + i : from - i);
+  }
+  if (steps === 0 && total > 0) await api.delay(total);
+}`,
+  );
+  return `await ${fn}(${pin}, ${from}, ${to}, ${seconds});\n`;
+};
+
+javascriptGenerator.forBlock['arduino_servo_spin'] = function (block, generator) {
+  const pin = JSON.stringify(block.getFieldValue('PIN') as string);
+  const speed = generator.valueToCode(block, 'SPEED', Order.NONE) || '0';
+  const write = simServoWriteFn(generator);
+  return `await ${write}(${pin}, 90 + Math.trunc((Math.max(-100, Math.min(100, Math.trunc(Number(${speed}) || 0))) * 9) / 10));\n`;
+};
+
+javascriptGenerator.forBlock['arduino_servo_release'] = function () {
+  // A released servo just stops holding; the picture keeps its last angle.
+  return 'await api.tick();\n';
+};
+
 javascriptGenerator.forBlock['arduino_analog_read'] = function (block) {
   const pin = block.getFieldValue('PIN') as string;
   return [`(await api.analogRead(${JSON.stringify(pin)}))`, Order.FUNCTION_CALL];

@@ -167,6 +167,55 @@ Blockly.Blocks['py_servo'] = {
   },
 };
 
+Blockly.Blocks['py_servo_sweep'] = {
+  init(this: Blockly.Block) {
+    this.appendDummyInput()
+      .appendField('sweep servo on pin')
+      .appendField(pinField('PIN', outputPins), 'PIN');
+    this.appendValueInput('FROM').setCheck('Number').appendField('from');
+    this.appendValueInput('TO').setCheck('Number').appendField('to');
+    this.appendValueInput('SECONDS').setCheck('Number').appendField('degrees in');
+    this.appendDummyInput().appendField('seconds');
+    this.setInputsInline(true);
+    this.setPreviousStatement(true);
+    this.setNextStatement(true);
+    this.setColour(PY_ANALOG_COLOUR);
+    this.setTooltip('Moves a servo smoothly, one degree at a time, and waits until it gets there.');
+  },
+};
+
+Blockly.Blocks['py_servo_spin'] = {
+  init(this: Blockly.Block) {
+    this.appendValueInput('SPEED')
+      .setCheck('Number')
+      .appendField('spin 360° servo on pin')
+      .appendField(pinField('PIN', outputPins), 'PIN')
+      .appendField('at speed');
+    this.appendDummyInput().appendField('%');
+    this.setInputsInline(true);
+    this.setPreviousStatement(true);
+    this.setNextStatement(true);
+    this.setColour(PY_ANALOG_COLOUR);
+    this.setTooltip(
+      'For continuous-rotation servos (wheels): 100 is full speed one way, -100 full speed the other way, 0 stops.',
+    );
+  },
+};
+
+Blockly.Blocks['py_servo_release'] = {
+  init(this: Blockly.Block) {
+    this.appendDummyInput()
+      .appendField('release servo on pin')
+      .appendField(pinField('PIN', outputPins), 'PIN');
+    this.setPreviousStatement(true);
+    this.setNextStatement(true);
+    this.setColour(PY_ANALOG_COLOUR);
+    this.setTooltip(
+      'Lets the servo go loose: it stops holding its angle and stops buzzing. Turning it again picks it back up.',
+    );
+  },
+};
+
 Blockly.Blocks['py_tone'] = {
   init(this: Blockly.Block) {
     this.appendValueInput('FREQ')
@@ -383,10 +432,9 @@ pythonGenerator.forBlock['py_pwm_write'] = (block, g) => {
   return `${fn}(${pinNumber(block, 'PIN')}, ${percent})\n`;
 };
 
-pythonGenerator.forBlock['py_servo'] = (block, g) => {
+function servoFn(g: typeof pythonGenerator) {
   const pwm = pwmFn(g);
-  const angle = g.valueToCode(block, 'ANGLE', Order.NONE) || '90';
-  const fn = g.provideFunction_(
+  return g.provideFunction_(
     'set_servo',
     `def ${g.FUNCTION_NAME_PLACEHOLDER_}(pin, angle):
   angle = max(0, min(180, angle))
@@ -394,7 +442,67 @@ pythonGenerator.forBlock['py_servo'] = (block, g) => {
   ${pwm}(pin, 50).duty_ns(int(500000 + angle * 2000000 / 180))
 `,
   );
+}
+
+pythonGenerator.forBlock['py_servo'] = (block, g) => {
+  const fn = servoFn(g);
+  const angle = g.valueToCode(block, 'ANGLE', Order.NONE) || '90';
   return `${fn}(${pinNumber(block, 'PIN')}, ${angle})\n`;
+};
+
+pythonGenerator.forBlock['py_servo_sweep'] = (block, g) => {
+  const set = servoFn(g);
+  needTime(g);
+  const from = g.valueToCode(block, 'FROM', Order.NONE) || '0';
+  const to = g.valueToCode(block, 'TO', Order.NONE) || '180';
+  const seconds = g.valueToCode(block, 'SECONDS', Order.NONE) || '1';
+  // Each degree is timed from the start, so the sweep takes the time asked for.
+  const fn = g.provideFunction_(
+    'sweep_servo',
+    `def ${g.FUNCTION_NAME_PLACEHOLDER_}(pin, start, end, seconds):
+  start = int(max(0, min(180, start)))
+  end = int(max(0, min(180, end)))
+  steps = abs(end - start)
+  total = seconds * 1000 if seconds > 0 else 0
+  began = time.ticks_ms()
+  ${set}(pin, start)
+  for step in range(1, steps + 1):
+    wait = int(total * step / steps) - time.ticks_diff(time.ticks_ms(), began)
+    if wait > 0:
+      time.sleep_ms(wait)
+    ${set}(pin, start + step if end > start else start - step)
+  if steps == 0 and total > 0:
+    time.sleep_ms(int(total))
+`,
+  );
+  return `${fn}(${pinNumber(block, 'PIN')}, ${from}, ${to}, ${seconds})\n`;
+};
+
+pythonGenerator.forBlock['py_servo_spin'] = (block, g) => {
+  const set = servoFn(g);
+  const speed = g.valueToCode(block, 'SPEED', Order.NONE) || '0';
+  const fn = g.provideFunction_(
+    'spin_servo',
+    `def ${g.FUNCTION_NAME_PLACEHOLDER_}(pin, speed):
+  # 360-degree servo: 90 degrees stops it, below spins one way, above the other.
+  speed = max(-100, min(100, speed))
+  ${set}(pin, 90 + speed * 0.9)
+`,
+  );
+  return `${fn}(${pinNumber(block, 'PIN')}, ${speed})\n`;
+};
+
+pythonGenerator.forBlock['py_servo_release'] = (block, g) => {
+  needPwmTable(g);
+  const fn = g.provideFunction_(
+    'release_servo',
+    `def ${g.FUNCTION_NAME_PLACEHOLDER_}(pin):
+  # No more pulses: the servo goes loose until it is turned again.
+  if pin in pwm_pins:
+    pwm_pins.pop(pin).deinit()
+`,
+  );
+  return `${fn}(${pinNumber(block, 'PIN')})\n`;
 };
 
 pythonGenerator.forBlock['py_tone'] = (block, g) => {

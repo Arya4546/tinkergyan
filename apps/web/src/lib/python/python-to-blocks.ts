@@ -122,6 +122,9 @@ const BOARD_HELPERS = new Set([
   'read_analog',
   'set_brightness',
   'set_servo',
+  'sweep_servo',
+  'spin_servo',
+  'release_servo',
   'play_tone',
   'read_distance_cm',
   'read_dht',
@@ -189,6 +192,9 @@ function blockTemplates(): Templates {
       show({ type: 'py_analog_read' }),
       { type: 'py_pwm_write', inputs: { PERCENT: n(1) } },
       { type: 'py_servo', inputs: { ANGLE: n(1) } },
+      { type: 'py_servo_sweep', inputs: { FROM: n(1), TO: n(1), SECONDS: n(1) } },
+      { type: 'py_servo_spin', inputs: { SPEED: n(1) } },
+      { type: 'py_servo_release' },
       { type: 'py_tone', inputs: { FREQ: n(1), SECONDS: n(1) } },
       show({ type: 'py_distance' }),
       show({ type: 'py_dht' }),
@@ -2657,6 +2663,32 @@ class Converter {
             { ANGLE: e(1) },
           ),
         );
+      case 'sweep_servo':
+        need(4);
+        return stmt(
+          this.block(
+            'py_servo_sweep',
+            n,
+            { PIN: this.pin(n, 'py_servo_sweep', 'PIN', lit(0)) },
+            { FROM: e(1), TO: e(2), SECONDS: e(3) },
+          ),
+        );
+      case 'spin_servo':
+        need(2);
+        return stmt(
+          this.block(
+            'py_servo_spin',
+            n,
+            { PIN: this.pin(n, 'py_servo_spin', 'PIN', lit(0)) },
+            { SPEED: e(1) },
+          ),
+        );
+      case 'release_servo':
+        need(1);
+        return stmt({
+          type: 'py_servo_release',
+          fields: { PIN: this.pin(n, 'py_servo_release', 'PIN', lit(0)) },
+        });
       case 'play_tone':
         need(3);
         return stmt(

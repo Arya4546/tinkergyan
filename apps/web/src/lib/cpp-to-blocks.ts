@@ -10,6 +10,8 @@
  *   - delay(ms / s), delayMicroseconds(ms)
  *   - pinMode, digitalWrite, digitalRead, analogRead, analogWrite
  *   - Serial.begin, Serial.print, Serial.println
+ *   - Servo: `Servo s; s.attach(9); s.write(90); s.detach();` and the helpers
+ *     the servo blocks generate (servoWrite / servoSweep / servoSpin)
  *   - if-else statements, while loops, for loops
  *   - Basic math and logical operations
  */
@@ -50,6 +52,11 @@ export const ARDUINO_CONSTANTS = new Set([
   'A14',
   'A15',
 ]);
+
+/** Pin names that aren't variables when converting (ESP8266 NodeMCU D0–D8). */
+const BOARD_PIN_NAMES = /^D[0-8]$/;
+/** What a servo block's pin dropdown can hold. */
+const PIN_NAME = /^(?:\d+|A\d+|D\d+)$/;
 
 export interface Token {
   type:
@@ -387,6 +394,10 @@ class Parser {
   public definedFunctions = new Set<string>();
   private usedComments = new Set<CommentInfo>();
   private expressionDepth = 0;
+  /** Servo objects declared in the sketch → the pin each is attached to (if known). */
+  private servoPins = new Map<string, string | null>();
+  /** Servo helper functions the blocks generate, by name → which block they are. */
+  private servoHelpers = new Map<string, 'write' | 'sweep' | 'spin'>();
 
   constructor(tokens: Token[], comments: CommentInfo[] = []) {
     this.tokens = tokens;
@@ -455,6 +466,7 @@ class Parser {
     let setupBlocks: BlockXml[] = [];
     let loopCode = '';
     const functions: string[] = [];
+    this.scanServos();
 
     while (!this.check('EOF')) {
       const t = this.peek();
@@ -469,7 +481,9 @@ class Parser {
       }
 
       try {
-        if (this.isFunctionDeclaration()) {
+        if (this.isServoHelperDefinition()) {
+          this.skipFunction();
+        } else if (this.isFunctionDeclaration()) {
           const fnXml = this.parseFunction();
           if (fnXml.name === 'setup') {
             setupBlocks = fnXml.rawBlocks;
@@ -495,7 +509,9 @@ class Parser {
 
     const setupCode = this.statementsToXml([...globalInitBlocks, ...setupBlocks]);
 
-    const filteredVars = Array.from(this.variables).filter((v) => !ARDUINO_CONSTANTS.has(v));
+    const filteredVars = Array.from(this.variables).filter(
+      (v) => !ARDUINO_CONSTANTS.has(v) && !this.servoPins.has(v) && !BOARD_PIN_NAMES.test(v),
+    );
 
     return {
       variables: filteredVars,
@@ -567,7 +583,126 @@ class Parser {
     return false;
   }
 
+  // ── Servo ────────────────────────────────────────────────────────────────
+
+  /**
+   * Finds the Servo objects and their pins before parsing, so `s.write()` in
+   * loop() knows its pin even when `s.attach(9)` comes later in the file.
+   * Pins come from `s.attach(PIN…)` or a helper call `servoWrite(s, PIN, …)`.
+   */
+  private scanServos(): void {
+    const tk = this.tokens;
+    for (let i = 0; i + 1 < tk.length; i++) {
+      if (tk[i]!.value === 'Servo' && tk[i + 1]!.type === 'IDENTIFIER') {
+        // Servo a, b;
+        for (let j = i + 1; j < tk.length && tk[j]!.type === 'IDENTIFIER'; j += 2) {
+          if (!this.servoPins.has(tk[j]!.value)) this.servoPins.set(tk[j]!.value, null);
+          if (tk[j + 1]?.value !== ',') break;
+        }
+      }
+    }
+    if (!this.servoPins.size) return;
+    // void servoWrite(Servo &servo, … — helpers can be defined after their use.
+    // Only with the generated helper's parameters: a student's own
+    // servoWrite(Servo &s, int angle) is kept as their function.
+    const params = { write: 3, spin: 3, sweep: 5 };
+    for (let i = 0; i + 4 < tk.length; i++) {
+      const m = /^servo(Write|Sweep|Spin)\d*$/.exec(tk[i + 1]!.value);
+      if (
+        !m ||
+        tk[i]!.value !== 'void' ||
+        tk[i + 2]!.value !== '(' ||
+        tk[i + 3]!.value !== 'Servo' ||
+        tk[i + 4]!.value !== '&'
+      )
+        continue;
+      let commas = 0;
+      let j = i + 3;
+      for (; j < tk.length && tk[j]!.value !== ')'; j++) if (tk[j]!.value === ',') commas++;
+      const kind = m[1]!.toLowerCase() as 'write' | 'sweep' | 'spin';
+      if (commas + 1 === params[kind]) this.servoHelpers.set(tk[i + 1]!.value, kind);
+    }
+    const pinToken = (t: Token | undefined) =>
+      t && (t.type === 'NUMBER' || t.type === 'IDENTIFIER') ? t.value : null;
+    for (let i = 0; i + 3 < tk.length; i++) {
+      const name = tk[i]!.value;
+      // s.attach(PIN
+      if (
+        this.servoPins.has(name) &&
+        tk[i + 1]!.value === '.' &&
+        tk[i + 2]!.value === 'attach' &&
+        tk[i + 3]!.value === '('
+      ) {
+        const pin = pinToken(tk[i + 4]);
+        if (pin && this.servoPins.get(name) == null) this.servoPins.set(name, pin);
+      }
+      // helper(s, PIN
+      if (
+        tk[i]!.type === 'IDENTIFIER' &&
+        tk[i + 1]!.value === '(' &&
+        this.servoPins.has(tk[i + 2]!.value) &&
+        tk[i + 3]!.value === ','
+      ) {
+        const pin = pinToken(tk[i + 4]);
+        const obj = tk[i + 2]!.value;
+        if (pin && tk[i + 5]?.value === ',' && this.servoPins.get(obj) == null)
+          this.servoPins.set(obj, pin);
+      }
+    }
+  }
+
+  /** The pin a Servo object is on: from scanServos, else its name (servo_9). */
+  private servoPin(obj: string): string | null {
+    return (
+      this.pinName(this.servoPins.get(obj) ?? null) ??
+      this.pinName(/^servo_([AD]?\d+)$/.exec(obj)?.[1] ?? null)
+    );
+  }
+
+  /** A pin the block's dropdown can hold (9, A0, D1, or a constant set to one), else null. */
+  private pinName(value: string | null): string | null {
+    if (value === null) return null;
+    const pin = this.variableValues.get(value) ?? value;
+    return PIN_NAME.test(pin) ? pin : null;
+  }
+
+  /** `void servoWrite(Servo &servo, …) {` — a helper the servo blocks generate. */
+  private isServoHelperDefinition(): boolean {
+    const t = this.tokens[this.current];
+    const name = this.tokens[this.current + 1];
+    return t?.value === 'void' && !!name && this.servoHelpers.has(name.value);
+  }
+
+  private skipFunction(): void {
+    while (!this.check('EOF') && !this.check('PUNCTUATION', '{')) {
+      // A prototype (no body) ends at its semicolon.
+      if (this.advance().value === ';') return;
+    }
+    let depth = 0;
+    while (!this.check('EOF')) {
+      const t = this.advance();
+      if (t.value === '{') depth++;
+      else if (t.value === '}' && --depth === 0) return;
+    }
+  }
+
+  private servoBlock(kind: string, pin: string, values: Record<string, string>): string {
+    const num = (v: number) => `<block type="math_number"><field name="NUM">${v}</field></block>`;
+    const defaults: Record<string, number> = { ANGLE: 90, FROM: 0, TO: 180, SECONDS: 1, SPEED: 0 };
+    const inputs = Object.entries(values)
+      .map(([k, v]) => `<value name="${k}">${v || num(defaults[k] ?? 0)}</value>`)
+      .join('');
+    return `<block type="arduino_servo_${kind}"><field name="PIN">${escapeXml(pin)}</field>${inputs}</block>`;
+  }
+
   private parseGlobalVariable(): BlockXml[] {
+    if (this.check('IDENTIFIER', 'Servo')) {
+      // Servo s;  — the servo blocks declare their own; no variable block.
+      this.advance();
+      while (!this.check('EOF') && !this.check('PUNCTUATION', ';')) this.advance();
+      this.consume('PUNCTUATION', ';');
+      return [];
+    }
     while (
       this.check('KEYWORD', 'const') ||
       this.check('KEYWORD', 'static') ||
@@ -1026,7 +1161,7 @@ class Parser {
     return decls;
   }
 
-  private parseExpressionStatement(): BlockXml {
+  private parseExpressionStatement(): BlockXml | null {
     const leftToken = this.peek();
 
     if (leftToken.type === 'IDENTIFIER') {
@@ -1079,6 +1214,8 @@ class Parser {
     }
 
     const exprXml = this.parseExpression(false);
+    // s.attach(9) makes no block: the servo blocks attach by themselves.
+    if (!exprXml) return null;
     return {
       type: 'raw_expr',
       rawXml: exprXml,
@@ -1331,6 +1468,28 @@ class Parser {
     }
     this.consume('PUNCTUATION', ')');
 
+    const servoKind = this.servoHelpers.get(name);
+    const servoObj = this.getLiteralValue(args[0]);
+    const arity = servoKind === 'sweep' ? 5 : 3;
+    if (
+      servoKind &&
+      servoObj &&
+      this.servoPins.has(servoObj) &&
+      args.length === arity &&
+      !inExpression
+    ) {
+      const pin = this.pinName(this.getLiteralValue(args[1])) ?? this.servoPin(servoObj);
+      if (pin) {
+        if (servoKind === 'write') return this.servoBlock('write', pin, { ANGLE: args[2] ?? '' });
+        if (servoKind === 'spin') return this.servoBlock('spin', pin, { SPEED: args[2] ?? '' });
+        return this.servoBlock('sweep', pin, {
+          FROM: args[2] ?? '',
+          TO: args[3] ?? '',
+          SECONDS: args[4] ?? '',
+        });
+      }
+    }
+
     if (name === 'pinMode') {
       const pinVal = this.getLiteralValue(args[0]) || '13';
       const modeVal = this.getLiteralValue(args[1]) || 'OUTPUT';
@@ -1475,6 +1634,14 @@ class Parser {
       if (methodName === 'read') {
         return `<block type="arduino_serial_read"></block>`;
       }
+    }
+
+    if (this.servoPins.has(objName) && !inExpression) {
+      if (methodName === 'attach') return '';
+      const pin = this.servoPin(objName);
+      if (pin && methodName === 'write')
+        return this.servoBlock('write', pin, { ANGLE: args[0] ?? '' });
+      if (pin && methodName === 'detach') return this.servoBlock('release', pin, {});
     }
 
     const fullMethodName = `${objName}.${methodName}`;

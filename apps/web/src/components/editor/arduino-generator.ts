@@ -191,7 +191,14 @@ export function detectServoObjects(code: string, definitions?: Record<string, st
     }
   }
 
-  const cleanVarDecls = Object.values(this.definitions_).join('\n');
+  // Servo objects first, then variables, then helper functions (blank line before each).
+  const defs = Object.entries(this.definitions_ as Record<string, string>);
+  const cleanVarDecls = [
+    ...defs.filter(([k]) => k.startsWith('servo_object_')),
+    ...defs.filter(([k]) => !k.startsWith('servo_object_')),
+  ]
+    .map(([, v]) => (v.includes('\n') ? `\n${v}` : v))
+    .join('\n');
   const allDecls = [...servoDeclarations, cleanVarDecls].filter(Boolean).join('\n');
 
   return [header, allDecls ? allDecls + '\n' : '', processedCode].filter(Boolean).join('\n');
@@ -271,8 +278,137 @@ arduinoGenerator.forBlock['arduino_analog_read'] = function (block) {
 arduinoGenerator.forBlock['arduino_analog_write'] = function (block, generator) {
   const pin = block.getFieldValue('PIN') as string;
   const value = generator.valueToCode(block, 'VALUE', Order.NONE) || '0';
+  setBlockWarning(block, servoTimerWarning(block, pin));
   return `analogWrite(${pin}, ${value});\n`;
 };
+
+// ─────────────────────────────────────────────────────────────────────────────
+// SERVO MOTOR
+// One `Servo` object per pin, declared at the top; finish() adds the right
+// #include (<Servo.h>, or <ESP32Servo.h> on ESP32). The helpers attach on
+// first use, so a servo block works anywhere: setup, loop, a function, after
+// "release". cpp-to-blocks.ts reads this code back into the same blocks.
+// ─────────────────────────────────────────────────────────────────────────────
+
+type ArduinoGen = CodeGenerator & {
+  definitions_: Record<string, string>;
+  nameDB_: Names;
+  FUNCTION_NAME_PLACEHOLDER_: string;
+};
+
+/** The Servo object for a pin (servo_9, servo_D1…), declared once per sketch. */
+function servoObject(generator: CodeGenerator, pin: string): string {
+  const g = generator as ArduinoGen;
+  const key = `servo_object_${pin}`;
+  if (!g.definitions_[key]) {
+    const name = g.nameDB_.getDistinctName(
+      `servo_${pin.replace(/\W/g, '_')}`,
+      Names.NameType.VARIABLE,
+    );
+    g.definitions_[key] = `Servo ${name};`;
+  }
+  return g.definitions_[key].slice('Servo '.length, -1);
+}
+
+function servoWriteFn(generator: CodeGenerator): string {
+  const g = generator as ArduinoGen;
+  return g.provideFunction_(
+    'servoWrite',
+    `// Turns a servo to 0-180 degrees, attaching it first if needed.
+void ${g.FUNCTION_NAME_PLACEHOLDER_}(Servo &servo, int pin, int angle) {
+  if (!servo.attached()) servo.attach(pin);
+  servo.write(constrain(angle, 0, 180));
+}`,
+  );
+}
+
+arduinoGenerator.forBlock['arduino_servo_write'] = function (block, generator) {
+  const pin = block.getFieldValue('PIN') as string;
+  const angle = generator.valueToCode(block, 'ANGLE', Order.NONE) || '90';
+  return `${servoWriteFn(generator)}(${servoObject(generator, pin)}, ${pin}, ${angle});\n`;
+};
+
+arduinoGenerator.forBlock['arduino_servo_sweep'] = function (block, generator) {
+  const g = generator as ArduinoGen;
+  const pin = block.getFieldValue('PIN') as string;
+  const from = generator.valueToCode(block, 'FROM', Order.NONE) || '0';
+  const to = generator.valueToCode(block, 'TO', Order.NONE) || '180';
+  const seconds = generator.valueToCode(block, 'SECONDS', Order.NONE) || '1';
+  const write = servoWriteFn(generator);
+  // Each degree is timed from the start with millis(), so the sweep takes the
+  // time asked for; delay() (not a busy wait) keeps ESP boards' WiFi alive.
+  const fn = g.provideFunction_(
+    'servoSweep',
+    `// Moves a servo one degree at a time, taking the given number of seconds.
+void ${g.FUNCTION_NAME_PLACEHOLDER_}(Servo &servo, int pin, int from, int to, float seconds) {
+  from = constrain(from, 0, 180);
+  to = constrain(to, 0, 180);
+  int steps = abs(to - from);
+  float total = seconds > 0 ? seconds * 1000.0 : 0;
+  unsigned long start = millis();
+  ${write}(servo, pin, from);
+  for (int i = 1; i <= steps; i++) {
+    unsigned long due = (unsigned long)(total * i / steps);
+    unsigned long done = millis() - start;
+    if (due > done) delay(due - done);
+    ${write}(servo, pin, to > from ? from + i : from - i);
+  }
+  if (steps == 0) delay((unsigned long)total);
+}`,
+  );
+  return `${fn}(${servoObject(generator, pin)}, ${pin}, ${from}, ${to}, ${seconds});\n`;
+};
+
+arduinoGenerator.forBlock['arduino_servo_spin'] = function (block, generator) {
+  const g = generator as ArduinoGen;
+  const pin = block.getFieldValue('PIN') as string;
+  const speed = generator.valueToCode(block, 'SPEED', Order.NONE) || '0';
+  const write = servoWriteFn(generator);
+  const fn = g.provideFunction_(
+    'servoSpin',
+    `// 360-degree servo: speed -100 to 100 (0 stops; 90 degrees is "stop").
+void ${g.FUNCTION_NAME_PLACEHOLDER_}(Servo &servo, int pin, int speed) {
+  speed = constrain(speed, -100, 100);
+  ${write}(servo, pin, 90 + speed * 9 / 10);
+}`,
+  );
+  return `${fn}(${servoObject(generator, pin)}, ${pin}, ${speed});\n`;
+};
+
+arduinoGenerator.forBlock['arduino_servo_release'] = function (block, generator) {
+  const pin = block.getFieldValue('PIN') as string;
+  return `${servoObject(generator, pin)}.detach();\n`;
+};
+
+/**
+ * On Uno/Nano the Servo library takes Timer1, so analogWrite stops working on
+ * pins 9 and 10 once a servo is used (Mega: Timer5, pins 44-46). Real boards
+ * give no error, the LED just won't dim, so the block says why.
+ */
+export function servoTimerWarning(block: Block, pin: string): string | null {
+  const fqbn = getBoardDefinition(useEditorStore.getState().board).fqbn;
+  const pins = fqbn.startsWith('arduino:avr:mega')
+    ? ['44', '45', '46']
+    : fqbn.startsWith('arduino:avr:')
+      ? ['9', '10']
+      : [];
+  if (!pins.includes(pin)) return null;
+  const usesServo = block.workspace
+    .getAllBlocks(false)
+    .some((b) => b.type.startsWith('arduino_servo_') && b.isEnabled());
+  if (!usesServo) return null;
+  const instead = pins[0] === '9' ? 'pin 3, 5, 6 or 11' : 'pins 2 to 13';
+  return `With a servo in the program, this board can't dim pin ${pin}: the servo library uses its timer. Use ${instead} for analogWrite instead.`;
+}
+
+function setBlockWarning(block: Block, text: string | null): void {
+  // Not on a block in the toolbox flyout, or in headless tests.
+  if (block.isInFlyout || !('setWarningText' in block)) return;
+  (block as Block & { setWarningText: (t: string | null, id?: string) => void }).setWarningText(
+    text,
+    'servo-timer',
+  );
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // CONTROL / TIMING

@@ -279,6 +279,33 @@ export function getToolbox(engineMode: 'hardware' | 'software' | 'python', board
     },
     {
       kind: 'category',
+      name: '⚙️ Servo Motor',
+      categorystyle: 'analog_category',
+      contents: [
+        {
+          kind: 'block',
+          type: 'arduino_servo_write',
+          inputs: { ANGLE: { shadow: { type: 'math_number', fields: { NUM: 90 } } } },
+        },
+        {
+          kind: 'block',
+          type: 'arduino_servo_sweep',
+          inputs: {
+            FROM: { shadow: { type: 'math_number', fields: { NUM: 0 } } },
+            TO: { shadow: { type: 'math_number', fields: { NUM: 180 } } },
+            SECONDS: { shadow: { type: 'math_number', fields: { NUM: 1 } } },
+          },
+        },
+        {
+          kind: 'block',
+          type: 'arduino_servo_spin',
+          inputs: { SPEED: { shadow: { type: 'math_number', fields: { NUM: 50 } } } },
+        },
+        { kind: 'block', type: 'arduino_servo_release' },
+      ],
+    },
+    {
+      kind: 'category',
       name: '⏱ Timing',
       categorystyle: 'control_category',
       contents: [
@@ -710,12 +737,26 @@ function getPythonCategories(
             contents: [
               { kind: 'block', type: 'py_analog_read' },
               { kind: 'block', type: 'py_pwm_write', inputs: { PERCENT: num(50) } },
-              { kind: 'block', type: 'py_servo', inputs: { ANGLE: num(90) } },
               {
                 kind: 'block',
                 type: 'py_tone',
                 inputs: { FREQ: num(440), SECONDS: num(0.5) },
               },
+            ],
+          },
+          {
+            kind: 'category',
+            name: '⚙️ Servo Motor',
+            categorystyle: 'python_analog_category',
+            contents: [
+              { kind: 'block', type: 'py_servo', inputs: { ANGLE: num(90) } },
+              {
+                kind: 'block',
+                type: 'py_servo_sweep',
+                inputs: { FROM: num(0), TO: num(180), SECONDS: num(1) },
+              },
+              { kind: 'block', type: 'py_servo_spin', inputs: { SPEED: num(50) } },
+              { kind: 'block', type: 'py_servo_release' },
             ],
           },
           {

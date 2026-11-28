@@ -26,3 +26,13 @@ browser. `input()` / `sys.stdin` answers come from the test.
 To add a program: put `name.py` (and `name.in`) in a fixtures folder and create
 `name.expected` with `python3 name.py < name.in > name.expected`. Avoid printing
 plain dicts or sets: MicroPython orders them differently.
+
+## Hardware blocks (`tests/hardware/`)
+
+`servo.test.mjs` checks the servo motor blocks for Arduino C++ and ESP32
+MicroPython. The C++ is compiled with g++ against the API's Arduino shim
+(`apps/api/src/lib/arduino-shim.ts`) and run, so the angles each block sends
+are checked (skipped when g++ is missing). The simulator code runs on a fake
+clock, the Python runs in the test MicroPython with a fake `machine` module, and
+both "Convert to blocks" directions are checked. `hardware.mjs` loads the real
+blocks and generators through Vite, like `blocks.mjs`.

@@ -214,12 +214,16 @@ while True:
       blurb: `Swing a servo (signal on pin ${p.servo}) from side to side.`,
       blocks: program(
         forever(
-          { type: 'py_servo', fields: { PIN: p.servo }, inputs: { ANGLE: num(0) } },
-          wait(1),
-          { type: 'py_servo', fields: { PIN: p.servo }, inputs: { ANGLE: num(90) } },
-          wait(1),
-          { type: 'py_servo', fields: { PIN: p.servo }, inputs: { ANGLE: num(180) } },
-          wait(1),
+          {
+            type: 'py_servo_sweep',
+            fields: { PIN: p.servo },
+            inputs: { FROM: num(0), TO: num(180), SECONDS: num(1) },
+          },
+          {
+            type: 'py_servo_sweep',
+            fields: { PIN: p.servo },
+            inputs: { FROM: num(180), TO: num(0), SECONDS: num(1) },
+          },
         ),
       ),
       code: `from machine import Pin, PWM
@@ -446,6 +450,34 @@ while True:
         led.value(1)
     else:
         led.value(0)
+    time.sleep(0.1)
+`,
+    });
+    list.push({
+      id: 'ai-servo',
+      title: 'AI servo gate',
+      emoji: '🚧',
+      blurb: `A servo on pin ${p.servo} opens a gate when the AI sees the first thing you trained.`,
+      code: `import ai
+from machine import Pin, PWM
+import time
+
+servo = PWM(Pin(${p.servo}), freq=50)
+
+
+def turn(angle):
+    # 0.5 ms pulse is 0 degrees, 2.5 ms is 180 degrees
+    servo.duty_ns(int(500000 + angle * 2000000 / 180))
+
+
+ai.start_camera()
+
+while True:
+    names = ai.labels()  # the things your model knows
+    if names and ai.label() == names[0]:
+        turn(90)  # open
+    else:
+        turn(0)  # closed
     time.sleep(0.1)
 `,
     });
