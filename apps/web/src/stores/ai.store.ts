@@ -206,3 +206,15 @@ export const useAIStore = create<AIState>()((set) => ({
 
   resetAI: () => set({ ...INITIAL_STATE }),
 }));
+
+/**
+ * Class names for the camera blocks ("if AI sees [class]"): the Image model's,
+ * or — when the project was trained on the Pose tab instead — the Pose
+ * model's. aiEngine predicts with the same model (see usesPoseClassifier).
+ */
+export function visionClassNames(): string[] {
+  const s = useAIStore.getState();
+  const image = s.classLabels.filter((l) => !l.startsWith('text:') && l.trim() !== '');
+  if (image.length > 0) return image;
+  return (s.savedPoseClasses ?? []).filter((l) => l.trim() !== '');
+}

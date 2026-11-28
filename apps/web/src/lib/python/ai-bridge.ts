@@ -12,7 +12,7 @@
  * the blocks/C++ editors use, so nothing is trained or stored twice.
  */
 import { aiEngine } from '../ai-engine';
-import { useAIStore } from '../../stores/ai.store';
+import { useAIStore, visionClassNames } from '../../stores/ai.store';
 
 export interface AiSnapshot {
   /** Top label, '' while nothing is recognised yet. */
@@ -52,9 +52,7 @@ export async function startAiCamera(onUpdate: (s: AiSnapshot) => void): Promise<
   stopAiCamera(false);
   generation = gen;
   // Nothing trained: say so at once, without downloading the image model.
-  const trained = useAIStore
-    .getState()
-    .classLabels.filter((l) => !l.startsWith('text:') && l.trim() !== '');
+  const trained = visionClassNames();
   if (trained.length < 2) return NOTHING_TRAINED;
   try {
     if (!aiEngine.isInitialised) await aiEngine.init();

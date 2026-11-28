@@ -15,7 +15,7 @@ import { pythonGenerator, Order } from 'blockly/python';
 import { getBoardDefinition } from '../../lib/boards';
 import { pythonBoardInfo } from '../../lib/python/targets';
 import { useEditorStore } from '../../stores/editor.store';
-import { useAIStore } from '../../stores/ai.store';
+import { visionClassNames } from '../../stores/ai.store';
 
 export const PY_PINS_COLOUR = '#2E7D32';
 export const PY_ANALOG_COLOUR = '#E65100';
@@ -51,9 +51,7 @@ function pinNumber(block: Blockly.Block, field: string): string {
 
 // ── AI labels (from the model trained in AI Studio) ────────────────────────
 function aiLabels(): [string, string][] {
-  const labels = useAIStore
-    .getState()
-    .classLabels.filter((l) => !l.startsWith('text:') && l.trim() !== '');
+  const labels = visionClassNames();
   return labels.length ? labels.map((l) => [l, l]) : [['(train a model in AI Studio)', '']];
 }
 

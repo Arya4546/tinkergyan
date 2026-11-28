@@ -283,32 +283,46 @@ class PoseTrainerEngine {
 
   // ── Inference ─────────────────────────────────────────────────────────────
 
+  /**
+   * Classify the pose in one video frame: whole-percent confidence per class,
+   * or null when there is no model, no detector yet, or no person in view.
+   * Used by aiEngine so "if AI sees [class]" works with a trained Pose model.
+   */
+  async classifyFrame(
+    videoEl: HTMLVideoElement,
+    k = 5,
+  ): Promise<{ label: string; allConfidences: Record<string, number> } | null> {
+    if (!this.classifier || !this.detector || this.classifier.getNumClasses() < 2) return null;
+    const feat = await this.extractFeatures(videoEl);
+    if (!feat) return null;
+    try {
+      const counts = this.classifier.getClassExampleCount();
+      const minSamples = Math.min(...Object.values(counts));
+      let kClamped = Math.min(k, Math.max(1, minSamples));
+      if (kClamped > 1 && kClamped % 2 === 0) kClamped -= 1;
+      const result = await this.classifier.predictClass(feat, kClamped);
+      const allConfidences: Record<string, number> = {};
+      for (const [label, conf] of Object.entries(result.confidences)) {
+        allConfidences[label] = Math.round(conf * 100);
+      }
+      return { label: result.label, allConfidences };
+    } catch {
+      return null;
+    } finally {
+      feat.dispose();
+    }
+  }
+
   startPredicting(videoEl: HTMLVideoElement, callback: PosePredictionCallback, k = 5): void {
     if (this.predictionInterval !== null) return;
     this.predictionInterval = setInterval(async () => {
-      if (!this.classifier || this.classifier.getNumClasses() < 2) return;
-      const feat = await this.extractFeatures(videoEl);
-      if (!feat) return;
-      try {
-        const counts = this.classifier.getClassExampleCount();
-        const minSamples = Math.min(...Object.values(counts));
-        let kClamped = Math.min(k, Math.max(1, minSamples));
-        if (kClamped > 1 && kClamped % 2 === 0) kClamped -= 1;
-        const result = await this.classifier.predictClass(feat, kClamped);
-        const allConfidences: Record<string, number> = {};
-        for (const [label, conf] of Object.entries(result.confidences)) {
-          allConfidences[label] = Math.round(conf * 100);
-        }
-        callback({
-          label: result.label,
-          confidence: allConfidences[result.label] ?? 0,
-          allConfidences,
-        });
-      } catch {
-        /* ignore */
-      } finally {
-        feat.dispose();
-      }
+      const result = await this.classifyFrame(videoEl, k);
+      if (!result) return;
+      callback({
+        label: result.label,
+        confidence: result.allConfidences[result.label] ?? 0,
+        allConfidences: result.allConfidences,
+      });
     }, this.POLL_MS);
   }
 

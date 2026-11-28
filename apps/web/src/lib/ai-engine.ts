@@ -24,6 +24,7 @@ import type * as tf from '@tensorflow/tfjs';
 // package into the bundle that loads them lazily below.
 import type * as poseDetection from '@tensorflow-models/pose-detection';
 import type * as speechCommands from '@tensorflow-models/speech-commands';
+import { poseTrainerEngine } from './pose-trainer-engine';
 
 // Lazy-loaded module references — set by init() on first use.
 let tfRef: any = null;
@@ -549,10 +550,20 @@ class AIEngine {
     this.classifier?.clearAllClasses();
   }
 
-  /** True when at least 2 classes each have ≥1 sample (minimum for KNN). */
+  /**
+   * True when "if AI sees [class]" can run: an Image model with at least 2
+   * classes, or — for a project trained on the Pose tab — a Pose model.
+   */
   get isReadyToPredict(): boolean {
-    const labels = this.getClassLabels();
-    return labels.length >= 2;
+    return this.getClassLabels().length >= 2 || poseTrainerEngine.isReadyToPredict;
+  }
+
+  /**
+   * The camera blocks use the project's Pose model: it has no Image model, but
+   * a trained Pose one. (A project normally trains one of the two.)
+   */
+  get usesPoseClassifier(): boolean {
+    return this.getClassLabels().length < 2 && poseTrainerEngine.isReadyToPredict;
   }
 
   // ── Inference ─────────────────────────────────────────────────────────────
@@ -577,6 +588,12 @@ class AIEngine {
     // exists, so image prediction starts immediately either way; callers that
     // need a pose on the very first frame await ensurePoseDetector() first.
     if (enablePose && !this.poseDetector) void this.ensurePoseDetector();
+    // A Pose-trained project: its classifier needs MoveNet to read the pose.
+    if (enableImage && this.usesPoseClassifier) {
+      void this.ensurePoseDetector()
+        .then((detector) => poseTrainerEngine.init(detector))
+        .catch((err) => console.error('Pose model could not start:', err));
+    }
 
     if (this.predictionLoopId !== null) return; // already running
 
@@ -626,6 +643,20 @@ class AIEngine {
               // Prediction may fail if classes were cleared mid-loop — safe to ignore.
             } finally {
               embedding?.dispose();
+            }
+          }
+
+          // A Pose-trained model answers "if AI sees [class]" instead.
+          else if (this.enableImageKNN && this.usesPoseClassifier) {
+            const result = await poseTrainerEngine.classifyFrame(videoEl, this.activeConfig.k);
+            if (result && callback) {
+              const smoothed = this.smoothPrediction(result.allConfidences);
+              callback({
+                label: smoothed.label,
+                confidence: smoothed.confidence,
+                allConfidences: smoothed.allConfidences,
+                belowThreshold: smoothed.confidence / 100 < this.activeConfig.predictionThreshold,
+              });
             }
           }
 

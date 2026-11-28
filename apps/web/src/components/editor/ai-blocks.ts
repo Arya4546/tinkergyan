@@ -9,7 +9,7 @@
  * Code generation lives in ai-scratch-generator.ts (and ai-arduino-generator.ts for Phase 2).
  */
 import * as Blockly from 'blockly/core';
-import { useAIStore } from '../../stores/ai.store';
+import { useAIStore, visionClassNames } from '../../stores/ai.store';
 
 // Coral — visually distinct from all existing categories
 const COLOR_AI = '#FF6F61';
@@ -21,7 +21,8 @@ const COLOR_AI = '#FF6F61';
 const getClassLabels = function (this: Blockly.FieldDropdown): [string, string][] {
   // Text classes have their own blocks and their own dropdown below; they are
   // stored in the same list with a `text:` prefix, so keep them out of here.
-  const labels = useAIStore.getState().classLabels.filter((l) => !l.startsWith('text:'));
+  // Image classes, or the Pose ones for a project trained on the Pose tab.
+  const labels = visionClassNames();
   // Keep whatever this block is already set to, even when the store has not
   // caught up (project still loading, or its model failed to restore).
   // Blockly drops a saved field value that is not among the options, which
