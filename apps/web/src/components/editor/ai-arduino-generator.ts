@@ -6,7 +6,20 @@
  * to the connected Arduino/ESP32. These blocks generate the C++ code to read
  * and react to those Serial messages.
  */
+import type { Block } from 'blockly/core';
 import { arduinoGenerator, Order } from './arduino-generator';
+
+/**
+ * Mark a block that only works in Simulate mode. Its C++ is an empty stand-in,
+ * which used to be the only sign: the board just did nothing. Now the block
+ * shows a warning the moment the C++ is made.
+ */
+function simulatorOnly(block: Block, what: string): void {
+  const text = `${what} only works when you Simulate, not on a real board.`;
+  // Not on a block being dragged in from the toolbox, or in tests.
+  if (block.isInFlyout || !('setWarningText' in block)) return;
+  (block as Block & { setWarningText: (t: string | null) => void }).setWarningText(text);
+}
 
 type GenDefs = Record<string, string>;
 
@@ -29,7 +42,8 @@ function escapeCString(value: string): string {
 function ensureUpdateAISerial(options?: { emotion?: boolean; hand?: boolean }): void {
   const d = defs();
   if (!d['ai_serial_var_pred']) d['ai_serial_var_pred'] = 'String __ai_current_prediction = "";';
-  if (!d['ai_serial_var_audio']) d['ai_serial_var_audio'] = 'String __ai_latest_word = "";';
+  if (!d['ai_serial_var_audio'])
+    d['ai_serial_var_audio'] = 'String __ai_latest_word = "";\nString __ai_new_word = "";';
   if (options?.emotion && !d['ai_emotion_var']) d['ai_emotion_var'] = 'String __ai_emotion = "";';
   if (options?.hand && !d['ai_hand_vars']) {
     d['ai_hand_vars'] =
@@ -72,6 +86,7 @@ void updateAISerial() {
       __ai_current_prediction = msg.substring(8);
     } else if (msg.startsWith("AI_AUDIO:")) {
       __ai_latest_word = msg.substring(9);
+      __ai_new_word = __ai_latest_word;
     }${emotionBranch}${handBranch}
   }
 }
@@ -90,6 +105,24 @@ arduinoGenerator.forBlock['ai_when_predicted'] = function (block, generator) {
   const body = generator.statementToCode(block, 'DO');
   ensureUpdateAISerial();
   return `updateAISerial();\nif (__ai_current_prediction == "${label}") {\n${body}}\n`;
+};
+
+// ── Microphone (voice commands, or the project's trained Audio model) ─────────
+// The browser listens (AI_AUDIO_CTRL) and sends each word heard as AI_AUDIO:.
+// These two had no Arduino code at all: using them stopped the C++ from
+// updating, so the board got the previous program without any warning.
+arduinoGenerator.forBlock['ai_audio_listen'] = function (block) {
+  const state = block.getFieldValue('STATE') as string;
+  return `// Microphone ${state} (handled by browser)\nSerial.println("AI_AUDIO_CTRL:${state}");\n`;
+};
+
+arduinoGenerator.forBlock['ai_when_hear_word'] = function (block, generator) {
+  const word = escapeCString(block.getFieldValue('WORD') as string);
+  const body = generator.statementToCode(block, 'DO');
+  ensureUpdateAISerial();
+  // A word runs this once, not on every pass of loop(); "latest word heard"
+  // still reports it.
+  return `updateAISerial();\nif (__ai_new_word == "${word}") {\n  __ai_new_word = "";\n${body}}\n`;
 };
 
 arduinoGenerator.forBlock['ai_latest_word'] = function () {
@@ -184,11 +217,13 @@ arduinoGenerator.forBlock['ai_speech_stop'] = function () {
   return `Serial.println("AI_STT_CTRL:OFF");\n`;
 };
 
-arduinoGenerator.forBlock['ai_speech_heard'] = function () {
+arduinoGenerator.forBlock['ai_speech_heard'] = function (block) {
+  simulatorOnly(block, 'Speech-to-text');
   return [`/* STT not available on hardware — use AI_STT: serial messages */ ""`, Order.ATOMIC];
 };
 
-arduinoGenerator.forBlock['ai_when_speech_contains'] = function () {
+arduinoGenerator.forBlock['ai_when_speech_contains'] = function (block) {
+  simulatorOnly(block, 'Speech-to-text');
   return `/* STT hat blocks not supported on hardware */\n`;
 };
 
@@ -214,10 +249,12 @@ arduinoGenerator.forBlock['ai_stop_speaking'] = function () {
 
 // ── Text Classification ──────────────────────────────────────────────────────
 
-arduinoGenerator.forBlock['ai_classify_text'] = function () {
-  return [`/* Text classification not supported on hardware */ ""`, Order.ATOMIC];
+arduinoGenerator.forBlock['ai_classify_text'] = function (block) {
+  simulatorOnly(block, 'Text AI');
+  return [`/* Text AI only works in Simulate mode */ ""`, Order.ATOMIC];
 };
 
-arduinoGenerator.forBlock['ai_when_text_classified'] = function () {
-  return `/* Text classification not supported on hardware */\n`;
+arduinoGenerator.forBlock['ai_when_text_classified'] = function (block) {
+  simulatorOnly(block, 'Text AI');
+  return `/* Text AI only works in Simulate mode */\n`;
 };

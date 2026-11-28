@@ -673,6 +673,13 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
       // [class]" dropdowns reading "(no classes trained)" on a project that
       // plainly has classes. Real sample counts arrive with the dataset below;
       // the names no longer depend on it.
+      // Same for Audio and Pose: "if I hear [clap]" / "if AI sees [thumbs up]"
+      // list those names only for a trained model, and the blocks load before
+      // the model restores below — so a saved choice would be reset to the
+      // first option on every reload. The project has the model: say so now.
+      if (aiAudioDataset) useAIStore.getState().setAudioModelLoaded(true);
+      if (aiPoseDataset) useAIStore.getState().setPoseModelLoaded(true);
+
       const earlyImageLabels = legacyImage ?? [];
       const earlyTextClasses = (aiTextData?.classes ?? []).filter((c) => c.sentences.length > 0);
       if (earlyImageLabels.length > 0 || earlyTextClasses.length > 0) {

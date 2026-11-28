@@ -9,7 +9,7 @@
  * Code generation lives in ai-scratch-generator.ts (and ai-arduino-generator.ts for Phase 2).
  */
 import * as Blockly from 'blockly/core';
-import { useAIStore, visionClassNames } from '../../stores/ai.store';
+import { audioClassNames, useAIStore, visionClassNames } from '../../stores/ai.store';
 
 // Coral — visually distinct from all existing categories
 const COLOR_AI = '#FF6F61';
@@ -217,16 +217,30 @@ Blockly.Blocks['ai_audio_listen'] = {
   },
 };
 
+/** The project's trained Audio classes, or the built-in words without one. */
+const getHearOptions = function (this: Blockly.FieldDropdown): [string, string][] {
+  const trained = audioClassNames();
+  const options: [string, string][] = trained.length
+    ? trained.map((l) => [l, l])
+    : AUDIO_WORDS.map(([a, b]) => [a, b]);
+  // Keep the saved choice even before the model has loaded (see getClassLabels).
+  const current = this?.getValue?.();
+  if (current && !options.some(([, v]) => v === current)) options.push([current, current]);
+  return options;
+};
+
 Blockly.Blocks['ai_when_hear_word'] = {
   init(this: Blockly.Block): void {
     this.appendDummyInput()
       .appendField('if I hear')
-      .appendField(new Blockly.FieldDropdown(AUDIO_WORDS), 'WORD');
+      .appendField(new Blockly.FieldDropdown(getHearOptions), 'WORD');
     this.appendStatementInput('DO').appendField('then');
     this.setPreviousStatement(true, null);
     this.setNextStatement(true, null);
     this.setColour(COLOR_AI);
-    this.setTooltip('Runs when the chosen word is spoken.');
+    this.setTooltip(
+      'Runs when the chosen word is heard. With an Audio model trained in AI Studio, pick one of your own sounds.',
+    );
   },
 };
 

@@ -216,5 +216,18 @@ export function visionClassNames(): string[] {
   const s = useAIStore.getState();
   const image = s.classLabels.filter((l) => !l.startsWith('text:') && l.trim() !== '');
   if (image.length > 0) return image;
+  // Only a trained Pose model: the tab fills in default names before that.
+  if (!s.poseModelLoaded) return [];
   return (s.savedPoseClasses ?? []).filter((l) => l.trim() !== '');
+}
+
+/**
+ * Class names for "if I hear [word]" when the project has a trained Audio
+ * model (aiEngine.startAudioListening then listens with it); [] otherwise,
+ * and the block offers its built-in words.
+ */
+export function audioClassNames(): string[] {
+  const s = useAIStore.getState();
+  if (!s.audioModelLoaded) return [];
+  return (s.savedAudioClasses ?? []).filter((l) => l.trim() !== '');
 }

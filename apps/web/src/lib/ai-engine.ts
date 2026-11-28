@@ -24,6 +24,7 @@ import type * as tf from '@tensorflow/tfjs';
 // package into the bundle that loads them lazily below.
 import type * as poseDetection from '@tensorflow-models/pose-detection';
 import type * as speechCommands from '@tensorflow-models/speech-commands';
+import { audioTrainerEngine } from './audio-trainer-engine';
 import { poseTrainerEngine } from './pose-trainer-engine';
 
 // Lazy-loaded module references — set by init() on first use.
@@ -771,7 +772,30 @@ class AIEngine {
     return Number(val.toFixed(2));
   }
 
+  /** Listening with the project's own trained Audio model (not the built-in words). */
+  private trainedAudioActive = false;
+  private lastTrainedSound = '';
+
   async startAudioListening(): Promise<void> {
+    // A project trained on the Audio tab: "if I hear [class]" uses that model.
+    if (audioTrainerEngine.isReadyToPredict) {
+      if (this.trainedAudioActive) return;
+      if (!audioTrainerEngine.isInitialised) await audioTrainerEngine.init();
+      await audioTrainerEngine.startMic();
+      this.trainedAudioActive = true;
+      this.lastTrainedSound = '';
+      audioTrainerEngine.startPredicting((result) => {
+        // Same bar as the built-in words: 80% sure. '' means silence.
+        const heard = result.label && result.confidence >= 80 ? result.label : '';
+        if (heard) this.latestSpeechCommand = { word: heard, score: result.confidence / 100 };
+        // Once per sound: the model answers every ~120 ms while it lasts.
+        if (heard && heard !== this.lastTrainedSound) {
+          for (const listener of this.speechCommandListeners) listener(heard);
+        }
+        this.lastTrainedSound = heard;
+      });
+      return;
+    }
     const recognizer = await this.ensureSpeechRecognizer();
     if (recognizer.isListening()) return;
 
@@ -810,6 +834,12 @@ class AIEngine {
   }
 
   stopAudioListening(): void {
+    if (this.trainedAudioActive) {
+      this.trainedAudioActive = false;
+      this.lastTrainedSound = '';
+      audioTrainerEngine.stopPredicting();
+      audioTrainerEngine.stopMic();
+    }
     if (this.speechRecognizer && this.speechRecognizer.isListening()) {
       this.speechRecognizer.stopListening();
     }
